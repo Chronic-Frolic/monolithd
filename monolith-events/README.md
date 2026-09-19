@@ -78,3 +78,18 @@ Manual test:
 The ROG-eye remains white for normal status. Progress completion behavior
 (brief all-green acknowledgement followed by state clear) belongs to the later
 event-state layer, not this manual renderer.
+
+## Semantic RGB palette
+
+rgb-palette.toml is the sole color source for direct-SDK operational renders.
+It requires two RGB-triplet roles: primary for normal/status baseline lighting
+and secondary for utilization, progress, and task fill. The default palette is
+white primary and green secondary. The renderer refuses to apply a scene if
+this file is absent or invalid, rather than falling back to hardcoded colors.
+
+In the working utilization scene, every RAM LED starts primary and the lower
+zero-to-eight LEDs of each physical module turn secondary for CPU, GPU, memory,
+or tracked-task level. The working-progress scene uses the identical primary to
+secondary language across all 32 RAM LEDs. The ROG-eye uses primary for normal
+status. Static OpenRGB profile fallbacks are intentionally independent of this
+palette.

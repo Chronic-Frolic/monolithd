@@ -1,0 +1,6 @@
+# Semantic RGB palette for direct-SDK operational renders.
+# Values are RGB triplets. Change values here, not in renderer source.
+
+[colors]
+primary = [255, 255, 255]
+secondary = [0, 255, 0]

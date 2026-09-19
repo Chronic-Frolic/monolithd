@@ -1,8 +1,9 @@
-version: 2
+version: 3
 verified: 2026-09-19
 openrgb:
   executable: /home/chronic_frolic/AppImages/openrgb.appimage
   version: 1.0rc2
+  palette: rgb-palette.toml
   profile_baseline: profiles/all-off.orp
   profile_baseline_sha256: f99c3dd2458565a4d028ded21a2b94b93648e2ec159da909c762737369d75cc0
 
