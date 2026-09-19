@@ -48,8 +48,8 @@ power decision.
 
 The approved visual language is full brightness only:
 
-- physical RAM left-to-right: CPU, GPU, and memory utilization as white bars;
-- physical RAM fourth: tracked task progress/state as a green bar;
+- physical RAM left-to-right: CPU, GPU, and memory utilization as bottom-to-top white bars;
+- physical RAM fourth: tracked task progress/state as a bottom-to-top green bar;
 - ROG-eye logo: white general-status indicator; warnings and faults will
   replace white with their status color;
 - the currently unmapped motherboard-header LEDs remain off.

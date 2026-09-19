@@ -61,6 +61,7 @@ scenes:
     type: direct-sdk
     requested_behavior: primary operational state; explicit levels only, no live metrics yet
     physical_ram_left_to_right:
+      fill_direction: bottom-to-top
       - metric: CPU utilization
         color: white
       - metric: GPU utilization

@@ -25,8 +25,8 @@ ROG_EYE_LED_COUNT = 3
 
 
 def level_bar(level: int, color: RGBColor, led_count: int = 8) -> list[RGBColor]:
-    """Return a full-brightness bar with level illuminated LEDs."""
-    return [color] * level + [OFF] * (led_count - level)
+    """Return a bottom-to-top full-brightness bar with level illuminated LEDs."""
+    return [OFF] * (led_count - level) + [color] * level
 
 
 def set_rog_eye_normal(board) -> None:
