@@ -72,17 +72,32 @@ def inhibitors() -> list[Inhibitor]:
     return found
 
 
+def manual_block_status() -> dict[str, Any]:
+    output = run("systemctl", "--user", "show", "monolith-suspend-block.service", "-p", "ActiveState", "-p", "ActiveEnterTimestampMonotonic")
+    active = property_value(output, "ActiveState") == "active"
+    started_usec = property_value(output, "ActiveEnterTimestampMonotonic")
+    expires_in_seconds: int | None = None
+    if active and started_usec.isdigit():
+        elapsed = time.clock_gettime(time.CLOCK_MONOTONIC) - int(started_usec) / 1_000_000
+        expires_in_seconds = max(0, round(12 * 60 * 60 - elapsed))
+    return {"active": active, "expires_in_seconds": expires_in_seconds}
+
+
 def report() -> dict[str, Any]:
     session = active_seat0_session()
     seat = seat_idle_status(session)
     locks = inhibitors()
+    manual_block = manual_block_status()
     sleep_blocks = [lock for lock in locks if lock.mode == "block" and "sleep" in lock.what.split(":")]
     reasons: list[str] = []
     if not seat["idle"]:
         reasons.append("physical seat0 session is not idle")
     if sleep_blocks:
         reasons.append("blocking sleep inhibitor is active")
-    reasons.append("manual suspend block adapter is not implemented")
+    if manual_block["active"]:
+        reasons.append("manual remote suspend block is active")
+    else:
+        reasons.append("manual suspend block adapter is available but inactive")
     reasons.append("gaming/streaming safeguard adapter is not implemented")
     reasons.append("observe-only mode never requests suspend")
     return {
@@ -90,6 +105,7 @@ def report() -> dict[str, Any]:
         "observe_only": True,
         "auto_suspend_eligible": False,
         "seat0": seat,
+        "manual_suspend_block": manual_block,
         "inhibitors": [asdict(lock) for lock in locks],
         "sleep_blockers": [asdict(lock) for lock in sleep_blocks],
         "reasons": reasons,

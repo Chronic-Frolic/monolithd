@@ -27,3 +27,14 @@ user-manager sessions make its all-sessions idle requirement unsuitable.
 The manual remote block will be a named, systemd-managed `sleep` inhibitor with
 an explicit reason and expiry. It will be added through the existing narrow
 Monolith Remote allow-list only after this observer has been validated.
+
+## Manual remote suspend block
+
+`monolith-suspend-block.service` is a non-enabled user service. When started, it
+holds a named blocking `sleep` inhibitor through `systemd-inhibit`; `RuntimeMaxSec=12h`
+releases the block automatically. Stopping the unit releases it immediately.
+
+Monolith Remote exposes authenticated `POST /suspend-block` and
+`POST /suspend-unblock` actions. `GET /status` reports whether the block is active
+and its remaining lifetime. This is a manual safety control only; it does not enable
+automatic suspension.
