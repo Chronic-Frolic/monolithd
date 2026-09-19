@@ -63,3 +63,18 @@ Example manual test (levels are intentionally obvious and non-semantic):
 
 Leave an applied manual scene visible for physical inspection. Restore the
 known-safe all-off profile after a rejected test or when no render is wanted.
+
+## RGB all-RAM task-progress render
+
+The separate task-progress scene uses all four physical RAM modules as one
+32-segment progress bar. Each segment is white until completion and turns green
+in order, bottom-to-top within a module and then left-to-right across modules.
+It is reserved for workloads that report genuine progress; it must not turn
+raw utilization into invented progress.
+
+Manual test:
+    ~/.local/share/monolith-events/venv/bin/python ~/server-config/monolith-events/rgb_renderer.py --apply --scene task-progress --task-progress 13
+
+The ROG-eye remains white for normal status. Progress completion behavior
+(brief all-green acknowledgement followed by state clear) belongs to the later
+event-state layer, not this manual renderer.

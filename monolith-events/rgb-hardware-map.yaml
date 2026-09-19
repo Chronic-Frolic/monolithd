@@ -74,3 +74,17 @@ scenes:
       role: general status indicator
       normal_color: white
       inactive_header_leds: off
+
+  working-progress:
+    status: manual-render-test
+    type: direct-sdk
+    requested_behavior: single 32-segment tracked-task progress bar; explicit progress only
+    physical_ram:
+      segment_count: 32
+      initial_color: white
+      completed_color: green
+      fill_direction: bottom-to-top within each module, then left-to-right across modules
+    motherboard:
+      role: general status indicator
+      normal_color: white
+      inactive_header_leds: off
