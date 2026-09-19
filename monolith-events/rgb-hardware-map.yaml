@@ -58,7 +58,7 @@ scenes:
     type: profile
     requested_behavior: subdued aesthetic scene; palette not yet chosen
   working:
-    status: manual-render-test
+    status: verified
     type: direct-sdk
     requested_behavior: primary operational state; explicit levels only, no live metrics yet
     fill_direction: bottom-to-top
