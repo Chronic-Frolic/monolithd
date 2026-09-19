@@ -48,3 +48,10 @@ not be exposed through Tailscale Serve or any other network ingress.
 The isolated client environment is `~/.local/share/monolith-events/venv`; it is not
 tracked in Git. `monolith-events/rgb_sdk_probe.py` is read-only and verifies the SDK
 controller inventory before any renderer is allowed to change LEDs.
+
+## SDK diagnostics
+
+`monolith-events/rgb_sdk_diagnostic.py` is a manually invoked wiring test, not a
+normal renderer state. It requires `--apply` and offers `pattern` (per-LED SDK
+test plus white ROG-eye) and `ram-order` (solid per-module device-order test).
+After every diagnostic, restore `All Off.orp` through the OpenRGB AppImage.
