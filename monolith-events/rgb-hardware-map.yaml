@@ -76,7 +76,7 @@ scenes:
       inactive_header_leds: off
 
   working-progress:
-    status: manual-render-test
+    status: verified
     type: direct-sdk
     requested_behavior: single 32-segment tracked-task progress bar; explicit progress only
     physical_ram:
