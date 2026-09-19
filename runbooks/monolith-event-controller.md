@@ -38,3 +38,13 @@ Monolith Remote exposes authenticated `POST /suspend-block` and
 `POST /suspend-unblock` actions. `GET /status` reports whether the block is active
 and its remaining lifetime. This is a manual safety control only; it does not enable
 automatic suspension.
+
+## OpenRGB SDK baseline
+
+`openrgb-sdk.service` runs the existing OpenRGB AppImage as a rootless, loopback-only
+SDK server on `127.0.0.1:6742`. It is enabled for the user default target and must
+not be exposed through Tailscale Serve or any other network ingress.
+
+The isolated client environment is `~/.local/share/monolith-events/venv`; it is not
+tracked in Git. `monolith-events/rgb_sdk_probe.py` is read-only and verifies the SDK
+controller inventory before any renderer is allowed to change LEDs.
