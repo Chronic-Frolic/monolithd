@@ -69,7 +69,7 @@ def render_task_progress(client, completed: int) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--apply", action="store_true", help="apply the requested render")
-    parser.add_argument("--scene", choices=("working", "task-progress"), default="working")
+    parser.add_argument("--scene", choices=("working", "working-progress"), default="working")
     for name, description in (
         ("cpu", "CPU utilization bar"),
         ("gpu", "GPU utilization bar"),
@@ -96,7 +96,7 @@ def main() -> None:
         print(f"working render applied: cpu={args.cpu}/8 gpu={args.gpu}/8 memory={args.memory}/8 task={args.task}/8")
     else:
         render_task_progress(client, args.task_progress)
-        print(f"task-progress render applied: {args.task_progress}/32 complete")
+        print(f"working-progress render applied: {args.task_progress}/32 complete")
 
 
 if __name__ == "__main__":

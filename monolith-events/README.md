@@ -73,7 +73,7 @@ It is reserved for workloads that report genuine progress; it must not turn
 raw utilization into invented progress.
 
 Manual test:
-    ~/.local/share/monolith-events/venv/bin/python ~/server-config/monolith-events/rgb_renderer.py --apply --scene task-progress --task-progress 13
+    ~/.local/share/monolith-events/venv/bin/python ~/server-config/monolith-events/rgb_renderer.py --apply --scene working-progress --task-progress 13
 
 The ROG-eye remains white for normal status. Progress completion behavior
 (brief all-green acknowledgement followed by state clear) belongs to the later
