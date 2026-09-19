@@ -1,4 +1,4 @@
-version: 1
+version: 2
 verified: 2026-09-19
 openrgb:
   executable: /home/chronic_frolic/AppImages/openrgb.appimage
@@ -57,6 +57,19 @@ scenes:
     type: profile
     requested_behavior: subdued aesthetic scene; palette not yet chosen
   working:
-    status: frozen
+    status: manual-render-test
     type: direct-sdk
-    requested_behavior: primary operational state
+    requested_behavior: primary operational state; explicit levels only, no live metrics yet
+    physical_ram_left_to_right:
+      - metric: CPU utilization
+        color: white
+      - metric: GPU utilization
+        color: white
+      - metric: memory utilization
+        color: white
+      - metric: tracked task progress or state
+        color: green
+    motherboard:
+      role: general status indicator
+      normal_color: white
+      inactive_header_leds: off

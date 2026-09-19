@@ -38,3 +38,28 @@ fault.clear(id)
 
 Future implementations must expose a read-only JSON status report. Runtime
 snapshots are reports, not the power-safety mechanism.
+
+## RGB working-state manual render
+
+`rgb_renderer.py` is the first direct-SDK renderer. It intentionally takes
+explicit `0`-`8` levels and refuses to change LEDs without `--apply`; it does
+not yet read system metrics, infer task progress, schedule itself, or make any
+power decision.
+
+The approved visual language is full brightness only:
+
+- physical RAM left-to-right: CPU, GPU, and memory utilization as white bars;
+- physical RAM fourth: tracked task progress/state as a green bar;
+- ROG-eye logo: white general-status indicator; warnings and faults will
+  replace white with their status color;
+- the currently unmapped motherboard-header LEDs remain off.
+
+Example manual test (levels are intentionally obvious and non-semantic):
+
+```bash
+~/.local/share/monolith-events/venv/bin/python ~/server-config/monolith-events/rgb_renderer.py \
+  --apply --cpu 2 --gpu 4 --memory 6 --task 5
+```
+
+Leave an applied manual scene visible for physical inspection. Restore the
+known-safe all-off profile after a rejected test or when no render is wanted.
