@@ -1,9 +1,14 @@
-version: 3
+version: 4
 verified: 2026-09-19
 openrgb:
   executable: /home/chronic_frolic/AppImages/openrgb.appimage
   version: 1.0rc2
   palette: rgb-palette.toml
+  palette_roles:
+    primary: white
+    secondary: green
+    warning: amber
+    fault: red
   profile_baseline: profiles/all-off.orp
   profile_baseline_sha256: f99c3dd2458565a4d028ded21a2b94b93648e2ec159da909c762737369d75cc0
 
@@ -64,16 +69,16 @@ scenes:
     fill_direction: bottom-to-top
     physical_ram_left_to_right:
       - metric: CPU utilization
-        color: white
+        color: primary
       - metric: GPU utilization
-        color: white
+        color: primary
       - metric: memory utilization
-        color: white
+        color: primary
       - metric: tracked task progress or state
-        color: green
+        color: secondary
     motherboard:
       role: general status indicator
-      normal_color: white
+      normal_color: primary
       inactive_header_leds: off
 
   working-progress:
@@ -82,10 +87,15 @@ scenes:
     requested_behavior: single 32-segment tracked-task progress bar; explicit progress only
     physical_ram:
       segment_count: 32
-      initial_color: white
-      completed_color: green
+      initial_color: primary
+      completed_color: secondary
       fill_direction: bottom-to-top within each module, then left-to-right across modules
     motherboard:
       role: general status indicator
-      normal_color: white
+      normal_color: primary
       inactive_header_leds: off
+
+  warning:
+    status: verified
+    type: direct-sdk
+    behavior: RAM hardware Off with ROG-eye warning palette color

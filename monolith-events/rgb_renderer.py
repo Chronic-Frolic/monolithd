@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""Render explicit Monolith Event Controller RGB state through OpenRGB SDK."""
+"""Reusable direct-SDK renderer and guarded manual renderer CLI."""
 
 from __future__ import annotations
 
 import argparse
+from dataclasses import dataclass
 from pathlib import Path
 import tomllib
 
@@ -11,8 +12,6 @@ from openrgb import OpenRGBClient
 from openrgb.utils import RGBColor
 
 OFF = RGBColor(0, 0, 0)
-
-# Physical RAM left-to-right, as verified 2026-09-19.
 PHYSICAL_RAM_DEVICE_ORDER = (1, 3, 0, 2)
 BOARD_DEVICE = 4
 ROG_EYE_ZONE = 0
@@ -21,8 +20,15 @@ RAM_LEDS_PER_MODULE = 8
 DEFAULT_PALETTE_PATH = Path(__file__).with_name("rgb-palette.toml")
 
 
+@dataclass(frozen=True)
+class Palette:
+    primary: RGBColor
+    secondary: RGBColor
+    warning: RGBColor
+    fault: RGBColor
+
+
 def load_color(name: str, raw_color: object) -> RGBColor:
-    """Validate a semantic RGB triplet from the palette."""
     if not isinstance(raw_color, list) or len(raw_color) != 3:
         raise ValueError(f"colors.{name} must be a three-item RGB list")
     if any(type(value) is not int or not 0 <= value <= 255 for value in raw_color):
@@ -30,97 +36,99 @@ def load_color(name: str, raw_color: object) -> RGBColor:
     return RGBColor(*raw_color)
 
 
-def load_palette(path: Path) -> tuple[RGBColor, RGBColor]:
-    """Load required primary and secondary semantic colors from TOML."""
+def load_palette(path: Path = DEFAULT_PALETTE_PATH) -> Palette:
     try:
         with path.open("rb") as palette_file:
             data = tomllib.load(palette_file)
         colors = data["colors"]
         if not isinstance(colors, dict):
             raise ValueError("colors must be a TOML table")
-        return load_color("primary", colors["primary"]), load_color("secondary", colors["secondary"])
+        return Palette(**{name: load_color(name, colors[name]) for name in ("primary", "secondary", "warning", "fault")})
     except (OSError, KeyError, tomllib.TOMLDecodeError, ValueError) as error:
         raise SystemExit(f"invalid RGB palette at {path}: {error}") from error
 
 
+def active_mode_name(device) -> str:
+    return device.modes[device.active_mode].name
+
+
+def ensure_mode(device, mode: str) -> None:
+    if active_mode_name(device).lower() != mode.lower():
+        device.set_mode(mode)
+
+
 def level_bar(level: int, primary: RGBColor, secondary: RGBColor, led_count: int = RAM_LEDS_PER_MODULE) -> list[RGBColor]:
-    """Return a bottom-to-top bar with primary baseline and secondary fill."""
     return [primary] * (led_count - level) + [secondary] * level
 
 
-def set_rog_eye_normal(board, primary: RGBColor) -> None:
-    """Set the ROG eye to normal primary status; keep unmapped headers off."""
-    board.set_mode("Direct")
+def set_rog_eye(board, color: RGBColor) -> None:
+    ensure_mode(board, "Direct")
     zone = board.zones[ROG_EYE_ZONE]
     if len(zone.leds) < ROG_EYE_LED_COUNT:
-        raise RuntimeError(
-            f"expected at least {ROG_EYE_LED_COUNT} ROG-eye LEDs, found {len(zone.leds)}"
-        )
-    zone.set_colors([primary] * ROG_EYE_LED_COUNT + [OFF] * (len(zone.leds) - ROG_EYE_LED_COUNT))
+        raise RuntimeError(f"expected at least {ROG_EYE_LED_COUNT} ROG-eye LEDs, found {len(zone.leds)}")
+    zone.set_colors([color] * ROG_EYE_LED_COUNT + [OFF] * (len(zone.leds) - ROG_EYE_LED_COUNT), fast=True)
 
 
-def render_working(client, primary: RGBColor, secondary: RGBColor, cpu: int, gpu: int, memory: int, task: int) -> None:
-    """Render per-resource levels as secondary fills over primary RAM baselines."""
-    levels = (cpu, gpu, memory, task)
-    for device_index, level in zip(PHYSICAL_RAM_DEVICE_ORDER, levels, strict=True):
+def render_working(client, palette: Palette, cpu: int, gpu: int, memory: int, task: int) -> None:
+    for device_index, level in zip(PHYSICAL_RAM_DEVICE_ORDER, (cpu, gpu, memory, task), strict=True):
         device = client.devices[device_index]
-        device.set_mode("Direct")
-        device.set_colors(level_bar(level, primary, secondary, len(device.leds)))
-    set_rog_eye_normal(client.devices[BOARD_DEVICE], primary)
+        ensure_mode(device, "Direct")
+        device.set_colors(level_bar(level, palette.primary, palette.secondary, len(device.leds)), fast=True)
+    set_rog_eye(client.devices[BOARD_DEVICE], palette.primary)
 
 
-def render_working_progress(client, primary: RGBColor, secondary: RGBColor, completed: int) -> None:
-    """Render one 32-segment progress bar across physical RAM left-to-right."""
+def render_working_progress(client, palette: Palette, completed: int) -> None:
     for module_position, device_index in enumerate(PHYSICAL_RAM_DEVICE_ORDER):
         module_completed = max(0, min(RAM_LEDS_PER_MODULE, completed - module_position * RAM_LEDS_PER_MODULE))
         device = client.devices[device_index]
         if len(device.leds) != RAM_LEDS_PER_MODULE:
-            raise RuntimeError(
-                f"expected {RAM_LEDS_PER_MODULE} LEDs on RAM device {device_index}, found {len(device.leds)}"
-            )
-        device.set_mode("Direct")
-        device.set_colors(level_bar(module_completed, primary, secondary))
-    set_rog_eye_normal(client.devices[BOARD_DEVICE], primary)
+            raise RuntimeError(f"expected {RAM_LEDS_PER_MODULE} LEDs on RAM device {device_index}, found {len(device.leds)}")
+        ensure_mode(device, "Direct")
+        device.set_colors(level_bar(module_completed, palette.primary, palette.secondary), fast=True)
+    set_rog_eye(client.devices[BOARD_DEVICE], palette.primary)
+
+
+def render_warning(client, palette: Palette) -> None:
+    for device_index in PHYSICAL_RAM_DEVICE_ORDER:
+        ensure_mode(client.devices[device_index], "Off")
+    set_rog_eye(client.devices[BOARD_DEVICE], palette.warning)
+
+
+def render_off(client) -> None:
+    for device in client.devices:
+        ensure_mode(device, "Off")
+
+
+def manual_client() -> OpenRGBClient:
+    client = OpenRGBClient("127.0.0.1", 6742, "Monolith RGB manual renderer")
+    if len(client.devices) != 5:
+        raise RuntimeError(f"expected 5 mapped controllers, found {len(client.devices)}")
+    return client
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--apply", action="store_true", help="apply the requested render")
-    parser.add_argument("--scene", choices=("working", "working-progress"), default="working")
-    parser.add_argument(
-        "--palette",
-        type=Path,
-        default=DEFAULT_PALETTE_PATH,
-        help=f"semantic color TOML file (default: {DEFAULT_PALETTE_PATH})",
-    )
-    for name, description in (
-        ("cpu", "CPU utilization bar"),
-        ("gpu", "GPU utilization bar"),
-        ("memory", "memory utilization bar"),
-        ("task", "tracked-task progress/state bar"),
-    ):
+    parser.add_argument("--scene", choices=("working", "working-progress", "warning", "off"), default="working")
+    parser.add_argument("--palette", type=Path, default=DEFAULT_PALETTE_PATH)
+    for name, description in (("cpu", "CPU utilization bar"), ("gpu", "GPU utilization bar"), ("memory", "memory utilization bar"), ("task", "tracked-task progress/state bar")):
         parser.add_argument(f"--{name}", type=int, default=0, choices=range(9), help=f"0-8 LEDs: {description}")
-    parser.add_argument(
-        "--task-progress",
-        type=int,
-        default=0,
-        choices=range(33),
-        help="0-32 completed segments for the all-RAM working-progress scene",
-    )
+    parser.add_argument("--task-progress", type=int, default=0, choices=range(33), help="0-32 completed segments for working-progress")
     args = parser.parse_args()
     if not args.apply:
         parser.error("refusing to change LEDs without --apply")
 
-    primary, secondary = load_palette(args.palette)
-    client = OpenRGBClient("127.0.0.1", 6742, "Monolith Event Controller")
-    if len(client.devices) != 5:
-        raise SystemExit(f"expected 5 mapped controllers, found {len(client.devices)}")
+    client = manual_client()
+    palette = load_palette(args.palette)
     if args.scene == "working":
-        render_working(client, primary, secondary, args.cpu, args.gpu, args.memory, args.task)
-        print(f"working render applied: cpu={args.cpu}/8 gpu={args.gpu}/8 memory={args.memory}/8 task={args.task}/8")
+        render_working(client, palette, args.cpu, args.gpu, args.memory, args.task)
+    elif args.scene == "working-progress":
+        render_working_progress(client, palette, args.task_progress)
+    elif args.scene == "warning":
+        render_warning(client, palette)
     else:
-        render_working_progress(client, primary, secondary, args.task_progress)
-        print(f"working-progress render applied: {args.task_progress}/32 complete")
+        render_off(client)
+    print(f"{args.scene} render applied")
 
 
 if __name__ == "__main__":

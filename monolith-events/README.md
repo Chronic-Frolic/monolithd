@@ -1,95 +1,82 @@
 # Monolith Event Controller
 
-The Monolith Event Controller is the appliance-state authority for White Monolith.
-It accepts truthful events from workloads and user controls, normalizes them into a
-single state, and exposes that state to separate power-policy and RGB-rendering
-adapters.
+The Monolith Event Controller is White Monolith's local appliance-state
+authority. It normalizes explicit local events and drives RGB through a
+loopback-only OpenRGB SDK. It has no network listener and cannot request
+suspension, reboot, shutdown, or arbitrary commands.
 
-## Frozen boundaries
+## Boundaries
 
-- Systemd/logind inhibitors remain the real safety authority for active workloads.
-- The power adapter alone may request automatic suspend.
-- The RGB adapter only renders state and can never initiate a power action.
-- Profiles are whole-appliance presets (`off`, `gaming`, rollback); direct OpenRGB
-  SDK control supplies operational signaling.
-- No state is inferred as task progress from raw CPU/GPU load.
+- Systemd and logind inhibitors remain the safety authority for active work.
+- Automatic suspension remains disabled.
+- The controller renders state only; a later power-policy adapter may request
+  suspension after observation proves trustworthy.
+- No task progress is inferred from CPU, GPU, or memory utilization.
+- Profiles are whole-appliance fallbacks. Direct SDK rendering is for
+  operational signals.
 
 ## State priority
 
-`fault > warning > working > gaming > idle`
+fault > warning > rgb-quiet > working > gaming > idle
 
-Working currently overrides Gaming so background activity remains visible during
-gaming. This ordering will be revisited only after real use shows that server
-workloads do not affect gaming performance.
+Working deliberately overrides Gaming while server work may affect play. Gaming
+currently falls back to All Off until its aesthetic profile exists.
 
-## Event contract
+## Palette and verified renders
 
-```text
-mode: idle | gaming | working | warning | fault
-task.start(id, label, total?)
-task.progress(id, completed, total)
-task.complete(id)
-task.fail(id, reason)
-suspend_block.set(reason, expires_at)
-suspend_block.clear()
-fault.raise(id, severity, reason)
-fault.clear(id)
-```
+rgb-palette.toml is the sole color source for direct operational renders. Its
+roles are primary, secondary, warning, and fault; current values are white,
+green, amber, and red. Static fallback profiles are intentionally independent.
 
-Future implementations must expose a read-only JSON status report. Runtime
-snapshots are reports, not the power-safety mechanism.
+The verified working utilization view uses primary as every RAM LED baseline,
+then fills the lower LEDs secondary, bottom-to-top. Physical RAM left-to-right
+represents CPU, GPU, memory, and tracked-task level. The verified
+working-progress view is one 32-segment primary-to-secondary task bar across
+all RAM, bottom-to-top within a module and left-to-right across modules. The
+ROG eye is primary for normal status.
 
-## RGB working-state manual render
+Warning turns RAM hardware Off and uses the ROG eye in the warning color. Fault
+uses the independent Controller Fault profile: magenta/black RAM checkerboard
+and solid-magenta ROG eye. RGB Quiet, idle, and the current gaming fallback
+load All Off.
 
-`rgb_renderer.py` is the first direct-SDK renderer. It intentionally takes
-explicit `0`-`8` levels and refuses to change LEDs without `--apply`; it does
-not yet read system metrics, infer task progress, schedule itself, or make any
-power decision.
+rgb_renderer.py is both a guarded manual CLI and the controller's reusable
+renderer. The controller keeps one persistent SDK client, skips redundant
+Direct-mode changes, and sends fast whole-controller writes. Physical testing
+confirmed crisp transitions with no transient colors.
 
-The approved visual language is full brightness only:
+## Local controller
 
-- physical RAM left-to-right: CPU, GPU, and memory utilization as bottom-to-top white bars;
-- physical RAM fourth: tracked task progress/state as a bottom-to-top green bar;
-- ROG-eye logo: white general-status indicator; warnings and faults will
-  replace white with their status color;
-- the currently unmapped motherboard-header LEDs remain off.
+monolith_event_controller.py runs as monolith-event-controller.service. Its
+runtime state and Unix socket are private under XDG_RUNTIME_DIR and disappear
+on reboot. monolith-eventctl is its local manual client:
 
-Example manual test (levels are intentionally obvious and non-semantic):
+    monolith-eventctl status
+    monolith-eventctl health
+    monolith-eventctl utilization --cpu 2 --gpu 4 --memory 6 --task 5
+    monolith-eventctl progress 13
+    monolith-eventctl warning set "manual warning"
+    monolith-eventctl fault set "manual fault"
+    monolith-eventctl quiet on
 
-```bash
-~/.local/share/monolith-events/venv/bin/python ~/server-config/monolith-events/rgb_renderer.py \
-  --apply --cpu 2 --gpu 4 --memory 6 --task 5
-```
+Health is read-only: it checks that both the controller socket and its
+persistent OpenRGB SDK connection respond without rewriting LEDs.
 
-Leave an applied manual scene visible for physical inspection. Restore the
-known-safe all-off profile after a rejected test or when no render is wanted.
+## Independent Event Watchdog
 
-## RGB all-RAM task-progress render
+monolith_event_watchdog.py runs separately as monolith-event-watchdog.service.
+It never starts or restarts the controller. While awake it performs the
+read-only health check every 10 seconds. A missing, hung, or errored controller
+applies Controller Fault. Once a healthy controller returns, the watchdog asks
+it to restore its saved state.
 
-The separate task-progress scene uses all four physical RAM modules as one
-32-segment progress bar. Each segment is white until completion and turns green
-in order, bottom-to-top within a module and then left-to-right across modules.
-It is reserved for workloads that report genuine progress; it must not turn
-raw utilization into invented progress.
+The watchdog also owns RGB suspend lifecycle. It holds a logind delay
+inhibitor, sets all controllers to hardware Off before sleep, releases the
+delay, then gives the controller 15 seconds to render after wake. Failure to
+recover applies Controller Fault. Sleep handoff, normal wake recovery, awake
+controller-loss faulting, fault persistence, and automatic recovery are
+physically verified.
 
-Manual test:
-    ~/.local/share/monolith-events/venv/bin/python ~/server-config/monolith-events/rgb_renderer.py --apply --scene working-progress --task-progress 13
-
-The ROG-eye remains white for normal status. Progress completion behavior
-(brief all-green acknowledgement followed by state clear) belongs to the later
-event-state layer, not this manual renderer.
-
-## Semantic RGB palette
-
-rgb-palette.toml is the sole color source for direct-SDK operational renders.
-It requires two RGB-triplet roles: primary for normal/status baseline lighting
-and secondary for utilization, progress, and task fill. The default palette is
-white primary and green secondary. The renderer refuses to apply a scene if
-this file is absent or invalid, rather than falling back to hardcoded colors.
-
-In the working utilization scene, every RAM LED starts primary and the lower
-zero-to-eight LEDs of each physical module turn secondary for CPU, GPU, memory,
-or tracked-task level. The working-progress scene uses the identical primary to
-secondary language across all 32 RAM LEDs. The ROG-eye uses primary for normal
-status. Static OpenRGB profile fallbacks are intentionally independent of this
-palette.
+systemd/ contains the canonical source for the controller, watchdog, and
+one-shot failsafe units. The failsafe applies Controller Fault if either daemon
+itself exits unexpectedly.

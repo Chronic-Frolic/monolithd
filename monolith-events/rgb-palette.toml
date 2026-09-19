@@ -4,3 +4,5 @@
 [colors]
 primary = [255, 255, 255]
 secondary = [0, 255, 0]
+warning = [255, 176, 0]
+fault = [255, 0, 0]
