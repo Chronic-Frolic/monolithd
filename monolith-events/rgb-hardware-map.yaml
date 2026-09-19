@@ -41,9 +41,11 @@ scenes:
     type: profile
     file: profiles/all-off.orp
   controller-fault:
-    status: draft
+    status: verified
     type: profile
-    requested_behavior: static red on all connected controllers
+    file: profiles/controller-fault.orp
+    sha256: 11da36c480035e904f8ec34de068819a9ccce988c1ace822abec793158a6acf2
+    behavior: static magenta/black RAM checkerboard with solid-magenta motherboard controller
   gaming:
     status: draft
     type: profile
