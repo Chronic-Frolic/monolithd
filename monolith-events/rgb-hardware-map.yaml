@@ -46,6 +46,12 @@ scenes:
     file: profiles/controller-fault.orp
     sha256: 11da36c480035e904f8ec34de068819a9ccce988c1ace822abec793158a6acf2
     behavior: static magenta/black RAM checkerboard with solid-magenta motherboard controller
+  fault-fallback:
+    status: verified
+    type: profile
+    file: profiles/fault-fallback.orp
+    sha256: d10b5a80efb9b02281ae01b7b014e29854748c991419b14594294e2ea5b814bc
+    behavior: static pure-red #FF0000 at full brightness across all connected controllers
   gaming:
     status: draft
     type: profile
