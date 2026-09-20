@@ -1,0 +1,13 @@
+[Unit]
+Description=Monolith OpenRGB SDK 6 bridge
+After=openrgb-sdk.service
+Wants=openrgb-sdk.service
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 /home/chronic_frolic/server-config/monolith-events/monolith_openrgb_sdk_bridge.py serve
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=default.target
