@@ -10,12 +10,13 @@ import os
 from pathlib import Path
 import subprocess
 import tempfile
+import tomllib
 import threading
 import time
 from typing import Any
 
 from openrgb import OpenRGBClient
-from rgb_renderer import load_palette, overlay_warning, render_fault_phase, render_idle, render_working, render_working_progress
+from rgb_renderer import DEFAULT_PALETTE_PATH, load_palette, overlay_warning, render_fault_phase, render_idle, render_working, render_working_progress
 
 ROOT = Path(__file__).resolve().parent
 RUNTIME = Path(os.environ.get("XDG_RUNTIME_DIR", f"/run/user/{os.getuid()}")) / "monolith-events"
@@ -90,6 +91,16 @@ def run(command: list[str], timeout: int = 15) -> str:
     return result.stdout.strip()
 
 
+def profile_path(key: str) -> Path:
+    with DEFAULT_PALETTE_PATH.open("rb") as config_file:
+        data = tomllib.load(config_file)
+    return ROOT / data["fallbacks"][key]
+
+def fault_presentation() -> dict[str, Any]:
+    with DEFAULT_PALETTE_PATH.open("rb") as config_file:
+        return tomllib.load(config_file)["fault_presentation"]
+
+
 def level(value: Any, name: str, maximum: int) -> int:
     if type(value) is not int or not 0 <= value <= maximum:
         raise ValueError(f"{name} must be an integer from 0 through {maximum}")
@@ -153,9 +164,12 @@ class Controller:
             self.client = client
         return self.client
 
-    def apply_profile(self, name: str) -> None:
-        run([str(OPENRGB), "--profile", str(PROFILES / name)], timeout=20)
+    def apply_profile_path(self, path: Path) -> None:
+        run([str(OPENRGB), "--profile", str(path)], timeout=20)
         self.client = None
+
+    def apply_profile(self, name: str) -> None:
+        self.apply_profile_path(profile_path(name))
 
     def direct(self, renderer) -> None:
         palette = load_palette()
@@ -186,16 +200,20 @@ class Controller:
             except Exception:
                 try:
                     with self.lock:
-                        self.apply_profile("fault-fallback.orp")
+                        self.apply_profile("fault")
                         self.state["fault_fallback_active"] = True
                         write_state(self.state)
                 except Exception:
                     pass
                 return
             phase = 1 - phase
-            self.fault_stop.wait(0.5)
+            self.fault_stop.wait(int(fault_presentation()["interval_ms"]) / 1000)
 
     def start_fault_animation(self) -> None:
+        presentation = fault_presentation()
+        if presentation["kind"] == "profile":
+            self.apply_profile_path(ROOT / presentation["profile"])
+            return
         if self.fault_thread and self.fault_thread.is_alive():
             return
         self.fault_stop.clear()
@@ -204,7 +222,7 @@ class Controller:
 
     def render_base(self) -> None:
         if self.state["rgb_quiet"]:
-            self.apply_profile("all-off.orp")
+            self.apply_profile("quiet")
         elif self.state["base_mode"] == "working":
             if self.state["working_view"] == "progress":
                 self.direct(lambda client, palette: render_working_progress(client, palette, self.state["task_progress"]))

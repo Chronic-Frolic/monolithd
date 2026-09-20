@@ -2,7 +2,19 @@
 # Values are RGB triplets. Change values here, not in renderer source.
 
 [colors]
+off = [0, 0, 0]
 primary = [255, 255, 255]
 secondary = [0, 255, 0]
 warning = [255, 176, 0]
 fault = [255, 0, 0]
+controller_failure = [255, 0, 255]
+
+[fault_presentation]
+kind = "ambulance"
+interval_ms = 500
+profile = "profiles/scenes/fault-calm.orp"
+
+[fallbacks]
+quiet = "profiles/all-off.orp"
+fault = "profiles/fault-fallback.orp"
+controller_failure = "profiles/controller-fault.orp"

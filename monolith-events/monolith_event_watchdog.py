@@ -8,7 +8,7 @@ import subprocess
 import threading
 import time
 
-from monolith_event_controller import OPENRGB, PROFILES, RENDERER, VENV_PYTHON, send
+from monolith_event_controller import OPENRGB, RENDERER, VENV_PYTHON, profile_path, send
 
 HEALTH_INTERVAL_SECONDS = 10
 RESUME_GRACE_SECONDS = 15
@@ -44,7 +44,7 @@ class DelayInhibitor:
 
 
 def apply_fault() -> None:
-    result = subprocess.run([str(OPENRGB), "--profile", str(PROFILES / "controller-fault.orp")], text=True, capture_output=True, timeout=20)
+    result = subprocess.run([str(OPENRGB), "--profile", str(profile_path("controller_failure"))], text=True, capture_output=True, timeout=20)
     if result.returncode != 0:
         raise RuntimeError((result.stderr or result.stdout).strip() or "controller fault profile failed")
 

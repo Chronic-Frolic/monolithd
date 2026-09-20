@@ -11,7 +11,6 @@ import tomllib
 from openrgb import OpenRGBClient
 from openrgb.utils import RGBColor
 
-OFF = RGBColor(0, 0, 0)
 PHYSICAL_RAM_DEVICE_ORDER = (1, 3, 0, 2)
 BOARD_DEVICE = 4
 ROG_EYE_ZONE = 0
@@ -22,10 +21,12 @@ DEFAULT_PALETTE_PATH = Path(__file__).with_name("rgb-palette.toml")
 
 @dataclass(frozen=True)
 class Palette:
+    off: RGBColor
     primary: RGBColor
     secondary: RGBColor
     warning: RGBColor
     fault: RGBColor
+    controller_failure: RGBColor
 
 
 def load_color(name: str, raw_color: object) -> RGBColor:
@@ -43,10 +44,12 @@ def load_palette(path: Path = DEFAULT_PALETTE_PATH) -> Palette:
         colors = data["colors"]
         if not isinstance(colors, dict):
             raise ValueError("colors must be a TOML table")
-        return Palette(**{name: load_color(name, colors[name]) for name in ("primary", "secondary", "warning", "fault")})
+        return Palette(**{name: load_color(name, colors[name]) for name in ("off", "primary", "secondary", "warning", "fault", "controller_failure")})
     except (OSError, KeyError, tomllib.TOMLDecodeError, ValueError) as error:
         raise SystemExit(f"invalid RGB palette at {path}: {error}") from error
 
+
+OFF = load_palette().off
 
 def active_mode_name(device) -> str:
     return device.modes[device.active_mode].name
