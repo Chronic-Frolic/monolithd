@@ -10,6 +10,9 @@ const SET_CLIENT_NAME: u32 = 50;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ControllerId(pub u32);
 
+#[derive(Debug, Clone)]
+pub struct ControllerIdentity { pub id: ControllerId, pub name: String, pub vendor: String, pub serial: String, pub location: String }
+
 fn send(stream: &mut TcpStream, device: u32, packet: u32, data: &[u8]) -> std::io::Result<()> {
     stream.write_all(MAGIC)?;
     stream.write_all(&device.to_le_bytes())?;
@@ -45,4 +48,41 @@ pub fn discover() -> Result<Vec<ControllerId>, String> {
     let count = u32::from_le_bytes(data[0..4].try_into().unwrap()) as usize;
     if data.len() != 4 + count * 4 { return Err("invalid SDK 6 controller IDs".into()); }
     Ok((0..count).map(|i| ControllerId(u32::from_le_bytes(data[4+i*4..8+i*4].try_into().unwrap()))).collect())
+}
+
+fn read_string(data: &[u8], offset: &mut usize) -> Result<String, String> {
+    if *offset + 2 > data.len() { return Err("short SDK string".into()); }
+    let size = u16::from_le_bytes(data[*offset..*offset + 2].try_into().unwrap()) as usize;
+    *offset += 2;
+    if size == 0 || *offset + size > data.len() { return Err("invalid SDK string".into()); }
+    let value = String::from_utf8_lossy(&data[*offset..*offset + size - 1]).into_owned();
+    *offset += size;
+    Ok(value)
+}
+
+pub fn identities() -> Result<Vec<ControllerIdentity>, String> {
+    let mut stream = TcpStream::connect("127.0.0.1:6742").map_err(|e| e.to_string())?;
+    stream.set_read_timeout(Some(std::time::Duration::from_secs(5))).map_err(|e| e.to_string())?;
+    send(&mut stream, 0, REQUEST_PROTOCOL_VERSION, &PROTOCOL_VERSION.to_le_bytes()).map_err(|e| e.to_string())?;
+    let (_, version) = receive(&mut stream, REQUEST_PROTOCOL_VERSION)?;
+    if version.len() != 4 || u32::from_le_bytes(version.try_into().unwrap()) < PROTOCOL_VERSION { return Err("SDK 6 unavailable".into()); }
+    send(&mut stream, 0, SET_CLIENT_NAME, b"monolithd\0").map_err(|e| e.to_string())?;
+    send(&mut stream, 0, REQUEST_CONTROLLER_COUNT, &[]).map_err(|e| e.to_string())?;
+    let (_, list) = receive(&mut stream, REQUEST_CONTROLLER_COUNT)?;
+    let count = u32::from_le_bytes(list[0..4].try_into().unwrap()) as usize;
+    let mut result = Vec::new();
+    for index in 0..count {
+        let id = u32::from_le_bytes(list[4 + index * 4..8 + index * 4].try_into().unwrap());
+        send(&mut stream, id, 1, &PROTOCOL_VERSION.to_le_bytes()).map_err(|e| e.to_string())?;
+        let (_, data) = receive(&mut stream, 1)?;
+        let mut offset = 8;
+        let name = read_string(&data, &mut offset)?;
+        let vendor = read_string(&data, &mut offset)?;
+        let _description = read_string(&data, &mut offset)?;
+        let _version = read_string(&data, &mut offset)?;
+        let serial = read_string(&data, &mut offset)?;
+        let location = read_string(&data, &mut offset)?;
+        result.push(ControllerIdentity { id: ControllerId(id), name, vendor, serial, location });
+    }
+    Ok(result)
 }
