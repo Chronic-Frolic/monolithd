@@ -1,8 +1,14 @@
-# Explicit Steam-shortcut to OpenRGB-profile bindings.
-# Profiles are relative to monolith-events/ and must be committed.
-#
-# [scenes.music]
-# profile = "profiles/scenes/music.orp"
-#
-# [steam_launch]
-# "3546570475" = "music"
+# Launch-scene policy. Steam launch observation supplies shortcut App IDs.
+# Higher-priority controller states still override any launch scene.
+
+[default]
+scene = "pretty_scene_1"
+
+[scenes.pretty_scene_1]
+profile = "profiles/scenes/pretty-scene-1.json"
+requires_plugins = ["OpenRGB Effects Plugin", "OpenRGB Visual Map Plugin"]
+
+[steam_launch]
+# Per-shortcut overrides:
+# "292030" = "another_scene"
+# "3546570475" = "off"
