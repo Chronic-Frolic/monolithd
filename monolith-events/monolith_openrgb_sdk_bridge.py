@@ -39,6 +39,26 @@ def receive_exact(connection: socket.socket, size: int) -> bytes:
     return data
 
 
+def read_string(payload: bytes, offset: int) -> tuple[str, int]:
+    size = struct.unpack_from("<H", payload, offset)[0]
+    offset += 2
+    return payload[offset:offset + size - 1].decode(errors="replace"), offset + size
+
+def describe_controller(transport, controller_id: int) -> dict[str, Any]:
+    transport.send(controller_id, 1, struct.pack("<I", PROTOCOL_VERSION))
+    _, payload = transport.receive(1)
+    offset = 4
+    controller_type = struct.unpack_from("<i", payload, offset)[0]
+    offset += 4
+    name, offset = read_string(payload, offset)
+    vendor, offset = read_string(payload, offset)
+    description, offset = read_string(payload, offset)
+    version, offset = read_string(payload, offset)
+    serial, offset = read_string(payload, offset)
+    location, offset = read_string(payload, offset)
+    return {"id": controller_id, "type": controller_type, "name": name, "vendor": vendor, "description": description, "version": version, "serial": serial, "location": location}
+
+
 class SDK6Transport:
     def __init__(self) -> None:
         self.connection = socket.create_connection((OPENRGB_HOST, OPENRGB_PORT), timeout=5)
@@ -80,7 +100,7 @@ class SDK6Transport:
         if len(payload) != expected:
             raise RuntimeError(f"SDK-6 controller ID response size {len(payload)} does not match {count} controllers")
         ids = list(struct.unpack_from(f"<{count}I", payload, 4))
-        return {"protocol": self.server_protocol, "controller_count": count, "controller_ids": ids}
+        return {"protocol": self.server_protocol, "controller_count": count, "controller_ids": ids, "controllers": [describe_controller(self, controller_id) for controller_id in ids]}
 
 
 def request(payload: dict[str, Any]) -> dict[str, Any]:
