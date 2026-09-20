@@ -80,3 +80,16 @@ physically verified.
 systemd/ contains the canonical source for the controller, watchdog, and
 one-shot failsafe units. The failsafe applies Controller Fault if either daemon
 itself exits unexpectedly.
+
+## Observe-only Gamescope Game Adapter
+
+monolith_gamescope_game_observer.py is a separate read-only adapter. It observes
+Steam reaper processes carrying SteamLaunch AppId, not the Gamescope session
+itself. Its snapshot is included in controller status and records app ID, reaper
+PID, active count, and Gamescope session context.
+
+Physical validation used The Witcher 3 (Steam App ID 292030, Proton): launch was
+observed while Gamescope was active, then exit reduced active_game_count to zero
+while Gamescope remained active. This adapter does not render RGB or change
+controller state. Coverage is Steam-launched native, Proton, and Steam-added
+shortcut games; direct non-Steam launchers remain a separate future adapter.

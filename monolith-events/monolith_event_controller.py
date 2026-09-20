@@ -20,6 +20,7 @@ ROOT = Path(__file__).resolve().parent
 RUNTIME = Path(os.environ.get("XDG_RUNTIME_DIR", f"/run/user/{os.getuid()}")) / "monolith-events"
 SOCKET = RUNTIME / "controller.sock"
 STATE_FILE = RUNTIME / "state.json"
+GAMESCOPE_OBSERVER_FILE = RUNTIME / "gamescope-game-observer.json"
 VENV_PYTHON = Path.home() / ".local/share/monolith-events/venv/bin/python"
 RENDERER = ROOT / "rgb_renderer.py"
 OPENRGB = Path.home() / "AppImages/openrgb.appimage"
@@ -60,6 +61,13 @@ def write_state(state: dict[str, Any]) -> None:
         temp_path = Path(output.name)
     temp_path.chmod(0o600)
     temp_path.replace(STATE_FILE)
+
+
+def adapter_status() -> dict[str, Any]:
+    try:
+        return json.loads(GAMESCOPE_OBSERVER_FILE.read_text())
+    except (OSError, json.JSONDecodeError) as error:
+        return {"available": False, "error": str(error)}
 
 
 def resolved_state(state: dict[str, Any]) -> str:
@@ -189,11 +197,11 @@ class Controller:
             if should_render:
                 self.render()
             write_state(self.state)
-            return {"ok": True, "active_state": resolved_state(self.state), "state": self.state}
+            return {"ok": True, "active_state": resolved_state(self.state), "state": self.state, "adapters": {"gamescope_game_observer": adapter_status()}}
         except Exception as error:
             self.state["last_error"] = str(error)
             write_state(self.state)
-            return {"ok": False, "active_state": resolved_state(self.state), "error": str(error), "state": self.state}
+            return {"ok": False, "active_state": resolved_state(self.state), "error": str(error), "state": self.state, "adapters": {"gamescope_game_observer": adapter_status()}}
 
 
 async def serve() -> None:
