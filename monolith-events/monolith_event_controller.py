@@ -10,11 +10,12 @@ import os
 from pathlib import Path
 import subprocess
 import tempfile
+import threading
 import time
 from typing import Any
 
 from openrgb import OpenRGBClient
-from rgb_renderer import load_palette, render_off, render_warning, render_working, render_working_progress
+from rgb_renderer import load_palette, overlay_warning, render_fault_phase, render_idle, render_working, render_working_progress
 
 ROOT = Path(__file__).resolve().parent
 RUNTIME = Path(os.environ.get("XDG_RUNTIME_DIR", f"/run/user/{os.getuid()}")) / "monolith-events"
@@ -35,6 +36,7 @@ DEFAULT_STATE: dict[str, Any] = {
     "warning": None,
     "fault": None,
     "rgb_quiet": False,
+    "fault_fallback_active": False,
     "last_error": None,
     "rendered_state": None,
 }
@@ -58,9 +60,9 @@ def write_state(state: dict[str, Any]) -> None:
     with tempfile.NamedTemporaryFile("w", dir=RUNTIME, prefix=".state-", delete=False) as output:
         json.dump(state, output, sort_keys=True)
         output.write("\n")
-        temp_path = Path(output.name)
-    temp_path.chmod(0o600)
-    temp_path.replace(STATE_FILE)
+        temporary = Path(output.name)
+    temporary.chmod(0o600)
+    temporary.replace(STATE_FILE)
 
 
 def adapter_status() -> dict[str, Any]:
@@ -139,6 +141,9 @@ class Controller:
     def __init__(self) -> None:
         self.state = runtime_state()
         self.client: OpenRGBClient | None = None
+        self.lock = threading.RLock()
+        self.fault_stop = threading.Event()
+        self.fault_thread: threading.Thread | None = None
 
     def sdk_client(self) -> OpenRGBClient:
         if self.client is None:
@@ -152,56 +157,101 @@ class Controller:
         run([str(OPENRGB), "--profile", str(PROFILES / name)], timeout=20)
         self.client = None
 
-    def render_direct(self, active: str) -> None:
+    def direct(self, renderer) -> None:
         palette = load_palette()
         try:
-            self._render_direct(active, palette)
+            renderer(self.sdk_client(), palette)
         except Exception:
             self.client = None
-            self._render_direct(active, palette)
+            renderer(self.sdk_client(), palette)
 
-    def _render_direct(self, active: str, palette) -> None:
-        client = self.sdk_client()
-        if active == "warning":
-            render_warning(client, palette)
-        elif active == "working":
+    def stop_fault_animation(self) -> None:
+        self.fault_stop.set()
+        thread = self.fault_thread
+        if thread and thread.is_alive() and thread is not threading.current_thread():
+            thread.join(timeout=1)
+        self.fault_thread = None
+        self.fault_stop.clear()
+
+    def fault_loop(self) -> None:
+        phase = 0
+        while not self.fault_stop.is_set():
+            try:
+                with self.lock:
+                    if not self.state["fault"]:
+                        return
+                    self.direct(lambda client, palette: render_fault_phase(client, palette, phase))
+                    self.state["fault_fallback_active"] = False
+                    write_state(self.state)
+            except Exception:
+                try:
+                    with self.lock:
+                        self.apply_profile("fault-fallback.orp")
+                        self.state["fault_fallback_active"] = True
+                        write_state(self.state)
+                except Exception:
+                    pass
+                return
+            phase = 1 - phase
+            self.fault_stop.wait(0.5)
+
+    def start_fault_animation(self) -> None:
+        if self.fault_thread and self.fault_thread.is_alive():
+            return
+        self.fault_stop.clear()
+        self.fault_thread = threading.Thread(target=self.fault_loop, name="monolith-fault-animation", daemon=True)
+        self.fault_thread.start()
+
+    def render_base(self) -> None:
+        if self.state["rgb_quiet"]:
+            self.apply_profile("all-off.orp")
+        elif self.state["base_mode"] == "working":
             if self.state["working_view"] == "progress":
-                render_working_progress(client, palette, self.state["task_progress"])
+                self.direct(lambda client, palette: render_working_progress(client, palette, self.state["task_progress"]))
             else:
                 values = self.state["utilization"]
-                render_working(client, palette, values["cpu"], values["gpu"], values["memory"], values["task"])
+                self.direct(lambda client, palette: render_working(client, palette, values["cpu"], values["gpu"], values["memory"], values["task"]))
         else:
-            raise ValueError(f"unsupported direct state: {active}")
+            self.direct(render_idle)
 
     def render(self) -> None:
-        active = resolved_state(self.state)
-        if active == "fault":
-            self.apply_profile("controller-fault.orp")
-        elif active in ("idle", "gaming", "rgb-quiet"):
-            self.apply_profile("all-off.orp")
-        else:
-            self.render_direct(active)
-        self.state["rendered_state"] = active
+        if self.state["fault"]:
+            self.start_fault_animation()
+            self.state["rendered_state"] = "fault"
+            self.state["last_error"] = None
+            return
+        self.stop_fault_animation()
+        self.state["fault_fallback_active"] = False
+        self.render_base()
+        if self.state["warning"]:
+            self.direct(overlay_warning)
+        self.state["rendered_state"] = resolved_state(self.state)
         self.state["last_error"] = None
 
     def health(self) -> None:
-        client = self.sdk_client()
-        client.update()
+        self.sdk_client().update()
         self.state["last_healthy_at"] = int(time.time())
 
+    def response(self, ok: bool, error: str | None = None) -> dict[str, Any]:
+        result: dict[str, Any] = {"ok": ok, "active_state": resolved_state(self.state), "state": self.state, "adapters": {"gamescope_game_observer": adapter_status()}}
+        if error:
+            result["error"] = error
+        return result
+
     def handle(self, request: dict[str, Any]) -> dict[str, Any]:
-        try:
-            should_render = update(self.state, request)
-            if request.get("action") == "health":
-                self.health()
-            if should_render:
-                self.render()
-            write_state(self.state)
-            return {"ok": True, "active_state": resolved_state(self.state), "state": self.state, "adapters": {"gamescope_game_observer": adapter_status()}}
-        except Exception as error:
-            self.state["last_error"] = str(error)
-            write_state(self.state)
-            return {"ok": False, "active_state": resolved_state(self.state), "error": str(error), "state": self.state, "adapters": {"gamescope_game_observer": adapter_status()}}
+        with self.lock:
+            try:
+                should_render = update(self.state, request)
+                if request.get("action") == "health":
+                    self.health()
+                if should_render:
+                    self.render()
+                write_state(self.state)
+                return self.response(True)
+            except Exception as error:
+                self.state["last_error"] = str(error)
+                write_state(self.state)
+                return self.response(False, str(error))
 
 
 async def serve() -> None:
@@ -215,8 +265,7 @@ async def serve() -> None:
 
     async def client(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
         try:
-            line = await reader.readline()
-            response = controller.handle(json.loads(line.decode()))
+            response = controller.handle(json.loads((await reader.readline()).decode()))
         except Exception as error:
             response = {"ok": False, "error": str(error)}
         writer.write((json.dumps(response, sort_keys=True) + "\n").encode())
@@ -250,7 +299,7 @@ def send(request: dict[str, Any], timeout: int = 20) -> dict[str, Any]:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("operation", choices=("serve", "send"))
-    parser.add_argument("--request", help="JSON request for send")
+    parser.add_argument("--request")
     args = parser.parse_args()
     if args.operation == "serve":
         asyncio.run(serve())

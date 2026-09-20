@@ -1,0 +1,8 @@
+# Explicit Steam-shortcut to OpenRGB-profile bindings.
+# Profiles are relative to monolith-events/ and must be committed.
+#
+# [scenes.music]
+# profile = "profiles/scenes/music.orp"
+#
+# [steam_launch]
+# "3546570475" = "music"

@@ -1,4 +1,4 @@
-version: 4
+version: 5
 verified: 2026-09-19
 openrgb:
   executable: /home/chronic_frolic/AppImages/openrgb.appimage
@@ -99,3 +99,17 @@ scenes:
     status: verified
     type: direct-sdk
     behavior: RAM hardware Off with ROG-eye warning palette color
+
+  idle:
+    status: verified
+    type: direct-sdk
+    behavior: full primary color across RAM and ROG eye
+  warning-overlay:
+    status: verified
+    type: direct-sdk
+    behavior: preserve base scene; ROG eye uses warning palette color
+  fault-animation:
+    status: verified
+    type: direct-sdk
+    behavior: 500 ms alternating fault and primary colors across RAM and ROG eye
+    fallback: fault-fallback

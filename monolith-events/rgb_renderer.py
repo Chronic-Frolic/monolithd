@@ -57,10 +57,6 @@ def ensure_mode(device, mode: str) -> None:
         device.set_mode(mode)
 
 
-def level_bar(level: int, primary: RGBColor, secondary: RGBColor, led_count: int = RAM_LEDS_PER_MODULE) -> list[RGBColor]:
-    return [primary] * (led_count - level) + [secondary] * level
-
-
 def set_rog_eye(board, color: RGBColor) -> None:
     ensure_mode(board, "Direct")
     zone = board.zones[ROG_EYE_ZONE]
@@ -69,12 +65,28 @@ def set_rog_eye(board, color: RGBColor) -> None:
     zone.set_colors([color] * ROG_EYE_LED_COUNT + [OFF] * (len(zone.leds) - ROG_EYE_LED_COUNT), fast=True)
 
 
+def set_ram_color(client, color: RGBColor) -> None:
+    for device_index in PHYSICAL_RAM_DEVICE_ORDER:
+        device = client.devices[device_index]
+        ensure_mode(device, "Direct")
+        device.set_colors([color] * len(device.leds), fast=True)
+
+
+def level_bar(level: int, primary: RGBColor, secondary: RGBColor, led_count: int = RAM_LEDS_PER_MODULE) -> list[RGBColor]:
+    return [primary] * (led_count - level) + [secondary] * level
+
+
+def render_idle(client, palette: Palette) -> None:
+    set_ram_color(client, palette.primary)
+    set_rog_eye(client.devices[BOARD_DEVICE], palette.primary)
+
+
 def render_working(client, palette: Palette, cpu: int, gpu: int, memory: int, task: int) -> None:
     for device_index, level in zip(PHYSICAL_RAM_DEVICE_ORDER, (cpu, gpu, memory, task), strict=True):
         device = client.devices[device_index]
         ensure_mode(device, "Direct")
         device.set_colors(level_bar(level, palette.primary, palette.secondary, len(device.leds)), fast=True)
-    set_rog_eye(client.devices[BOARD_DEVICE], palette.primary)
+    set_rog_eye(client.devices[BOARD_DEVICE], palette.secondary)
 
 
 def render_working_progress(client, palette: Palette, completed: int) -> None:
@@ -85,13 +97,20 @@ def render_working_progress(client, palette: Palette, completed: int) -> None:
             raise RuntimeError(f"expected {RAM_LEDS_PER_MODULE} LEDs on RAM device {device_index}, found {len(device.leds)}")
         ensure_mode(device, "Direct")
         device.set_colors(level_bar(module_completed, palette.primary, palette.secondary), fast=True)
-    set_rog_eye(client.devices[BOARD_DEVICE], palette.primary)
+    set_rog_eye(client.devices[BOARD_DEVICE], palette.secondary)
 
 
-def render_warning(client, palette: Palette) -> None:
-    for device_index in PHYSICAL_RAM_DEVICE_ORDER:
-        ensure_mode(client.devices[device_index], "Off")
+def overlay_warning(client, palette: Palette) -> None:
     set_rog_eye(client.devices[BOARD_DEVICE], palette.warning)
+
+
+def render_fault_phase(client, palette: Palette, phase: int) -> None:
+    for position, device_index in enumerate(PHYSICAL_RAM_DEVICE_ORDER):
+        color = palette.fault if (position + phase) % 2 == 0 else palette.primary
+        device = client.devices[device_index]
+        ensure_mode(device, "Direct")
+        device.set_colors([color] * len(device.leds), fast=True)
+    set_rog_eye(client.devices[BOARD_DEVICE], palette.primary if phase % 2 == 0 else palette.fault)
 
 
 def render_off(client) -> None:
@@ -109,23 +128,28 @@ def manual_client() -> OpenRGBClient:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--apply", action="store_true", help="apply the requested render")
-    parser.add_argument("--scene", choices=("working", "working-progress", "warning", "off"), default="working")
+    parser.add_argument("--scene", choices=("idle", "working", "working-progress", "warning", "fault-phase", "off"), default="working")
     parser.add_argument("--palette", type=Path, default=DEFAULT_PALETTE_PATH)
-    for name, description in (("cpu", "CPU utilization bar"), ("gpu", "GPU utilization bar"), ("memory", "memory utilization bar"), ("task", "tracked-task progress/state bar")):
-        parser.add_argument(f"--{name}", type=int, default=0, choices=range(9), help=f"0-8 LEDs: {description}")
-    parser.add_argument("--task-progress", type=int, default=0, choices=range(33), help="0-32 completed segments for working-progress")
+    parser.add_argument("--phase", type=int, default=0, choices=(0, 1))
+    for name in ("cpu", "gpu", "memory", "task"):
+        parser.add_argument(f"--{name}", type=int, default=0, choices=range(9))
+    parser.add_argument("--task-progress", type=int, default=0, choices=range(33))
     args = parser.parse_args()
     if not args.apply:
         parser.error("refusing to change LEDs without --apply")
 
     client = manual_client()
     palette = load_palette(args.palette)
-    if args.scene == "working":
+    if args.scene == "idle":
+        render_idle(client, palette)
+    elif args.scene == "working":
         render_working(client, palette, args.cpu, args.gpu, args.memory, args.task)
     elif args.scene == "working-progress":
         render_working_progress(client, palette, args.task_progress)
     elif args.scene == "warning":
-        render_warning(client, palette)
+        overlay_warning(client, palette)
+    elif args.scene == "fault-phase":
+        render_fault_phase(client, palette, args.phase)
     else:
         render_off(client)
     print(f"{args.scene} render applied")
