@@ -19,6 +19,8 @@ a persistent loopback OpenRGB SDK client and cannot request power actions.
 - led-calibration.toml: per-zone R/G/B gain applied at the very end of the
   output path. Scenes are authored in nominal color (white is 255, 255, 255);
   hardware color correction lives only here.
+- controller.toml: controller policy: the default ambient set, the order in which
+  jobs take progress zones, and how long a finished job holds its bar (15 s).
 
 Commands, from monolithd/target/release/:
 
@@ -27,6 +29,11 @@ Commands, from monolithd/target/release/:
     monolithd scene start-set A B C          start several zone functions in phase
     monolithd scene progress ZONE N          select progress step N for a zone
     monolithd scene replace|start|stop NAME  see the gateway rules in the vault note
+    monolithd scene rejoin NAME              return a zone to its ambient function, in phase with the running ones
+    monolithd controller                     run the controller (lighting state and job leases)
+    monolithd event status                   controller state: ambient set, zones, jobs, recent actions
+    monolithd event job-start ID LABEL TOTAL announce a job (then job-progress, job-complete, job-fail)
+    monolithd event pause | resume           stop or resume the controller acting on the plant
     monolithd calibrate --show               list the gains and what full white becomes
     monolithd calibrate ZONE R G B           set a zone gain (0.0 to 1.0), applied within a second
 

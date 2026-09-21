@@ -1,0 +1,19 @@
+# Controller policy: what plays by default and how progress zones are allocated.
+# What each name means is data in qlc-functions.toml (ambient sets, progress families).
+
+version = 1
+
+# The ambient set that plays on every zone that is not showing a job.
+default_ambient = "deep_violet"
+
+# Zones that can show a job's progress, in allocation order: the first job takes the
+# first zone, the second takes the next, and any further job waits. The eye is not
+# listed: it is reserved for ambient and warnings.
+progress_zones = ["ram", "strip"]
+
+# A completed job holds its bar at 100% this long before the zone returns to ambient.
+complete_hold_seconds = 15
+
+# How often the controller compares the plant with what it wants, besides reacting
+# at once to every request.
+poll_interval_ms = 1000

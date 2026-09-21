@@ -1,3 +1,4 @@
+mod allocator;
 mod calibrate;
 mod config;
 mod controller;
@@ -10,7 +11,7 @@ mod supervisor;
 mod watchdog;
 
 fn usage() -> ! {
-    eprintln!("usage: monolithd <describe|render-idle|render-working CPU GPU MEMORY TASK|render-progress COMPLETED|render-warning|render-fault PHASE|render-quiet|render-controller-fault|e131-receiver|validate-registry [PATH]|scene <status|start NAME|start-set NAME...|replace NAME|stop NAME|progress ZONE N>|calibrate <--show|ZONE R G B>|probe-header <sweep [FROM TO [DWELL_MS]]|at N [SECONDS]>|controller|watchdog>");
+    eprintln!("usage: monolithd <describe|render-idle|render-working CPU GPU MEMORY TASK|render-progress COMPLETED|render-warning|render-fault PHASE|render-quiet|render-controller-fault|e131-receiver|validate-registry [PATH]|scene <status|start NAME|start-set NAME...|replace NAME|stop NAME|progress ZONE N>|calibrate <--show|ZONE R G B>|event <status|ambient SET|job-start ID LABEL TOTAL [PRIORITY]|job-progress ID N [TOTAL]|job-complete ID|job-fail ID REASON|pause|resume>|probe-header <sweep [FROM TO [DWELL_MS]]|at N [SECONDS]>|controller|watchdog>");
     std::process::exit(2);
 }
 
@@ -28,8 +29,21 @@ fn validate_registry(path: Option<String>) -> Result<(), String> {
         Ok(None) => println!("calibration: no file; all zones at unity gain"),
         Err(error) => problems.push(error),
     }
+    match registry::load_and_validate(&path, &layout) {
+        Ok((registry, _)) => match controller::load_config(&root.join("controller.toml")) {
+            Ok(config) => {
+                let found = controller::check_config(&config, &registry);
+                if found.is_empty() {
+                    println!("controller policy: ambient {}, progress zones {:?}, hold {} s", config.default_ambient, config.progress_zones, config.complete_hold_seconds);
+                }
+                problems.extend(found);
+            }
+            Err(error) => problems.push(error),
+        },
+        Err(error) => problems.push(error),
+    }
     if problems.is_empty() {
-        println!("registry and calibration OK");
+        println!("registry, calibration and controller policy OK");
         return Ok(());
     }
     for problem in &problems { eprintln!("  - {problem}"); }
@@ -67,7 +81,8 @@ async fn main() {
         Some("calibrate") => calibrate::run(arguments.collect()),
         Some("probe-header") => probe_header(arguments.collect()).await,
         Some("validate-registry") => validate_registry(arguments.next()),
-        Some("controller") => { controller::run(); Ok(()) },
+        Some("controller") => controller::run().await,
+        Some("event") => controller::client(arguments.collect()).await,
         Some("watchdog") => { watchdog::run(); Ok(()) },
         _ => usage(),
     };
