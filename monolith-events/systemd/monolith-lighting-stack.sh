@@ -49,8 +49,11 @@ exec 3<&-
 
 # QLC+ prints every channel blend at debug level (about 12,000 lines a minute), which
 # rotates the journal in minutes and erased the evidence of a crash. Keep warnings
-# and errors, drop debug.
-APPIMAGE_EXTRACT_AND_RUN=1 QT_QPA_PLATFORM=minimal QT_LOGGING_RULES='*.debug=false' "$qlc_appimage" \
+# and errors, drop debug. To measure chaser phase, set QLC_LOGGING_RULES to a rule that
+# leaves the default output alone (for example qt.network.ssl.warning=false) with
+# `systemctl --user set-environment` and restart the stack. Not *.debug=true: that is
+# every category, about 18,000 lines a second, and journald suppresses the lines needed.
+APPIMAGE_EXTRACT_AND_RUN=1 QT_QPA_PLATFORM=minimal QT_LOGGING_RULES="${QLC_LOGGING_RULES:-*.debug=false;qt.network.ssl.warning=false}" "$qlc_appimage" \
     --open "$workspace" --web --web-port 9999 &
 qlc_pid=$!
 children+=("$qlc_pid")
