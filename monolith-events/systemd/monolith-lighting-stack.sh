@@ -20,7 +20,11 @@ cleanup() {
         wait "$child" 2>/dev/null || true
     done
 }
-trap cleanup EXIT INT TERM
+trap cleanup EXIT
+# systemd stops the stack by signalling this script alone (KillMode=mixed in the unit).
+# That is a deliberate stop, so exit 0. A supervised child that exits on its own, cleanly
+# or by a signal, is not: that is a failure below, so systemd restarts the stack.
+trap 'exit 0' INT TERM
 
 APPIMAGE_EXTRACT_AND_RUN=1 "$openrgb_appimage" \
     --server --server-host 127.0.0.1 --server-port 6742 &
