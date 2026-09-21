@@ -1,0 +1,15 @@
+[Unit]
+Description=Monolith QLC+ headless scene engine
+
+# This unit is intentionally not installed or enabled yet. Enable it only after
+# the workspace has a tested baseline scene and the E1.31 adapter has completed
+# an end-to-end QLC physical test.
+[Service]
+Type=simple
+Environment=QT_QPA_PLATFORM=minimal
+ExecStart=/home/chronic_frolic/AppImages/qlcplus-5.2.2-x86_64.AppImage --open /home/chronic_frolic/server-config/qlcplus/monolith-lighting.qxw
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=default.target

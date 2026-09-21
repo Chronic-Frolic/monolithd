@@ -1,0 +1,17 @@
+[Unit]
+Description=Monolith private QLC+ to Rust to OpenRGB lighting stack
+Conflicts=openrgb-sdk.service monolith-openrgb-sdk-bridge.service monolith-qlcplus.service monolith-e131-adapter.service
+
+[Service]
+Type=simple
+# The QLC+ WebSocket and all E1.31 traffic exist only inside this namespace.
+PrivateNetwork=yes
+NoNewPrivileges=yes
+PrivateTmp=yes
+UMask=0077
+ExecStart=/home/chronic_frolic/server-config/monolith-events/systemd/monolith-lighting-stack.sh
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=default.target
