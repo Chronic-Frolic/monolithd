@@ -1,0 +1,183 @@
+use crate::{config, gateway, qlc, renderer};
+use sacn::tokio::Receiver;
+use sacn::{ReceiverConfig, ReceiverEvent, Universe};
+use std::net::SocketAddr;
+use std::path::PathBuf;
+use std::time::Duration;
+use tokio::time::{interval, MissedTickBehavior};
+
+const UNIVERSE_COUNT: usize = 5;
+const UNIVERSE_SLOTS: [usize; UNIVERSE_COUNT] = [24, 24, 24, 24, 225];
+const MAX_HARDWARE_FPS: u64 = 30;
+const OUTPUT_CONNECT_ATTEMPTS: usize = 60;
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct QlcFrame {
+    universes: [Vec<u8>; UNIVERSE_COUNT],
+}
+
+impl QlcFrame {
+    pub fn universe(&self, universe: u16) -> Result<&[u8], String> {
+        let index = universe_index(universe)?;
+        Ok(&self.universes[index])
+    }
+}
+
+#[derive(Debug)]
+struct FrameAssembler {
+    universes: [Vec<u8>; UNIVERSE_COUNT],
+    fresh: [bool; UNIVERSE_COUNT],
+}
+
+impl FrameAssembler {
+    fn new() -> Self {
+        Self {
+            universes: std::array::from_fn(|index| vec![0; UNIVERSE_SLOTS[index]]),
+            fresh: [false; UNIVERSE_COUNT],
+        }
+    }
+
+    fn ingest(&mut self, universe: u16, slots: &[u8]) -> Result<Option<QlcFrame>, String> {
+        let index = universe_index(universe)?;
+        let expected_slots = UNIVERSE_SLOTS[index];
+        if slots.len() < expected_slots {
+            return Err(format!("QLC universe {universe} has {} DMX slots; expected at least {expected_slots}", slots.len()));
+        }
+        self.universes[index].copy_from_slice(&slots[..expected_slots]);
+        self.fresh[index] = true;
+        if self.fresh.iter().all(|fresh| *fresh) {
+            self.fresh = [false; UNIVERSE_COUNT];
+            Ok(Some(QlcFrame { universes: self.universes.clone() }))
+        } else {
+            Ok(None)
+        }
+    }
+}
+
+fn universe_index(universe: u16) -> Result<usize, String> {
+    if !(1..=UNIVERSE_COUNT as u16).contains(&universe) {
+        return Err(format!("unexpected QLC universe {universe}; expected 1 through {UNIVERSE_COUNT}"));
+    }
+    Ok((universe - 1) as usize)
+}
+
+fn layout_path() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).parent().unwrap().join("scene-layout.toml")
+}
+
+fn accept_data(assembler: &mut FrameAssembler, latest: &mut Option<QlcFrame>, universe: u16, slots: &[u8]) -> Result<(), String> {
+    if let Some(frame) = assembler.ingest(universe, slots)? {
+        *latest = Some(frame);
+    }
+    Ok(())
+}
+
+async fn connect_output() -> Result<renderer::QlcOutput, String> {
+    let mut last_error = None;
+    for attempt in 1..=OUTPUT_CONNECT_ATTEMPTS {
+        match renderer::QlcOutput::connect().await {
+            Ok(output) => return Ok(output),
+            Err(error) => {
+                last_error = Some(error);
+                if attempt < OUTPUT_CONNECT_ATTEMPTS {
+                    tokio::time::sleep(Duration::from_millis(500)).await;
+                }
+            }
+        }
+    }
+    Err(format!(
+        "OpenRGB SDK did not expose the verified Monolith controllers after {} seconds: {}",
+        OUTPUT_CONNECT_ATTEMPTS / 2,
+        last_error.unwrap_or_else(|| "unknown controller-discovery failure".to_owned())
+    ))
+}
+
+pub async fn run() -> Result<(), String> {
+    let layout = config::load_layout(&layout_path())?;
+    let listener: SocketAddr = layout.qlc_e131.listener.parse().map_err(|error| format!("parse qlc_e131.listener: {error}"))?;
+    if !listener.ip().is_loopback() { return Err("qlc_e131.listener must be a loopback address".to_owned()); }
+
+    qlc::start_function(&layout.qlc_e131.web_listener, layout.qlc_e131.startup_function).await?;
+    gateway::spawn_for_stack(&layout, &layout_path().with_file_name("qlc-functions.toml"), layout.qlc_e131.startup_function).await;
+
+    let receiver_config = ReceiverConfig::new()
+        .with_allowed_start_codes(&[0x00])
+        .with_per_address_priority_handling(false)
+        .with_synchronization(false)
+        .with_sample_period(Duration::from_millis(100))
+        .with_source_limit(1);
+    let mut receiver = Receiver::bind_to(listener, receiver_config).await.map_err(|error| format!("bind {listener}: {error}"))?;
+    for universe in 1..=UNIVERSE_COUNT as u16 {
+        let universe = Universe::new(universe).map_err(|error| error.to_string())?;
+        // QLC+ sends unicast only. Register the universe in the protocol core
+        // while explicitly joining via loopback, rather than asking the sACN
+        // adapter to discover a non-loopback multicast interface.
+        receiver.listen_on(universe, "127.0.0.1").await.map_err(|error| format!("listen universe {universe} on loopback: {error}"))?;
+    }
+
+    let output = connect_output().await?;
+    let mut calibration = config::CalibrationWatcher::new(layout_path().with_file_name("led-calibration.toml"), &layout);
+    eprintln!("monolithd calibration: {}", calibration.poll().unwrap_or_else(|| "no calibration file; all zones at unity gain".to_owned()));
+    let mut recalibrate = interval(Duration::from_millis(500));
+    recalibrate.set_missed_tick_behavior(MissedTickBehavior::Skip);
+    let mut assembler = FrameAssembler::new();
+    let mut latest = None;
+    let mut flush = interval(Duration::from_millis(1_000 / MAX_HARDWARE_FPS));
+    flush.set_missed_tick_behavior(MissedTickBehavior::Skip);
+    eprintln!("monolithd E1.31 receiver: listening on {listener} for QLC universes 1-5");
+
+    loop {
+        tokio::select! {
+            event = receiver.next_event() => {
+                let event = event.ok_or_else(|| "E1.31 receiver stopped unexpectedly".to_owned())?;
+                match event {
+                    ReceiverEvent::MergedData(data) => accept_data(&mut assembler, &mut latest, data.universe.get(), data.levels())?,
+                    ReceiverEvent::SyncMergedData(data) => {
+                        for data in data {
+                            accept_data(&mut assembler, &mut latest, data.universe.get(), data.levels())?;
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            _ = recalibrate.tick() => {
+                if let Some(message) = calibration.poll() {
+                    eprintln!("monolithd calibration: {message}");
+                }
+            }
+            _ = flush.tick() => {
+                if let Some(frame) = latest.take() {
+                    output.apply(&frame, calibration.current()).await?;
+                }
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn slots(universe: u16, value: u8) -> Vec<u8> {
+        vec![value; UNIVERSE_SLOTS[universe_index(universe).unwrap()]]
+    }
+
+    #[test]
+    fn only_emits_after_a_complete_five_universe_frame() {
+        let mut assembler = FrameAssembler::new();
+        for universe in 1..5 {
+            assert_eq!(assembler.ingest(universe, &slots(universe, universe as u8)).unwrap(), None);
+        }
+        let frame = assembler.ingest(5, &slots(5, 5)).unwrap().unwrap();
+        assert_eq!(frame.universe(1).unwrap(), vec![1; 24]);
+        assert_eq!(frame.universe(5).unwrap(), vec![5; 225]);
+        assert_eq!(assembler.ingest(1, &slots(1, 9)).unwrap(), None);
+    }
+
+    #[test]
+    fn rejects_unknown_or_short_universes() {
+        let mut assembler = FrameAssembler::new();
+        assert!(assembler.ingest(6, &[0; 1]).is_err());
+        assert!(assembler.ingest(1, &[0; 23]).is_err());
+    }
+}
