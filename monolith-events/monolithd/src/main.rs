@@ -10,7 +10,7 @@ mod supervisor;
 mod watchdog;
 
 fn usage() -> ! {
-    eprintln!("usage: monolithd <describe|render-idle|render-working CPU GPU MEMORY TASK|render-progress COMPLETED|render-warning|render-fault PHASE|render-quiet|render-controller-fault|e131-receiver|validate-registry [PATH]|scene <status|start NAME|start-set NAME...|replace NAME|stop NAME|progress ZONE N>|calibrate <--show|ZONE R G B>|controller|watchdog>");
+    eprintln!("usage: monolithd <describe|render-idle|render-working CPU GPU MEMORY TASK|render-progress COMPLETED|render-warning|render-fault PHASE|render-quiet|render-controller-fault|e131-receiver|validate-registry [PATH]|scene <status|start NAME|start-set NAME...|replace NAME|stop NAME|progress ZONE N>|calibrate <--show|ZONE R G B>|probe-header <sweep [FROM TO [DWELL_MS]]|at N [SECONDS]>|controller|watchdog>");
     std::process::exit(2);
 }
 
@@ -36,6 +36,20 @@ fn validate_registry(path: Option<String>) -> Result<(), String> {
     Err(format!("{} configuration problem(s)", problems.len()))
 }
 
+async fn probe_header(arguments: Vec<String>) -> Result<(), String> {
+    let words: Vec<&str> = arguments.iter().map(String::as_str).collect();
+    let number = |text: &str| text.parse::<usize>().map_err(|_| format!("{text:?} is not a positive integer"));
+    let milliseconds = |text: &str| number(text).map(|value| std::time::Duration::from_millis(value as u64));
+    match words.as_slice() {
+        ["sweep"] => renderer::probe_header(1..=60, std::time::Duration::from_millis(2500)).await,
+        ["sweep", from, to] => renderer::probe_header(number(from)?..=number(to)?, std::time::Duration::from_millis(2500)).await,
+        ["sweep", from, to, dwell] => renderer::probe_header(number(from)?..=number(to)?, milliseconds(dwell)?).await,
+        ["at", n] => renderer::probe_header(number(n)?..=number(n)?, std::time::Duration::from_secs(60)).await,
+        ["at", n, seconds] => renderer::probe_header(number(n)?..=number(n)?, std::time::Duration::from_secs(number(seconds)? as u64)).await,
+        _ => Err("usage: monolithd probe-header sweep [FROM TO [DWELL_MS]] | probe-header at N [SECONDS]".to_owned()),
+    }
+}
+
 #[tokio::main]
 async fn main() {
     let mut arguments = std::env::args().skip(1);
@@ -51,6 +65,7 @@ async fn main() {
         Some("e131-receiver") => e131::run().await,
         Some("scene") => gateway::client(arguments.collect()).await,
         Some("calibrate") => calibrate::run(arguments.collect()),
+        Some("probe-header") => probe_header(arguments.collect()).await,
         Some("validate-registry") => validate_registry(arguments.next()),
         Some("controller") => { controller::run(); Ok(()) },
         Some("watchdog") => { watchdog::run(); Ok(()) },

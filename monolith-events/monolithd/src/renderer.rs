@@ -289,6 +289,75 @@ pub async fn controller_fault() -> Result<(), String> {
     profile(&root, &palette_file.fallbacks.controller_failure).await
 }
 
+/// How many LEDs of each RAM stick light to display the number `n`, left to right.
+fn stick_levels(n: usize) -> [usize; 4] {
+    std::array::from_fn(|position| n.saturating_sub(position * 8).min(8))
+}
+
+/// How many of the eye's three visible LEDs light to display `n`: one per full 32.
+fn eye_blocks(n: usize) -> usize {
+    (n / 32).min(3)
+}
+
+/// A header with exactly one LED lit; `number` is 1-based.
+fn single_led(count: usize, number: usize, lit: Color, dark: Color) -> Vec<Color> {
+    (0..count).map(|index| if index + 1 == number { lit } else { dark }).collect()
+}
+
+/// Diagnostic for finding where one device on the ARGB header ends and the next begins.
+///
+/// Lights LED `number` of the header (raw white, no calibration) for `dwell`, for each
+/// number in turn, while RAM and the eye display that number so a person can read it:
+/// RAM fills 8 LEDs per stick left to right (green), and each full 32 lights one of the
+/// eye's LEDs (blue). Needs OpenRGB reachable from the host, so the lighting stack must
+/// be stopped and the standalone SDK server running (see probe-header.sh).
+pub async fn probe_header(numbers: std::ops::RangeInclusive<usize>, dwell: std::time::Duration) -> Result<(), String> {
+    let (layout, controllers) = loop_until_discovered().await?;
+    let resolved = resolve(&layout, &controllers)?;
+    direct_mode(&resolved).await?;
+    let (board, header_zone, count) = resolved.strip;
+    let (_, eye_zone, eye_count) = resolved.rog_eye;
+    if *numbers.start() == 0 || *numbers.end() > count {
+        return Err(format!("numbers must be 1 through {count} (the header is configured for {count} LEDs)"));
+    }
+    let (off, white, green, blue) = (Color::new(0, 0, 0), Color::new(255, 255, 255), Color::new(0, 255, 0), Color::new(0, 0, 255));
+    for number in numbers {
+        board.set_zone_leds(header_zone, single_led(count, number, white, off)).await.map_err(|error| error.to_string())?;
+        for (controller, level) in resolved.ram.iter().zip(stick_levels(number)) {
+            let colors = (0..controller.num_leds()).map(|index| if index + level >= controller.num_leds() { green } else { off }).collect::<Vec<_>>();
+            controller.set_leds(colors).await.map_err(|error| error.to_string())?;
+        }
+        let blocks = eye_blocks(number);
+        let eye = (0..eye_count).map(|index| if index < 3 && index < blocks { blue } else { off }).collect::<Vec<_>>();
+        board.set_zone_leds(eye_zone, eye).await.map_err(|error| error.to_string())?;
+        println!("LED {number}");
+        tokio::time::sleep(dwell).await;
+    }
+    board.set_zone_leds(header_zone, vec![off; count]).await.map_err(|error| error.to_string())?;
+    board.set_zone_leds(eye_zone, vec![off; eye_count]).await.map_err(|error| error.to_string())?;
+    for controller in &resolved.ram {
+        controller.set_all_leds(off).await.map_err(|error| error.to_string())?;
+    }
+    Ok(())
+}
+
+/// A freshly started OpenRGB takes several seconds to detect its devices; wait for the
+/// Monolith controllers to appear (up to 40 s).
+async fn loop_until_discovered() -> Result<(Layout, Vec<Controller>), String> {
+    let mut last = String::from("no attempt made");
+    for _ in 0..80 {
+        match load().await {
+            Ok((_, layout, _, controllers, _)) => match resolve(&layout, &controllers) {
+                Ok(_) => return Ok((layout, controllers)),
+                Err(error) => last = error,
+            },
+            Err(error) => last = error,
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+    }
+    Err(format!("OpenRGB did not expose the Monolith controllers: {last}"))
+}
+
 pub fn describe() -> Result<String, String> {
     let root = root();
     let layout = config::load_layout(&root.join("scene-layout.toml"))?;
@@ -301,6 +370,34 @@ pub fn describe() -> Result<String, String> {
         palette.fault_presentation.interval_ms,
         palette.colors.controller_failure,
     ))
+}
+
+#[cfg(test)]
+mod probe_tests {
+    use super::*;
+
+    #[test]
+    fn ram_sticks_display_a_number_eight_leds_at_a_time() {
+        assert_eq!(stick_levels(1), [1, 0, 0, 0]);
+        assert_eq!(stick_levels(8), [8, 0, 0, 0]);
+        assert_eq!(stick_levels(13), [8, 5, 0, 0]);
+        assert_eq!(stick_levels(32), [8, 8, 8, 8]);
+        assert_eq!(stick_levels(40), [8, 8, 8, 8], "RAM saturates at 32; the eye takes over");
+    }
+
+    #[test]
+    fn the_eye_counts_full_blocks_of_thirty_two() {
+        assert_eq!([31, 32, 63, 64, 70, 96, 200].map(eye_blocks), [0, 1, 1, 2, 2, 3, 3]);
+    }
+
+    #[test]
+    fn exactly_one_header_led_is_lit_and_numbers_are_one_based() {
+        let (lit, dark) = (Color::new(255, 255, 255), Color::new(0, 0, 0));
+        let leds = single_led(5, 3, lit, dark);
+        assert_eq!(leds.iter().map(|c| c.r).collect::<Vec<_>>(), vec![0, 0, 255, 0, 0]);
+        assert_eq!(single_led(5, 1, lit, dark)[0].r, 255);
+        assert!(single_led(5, 6, lit, dark).iter().all(|c| c.r == 0));
+    }
 }
 
 #[cfg(test)]
