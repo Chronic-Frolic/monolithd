@@ -47,7 +47,10 @@ fi
 exec 3>&-
 exec 3<&-
 
-APPIMAGE_EXTRACT_AND_RUN=1 QT_QPA_PLATFORM=minimal "$qlc_appimage" \
+# QLC+ prints every channel blend at debug level (about 12,000 lines a minute), which
+# rotates the journal in minutes and erased the evidence of a crash. Keep warnings
+# and errors, drop debug.
+APPIMAGE_EXTRACT_AND_RUN=1 QT_QPA_PLATFORM=minimal QT_LOGGING_RULES='*.debug=false' "$qlc_appimage" \
     --open "$workspace" --web --web-port 9999 &
 qlc_pid=$!
 children+=("$qlc_pid")
@@ -60,4 +63,11 @@ set +e
 wait -n "$openrgb_pid" "$qlc_pid" "$adapter_pid"
 status=$?
 set -e
+# A supervised child that exits, even cleanly, leaves the stack incomplete. Make that a
+# failure: systemd Restart=on-failure restarts a failed stack but leaves a clean exit
+# (status 0) stopped, which would leave the machine dark for good.
+if [ "$status" -eq 0 ]; then
+    echo "Monolith lighting stack: a child process exited cleanly; failing so the stack restarts" >&2
+    status=1
+fi
 exit "$status"
