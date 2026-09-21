@@ -2366,6 +2366,10 @@
    <Step Number="0">113</Step>
    <Step Number="1">114</Step>
   </Function>
+  <Function ID="116" Type="Scene" Name="Reference White Eye">
+   <Speed FadeIn="0" FadeOut="0" Duration="0"/>
+   <FixtureVal ID="40">0,255,1,255,2,255,3,255,4,255,5,255,6,255,7,255,8,255</FixtureVal>
+  </Function>
   <Monitor DisplayMode="0" ShowLabels="0">
    <Font>Arial,12,-1,5,400,0,0,0,0,0,0,0,0,0,0,1</Font>
    <ChannelStyle>0</ChannelStyle>

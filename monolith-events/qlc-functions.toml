@@ -65,6 +65,18 @@ children = [113, 114]
 zones = ["strip"]
 composable = true
 
+# Calibration reference: the eye at full nominal white. The eye has no other white
+# Function, so this is what it is compared against `progress ram 0` (all RAM white)
+# and `progress strip 0` (all strip white) when matching white points by eye. It can
+# run beside them: it owns only the eye zone.
+[[functions]]
+name = "reference_white_eye"
+kind = "scene"
+id = 116
+children = []
+zones = ["rog_eye"]
+composable = true
+
 # Progress-capable zones register a contiguous step range: Function ID is
 # `first_id + completed`, for completed in 0..=total. These steps are produced
 # by the planned offline authoring tool; they are never computed at runtime.
