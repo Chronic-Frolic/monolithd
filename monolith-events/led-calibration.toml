@@ -1,0 +1,34 @@
+# Per-zone color calibration, applied at the very end of the output path, just
+# before colors are written to OpenRGB. It corrects the LEDs' own color balance
+# so a scene authored as (255, 255, 255) actually looks white; scenes stay in
+# nominal color and never need to know about the hardware.
+#
+# gain = [R, G, B], each 0.0 to 1.0 (1.0 leaves that channel untouched; it can
+# only reduce a channel, never boost it). Values are multiplied in DMX space and
+# rounded. A zone that is not listed runs at [1, 1, 1].
+#
+# This file is re-read about twice a second while the lighting stack runs. A
+# file that fails validation is ignored (the previous gains stay in force) and
+# the reason is logged. Deleting the file returns every zone to [1, 1, 1].
+#
+# Zone names match scene-layout.toml: ram, rog_eye, strip.
+
+version = 1
+
+# RAM is the white reference the other zones are matched against.
+[zones.ram]
+gain = [1.0, 1.0, 1.0]
+
+# The eye looked close to RAM's white by eye (2026-09-21) but has no white
+# Function yet, so it could not be compared side by side. Revisit once one exists.
+[zones.rog_eye]
+gain = [1.0, 1.0, 1.0]
+
+# Tuned by eye against RAM's white on 2026-09-21. The strip's blue is weak and its
+# flexible casing has yellowed with age (a blue-absorbing filter), so the white
+# needs red and green cut hard: 0.19 / 0.18 is DMX 48 / 46 at full white. Neighbors
+# at this resolution: 48/46 leaned slightly green (chosen), 49/46 slightly red,
+# 45/43 slightly red, 42/40 red. The casing keeps yellowing, so expect to re-tune
+# this line over the years; nothing else needs to change when you do.
+[zones.strip]
+gain = [0.19, 0.18, 1.0]
