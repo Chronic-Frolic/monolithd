@@ -3,6 +3,33 @@
 Local-only appliance-state authority for White Monolith. It controls RGB through
 a persistent loopback OpenRGB SDK client and cannot request power actions.
 
+> **Status, 2026-09-21.** The Python controller and watchdog described in the
+> older sections below are no longer loaded. Lighting runs as
+> systemd/monolith-lighting-stack.service: the OpenRGB SDK server, QLC+ and
+> monolithd e131-receiver in one private network namespace. Design decisions
+> and current status are kept in the vault note "Monolith Event Controller -
+> Design and Implementation Handoff"; the older sections are historical.
+
+## Current lighting configuration
+
+- scene-layout.toml: zone identity, the QLC+ and E1.31 listeners, boot Function.
+- qlc-functions.toml: registry of QLC+ Function IDs as workspace API (semantic
+  name, ID, owned zones, composability, progress step ranges) plus per-zone DMX
+  geometry.
+- led-calibration.toml: per-zone R/G/B gain applied at the very end of the
+  output path. Scenes are authored in nominal color (white is 255, 255, 255);
+  hardware color correction lives only here.
+
+Commands, from monolithd/target/release/:
+
+    monolithd validate-registry              check the registry and calibration against the QLC+ workspace
+    monolithd scene status                   gateway state, zone owners, calibration in force
+    monolithd scene start-set A B C          start several zone functions in phase
+    monolithd scene progress ZONE N          select progress step N for a zone
+    monolithd scene replace|start|stop NAME  see the gateway rules in the vault note
+    monolithd calibrate --show               list the gains and what full white becomes
+    monolithd calibrate ZONE R G B           set a zone gain (0.0 to 1.0), applied within a second
+
 ## Priority and composition
 
 fault > warning overlay > rgb-quiet > working > launch scene > idle

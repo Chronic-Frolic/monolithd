@@ -9,6 +9,28 @@ const SDK_ADDRESS: &str = "127.0.0.1:6742";
 
 fn color(rgb: Rgb) -> Color { Color::new(rgb.0, rgb.1, rgb.2) }
 
+/// Apply a zone's calibration gain to a color bound for the LEDs.
+fn tint(color: Color, gain: Gain) -> Color {
+    let [red, green, blue] = gain.apply([color.r, color.g, color.b]);
+    Color::new(red, green, blue)
+}
+
+fn tint_all(colors: Vec<Color>, gain: Gain) -> Vec<Color> {
+    colors.into_iter().map(|color| tint(color, gain)).collect()
+}
+
+/// The calibration for the direct-SDK renders. A bad file must never stop a
+/// fault or safety render, so it degrades to unity gain with a warning.
+fn direct_calibration(root: &Path, layout: &Layout) -> Calibration {
+    match config::check_calibration_file(&root.join("led-calibration.toml"), layout) {
+        Ok(found) => found.unwrap_or_default(),
+        Err(error) => {
+            eprintln!("monolithd: rendering without calibration: {error}");
+            Calibration::default()
+        }
+    }
+}
+
 fn root() -> PathBuf { PathBuf::from(env!("CARGO_MANIFEST_DIR")).parent().unwrap().to_path_buf() }
 
 fn checked_level(value: usize, name: &str, maximum: usize) -> Result<usize, String> {
@@ -154,8 +176,10 @@ async fn direct_mode(resolved: &Resolved<'_>) -> Result<(), String> {
     Ok(())
 }
 
-async fn set_eye(resolved: &Resolved<'_>, fill: Color, off: Color) -> Result<(), String> {
+async fn set_eye(resolved: &Resolved<'_>, fill: Color, off: Color, calibration: &Calibration) -> Result<(), String> {
     let (board, zone, count) = resolved.rog_eye;
+    let gain = calibration.gain("rog_eye");
+    let (fill, off) = (tint(fill, gain), tint(off, gain));
     let colors = (0..count).map(|index| if index < 3 { fill } else { off }).collect::<Vec<_>>();
     board.set_zone_leds(zone, colors).await.map_err(|error| error.to_string())
 }
@@ -167,17 +191,18 @@ async fn profile(root: &Path, relative: &str) -> Result<(), String> {
     if output.status.success() { Ok(()) } else { Err(String::from_utf8_lossy(&output.stderr).trim().to_owned()) }
 }
 
-async fn load() -> Result<(PathBuf, Layout, PaletteFile, Vec<Controller>), String> {
+async fn load() -> Result<(PathBuf, Layout, PaletteFile, Vec<Controller>, Calibration), String> {
     let root = root();
     let layout = config::load_layout(&root.join("scene-layout.toml"))?;
     let palette = config::load_palette(&root.join("rgb-palette.toml"))?;
     let client = OpenRgbClient::connect_to(SDK_ADDRESS, 6).await.map_err(|error| error.to_string())?;
     let controllers = client.get_all_controllers().await.map_err(|error| error.to_string())?.into_iter().collect();
-    Ok((root, layout, palette, controllers))
+    let calibration = direct_calibration(&root, &layout);
+    Ok((root, layout, palette, controllers, calibration))
 }
 
 pub async fn idle() -> Result<(), String> {
-    let (root, layout, palette_file, controllers) = load().await?;
+    let (root, layout, palette_file, controllers, calibration) = load().await?;
     if layout.idle_scene.kind == "profile" {
         let profile_path = layout.idle_scene.profile.as_deref().ok_or_else(|| "idle_scene.profile is required when kind = profile".to_owned())?;
         return profile(&root, profile_path).await;
@@ -186,46 +211,46 @@ pub async fn idle() -> Result<(), String> {
     require_route(&layout, "idle", &["ram", "rog_eye"])?;
     let resolved = resolve(&layout, &controllers)?;
     direct_mode(&resolved).await?;
-    for controller in &resolved.ram { controller.set_all_leds(color(palette_file.colors.primary)).await.map_err(|error| error.to_string())?; }
-    set_eye(&resolved, color(palette_file.colors.primary), color(palette_file.colors.off)).await
+    for controller in &resolved.ram { controller.set_all_leds(tint(color(palette_file.colors.primary), calibration.gain("ram"))).await.map_err(|error| error.to_string())?; }
+    set_eye(&resolved, color(palette_file.colors.primary), color(palette_file.colors.off), &calibration).await
 }
 
 pub async fn working(cpu: usize, gpu: usize, memory: usize, task: usize) -> Result<(), String> {
     for (name, value) in [("cpu", cpu), ("gpu", gpu), ("memory", memory), ("task", task)] { checked_level(value, name, 8)?; }
-    let (_root, layout, palette_file, controllers) = load().await?;
+    let (_root, layout, palette_file, controllers, calibration) = load().await?;
     require_route(&layout, "working", &["ram", "rog_eye"])?;
     let resolved = resolve(&layout, &controllers)?;
     direct_mode(&resolved).await?;
     for (controller, level) in resolved.ram.iter().zip([cpu, gpu, memory, task]) {
-        controller.set_leds(level_bar(level, &palette_file.colors, controller.num_leds())).await.map_err(|error| error.to_string())?;
+        controller.set_leds(tint_all(level_bar(level, &palette_file.colors, controller.num_leds()), calibration.gain("ram"))).await.map_err(|error| error.to_string())?;
     }
-    set_eye(&resolved, color(palette_file.colors.secondary), color(palette_file.colors.off)).await
+    set_eye(&resolved, color(palette_file.colors.secondary), color(palette_file.colors.off), &calibration).await
 }
 
 pub async fn working_progress(completed: usize) -> Result<(), String> {
     checked_level(completed, "completed", 32)?;
-    let (_root, layout, palette_file, controllers) = load().await?;
+    let (_root, layout, palette_file, controllers, calibration) = load().await?;
     require_route(&layout, "working", &["ram", "rog_eye"])?;
     let resolved = resolve(&layout, &controllers)?;
     direct_mode(&resolved).await?;
     for (position, controller) in resolved.ram.iter().enumerate() {
         let level = completed.saturating_sub(position * 8).min(8);
-        controller.set_leds(level_bar(level, &palette_file.colors, 8)).await.map_err(|error| error.to_string())?;
+        controller.set_leds(tint_all(level_bar(level, &palette_file.colors, 8), calibration.gain("ram"))).await.map_err(|error| error.to_string())?;
     }
-    set_eye(&resolved, color(palette_file.colors.secondary), color(palette_file.colors.off)).await
+    set_eye(&resolved, color(palette_file.colors.secondary), color(palette_file.colors.off), &calibration).await
 }
 
 pub async fn warning() -> Result<(), String> {
-    let (_root, layout, palette_file, controllers) = load().await?;
+    let (_root, layout, palette_file, controllers, calibration) = load().await?;
     require_route(&layout, "warning", &["rog_eye"])?;
     let resolved = resolve(&layout, &controllers)?;
     direct_mode(&resolved).await?;
-    set_eye(&resolved, color(palette_file.colors.warning), color(palette_file.colors.off)).await
+    set_eye(&resolved, color(palette_file.colors.warning), color(palette_file.colors.off), &calibration).await
 }
 
 pub async fn fault(phase: usize) -> Result<(), String> {
     if phase > 1 { return Err("fault phase must be 0 or 1".to_owned()); }
-    let (root, layout, palette_file, controllers) = load().await?;
+    let (root, layout, palette_file, controllers, calibration) = load().await?;
     require_route(&layout, "fault", &["ram", "rog_eye"])?;
     let resolved = resolve(&layout, &controllers)?;
     if palette_file.fault_presentation.kind == "profile" {
@@ -238,20 +263,20 @@ pub async fn fault(phase: usize) -> Result<(), String> {
         direct_mode(&resolved).await?;
         for (position, controller) in resolved.ram.iter().enumerate() {
             let selected = if (position + phase) % 2 == 0 { palette_file.colors.fault } else { palette_file.colors.primary };
-            controller.set_all_leds(color(selected)).await.map_err(|error| error.to_string())?;
+            controller.set_all_leds(tint(color(selected), calibration.gain("ram"))).await.map_err(|error| error.to_string())?;
         }
-        set_eye(&resolved, color(if phase == 0 { palette_file.colors.primary } else { palette_file.colors.fault }), color(palette_file.colors.off)).await
+        set_eye(&resolved, color(if phase == 0 { palette_file.colors.primary } else { palette_file.colors.fault }), color(palette_file.colors.off), &calibration).await
     }.await;
     match direct { Ok(()) => Ok(()), Err(error) => profile(&root, &palette_file.fallbacks.fault).await.map_err(|fallback| format!("direct fault failed: {error}; fallback failed: {fallback}")) }
 }
 
 pub async fn quiet() -> Result<(), String> {
-    let (root, _layout, palette_file, _controllers) = load().await?;
+    let (root, _layout, palette_file, _controllers, _calibration) = load().await?;
     profile(&root, &palette_file.fallbacks.quiet).await
 }
 
 pub async fn controller_fault() -> Result<(), String> {
-    let (root, _layout, palette_file, _controllers) = load().await?;
+    let (root, _layout, palette_file, _controllers, _calibration) = load().await?;
     profile(&root, &palette_file.fallbacks.controller_failure).await
 }
 
@@ -282,6 +307,16 @@ mod calibration_reach_tests {
             assert_eq!((got.r, got.g, got.b), (want.r, want.g, want.b));
         }
         assert!(dmx_colors(&[1, 2], Gain::UNITY).is_err());
+    }
+
+    #[test]
+    fn direct_renders_apply_the_same_gain() {
+        let tinted = tint(Color::new(255, 255, 255), Gain([1.0, 0.5, 0.25]));
+        assert_eq!((tinted.r, tinted.g, tinted.b), (255, 128, 64));
+        let bar = tint_all(vec![Color::new(0, 255, 0), Color::new(255, 255, 255)], Gain([0.5, 1.0, 1.0]));
+        assert_eq!(bar.iter().map(|c| (c.r, c.g, c.b)).collect::<Vec<_>>(), vec![(0, 255, 0), (128, 255, 255)]);
+        let unchanged = tint(Color::new(10, 20, 30), Gain::UNITY);
+        assert_eq!((unchanged.r, unchanged.g, unchanged.b), (10, 20, 30));
     }
 }
 

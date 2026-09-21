@@ -9,7 +9,7 @@
 //! own lock, and an operation takes the locks of the zones it touches in a
 //! fixed (alphabetical) order.
 
-use crate::config::Layout;
+use crate::config::{CalibrationReport, Layout};
 use crate::qlc::{self, FunctionStatus};
 use crate::registry::{self, Registry};
 use serde::Deserialize;
@@ -22,7 +22,7 @@ use std::sync::Arc;
 use std::time::Duration;
 use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
 use tokio::net::{UnixListener, UnixStream};
-use tokio::sync::{Mutex, MutexGuard};
+use tokio::sync::{watch, Mutex, MutexGuard};
 use tokio::time::{sleep, timeout};
 
 const MAX_REQUEST_BYTES: usize = 4096;
@@ -137,6 +137,7 @@ pub struct Gateway<Q> {
     problems: Vec<String>,
     qlc: Q,
     zones: BTreeMap<String, Mutex<ZoneState>>,
+    calibration: Option<watch::Receiver<CalibrationReport>>,
     confirm_polls: usize,
     confirm_interval: Duration,
 }
@@ -149,7 +150,13 @@ impl<Q: Qlc> Gateway<Q> {
             .flat_map(|registry| registry.zones.keys())
             .map(|name| (name.clone(), Mutex::new(ZoneState::default())))
             .collect();
-        Self { registry, problems, qlc, zones, confirm_polls: CONFIRM_POLLS, confirm_interval: CONFIRM_INTERVAL }
+        Self { registry, problems, qlc, zones, calibration: None, confirm_polls: CONFIRM_POLLS, confirm_interval: CONFIRM_INTERVAL }
+    }
+
+    /// Let `status` report the calibration the receiver currently applies.
+    pub fn with_calibration(mut self, report: watch::Receiver<CalibrationReport>) -> Self {
+        self.calibration = Some(report);
+        self
     }
 
     #[cfg(test)]
@@ -493,10 +500,23 @@ impl<Q: Qlc> Gateway<Q> {
             zones.insert(name.clone(), json!({ "owner": owner, "function_id": id, "qlc": qlc, "uncertain": zone.uncertain }));
         }
         let problems: Vec<&String> = self.problems.iter().take(10).collect();
+        let calibration = self.calibration_json(&all);
         json!({
             "ok": true, "mode": mode, "qlc_reachable": reachable, "default_transition": Transition::default().as_str(),
-            "problem_count": self.problems.len(), "problems": problems, "zones": zones,
+            "problem_count": self.problems.len(), "problems": problems, "zones": zones, "calibration": calibration,
         })
+    }
+
+    /// What the receiver applies to each zone, and whether the calibration file is in force.
+    fn calibration_json(&self, zones: &[String]) -> Value {
+        let Some(receiver) = &self.calibration else { return Value::Null };
+        let report = receiver.borrow().clone();
+        let mut per_zone = Map::new();
+        for zone in zones {
+            let gain = report.calibration.gain(zone);
+            per_zone.insert(zone.clone(), json!({ "gain": gain.rounded(), "white": gain.apply([255, 255, 255]) }));
+        }
+        json!({ "file": report.file.display().to_string(), "state": report.state.as_str(), "error": report.error, "zones": per_zone })
     }
 }
 
@@ -629,7 +649,7 @@ pub async fn run<Q: Qlc + 'static>(gateway: Arc<Gateway<Q>>) {
 }
 
 /// Load and check the registry, then serve the gateway for the production stack.
-pub async fn spawn_for_stack(layout: &Layout, registry_path: &Path, boot_function: u32) {
+pub async fn spawn_for_stack(layout: &Layout, registry_path: &Path, boot_function: u32, calibration: watch::Receiver<CalibrationReport>) {
     let (registry, problems) = match registry::load_and_validate(registry_path, layout) {
         Ok((registry, problems)) => (Some(registry), problems),
         Err(error) => (None, vec![error]),
@@ -639,7 +659,7 @@ pub async fn spawn_for_stack(layout: &Layout, registry_path: &Path, boot_functio
     } else {
         eprintln!("monolithd gateway: READ-ONLY, {} registry problem(s); first: {}", problems.len(), problems[0]);
     }
-    let gateway = Arc::new(Gateway::new(registry, problems, qlc::Client::new(&layout.qlc_e131.web_listener)));
+    let gateway = Arc::new(Gateway::new(registry, problems, qlc::Client::new(&layout.qlc_e131.web_listener)).with_calibration(calibration));
     gateway.seed(boot_function).await;
     tokio::spawn(run(gateway));
 }
@@ -1083,6 +1103,38 @@ mod tests {
         assert!(fake.calls().is_empty());
         let status = gateway.handle(Request::Status).await;
         assert_eq!((status["mode"].clone(), status["problem_count"].clone()), (json!("read_only"), json!(1)));
+    }
+
+    #[tokio::test]
+    async fn status_reports_the_calibration_in_force_and_follows_changes() {
+        let zones: std::collections::BTreeSet<String> = ["ram", "rog_eye", "strip"].iter().map(|zone| (*zone).to_owned()).collect();
+        let loaded = |state, error: Option<&str>, text: &str| crate::config::CalibrationReport {
+            file: PathBuf::from("/x/led-calibration.toml"),
+            state,
+            error: error.map(str::to_owned),
+            calibration: crate::config::parse_calibration(text, &zones).unwrap(),
+        };
+        let strip = "version = 1\n[zones.strip]\ngain = [0.19, 0.18, 1.0]\n";
+        let (sender, receiver) = watch::channel(loaded(crate::config::CalibrationState::Loaded, None, strip));
+        let registry: Registry = toml::from_str(REGISTRY).unwrap();
+        let gateway = Gateway::new(Some(registry), Vec::new(), Fake::default()).with_calibration(receiver);
+
+        let status = gateway.handle(Request::Status).await;
+        assert_eq!(status["calibration"]["state"], "loaded", "{status}");
+        assert_eq!(status["calibration"]["file"], "/x/led-calibration.toml");
+        assert_eq!(status["calibration"]["zones"]["strip"]["gain"], json!([0.19, 0.18, 1.0]));
+        assert_eq!(status["calibration"]["zones"]["strip"]["white"], json!([48, 46, 255]));
+        assert_eq!(status["calibration"]["zones"]["ram"]["white"], json!([255, 255, 255]));
+
+        // A rejected edit shows up without restarting anything, and names the reason.
+        sender.send_replace(loaded(crate::config::CalibrationState::Invalid, Some("zone strip: gain G is 7"), strip));
+        let status = gateway.handle(Request::Status).await;
+        assert_eq!(status["calibration"]["state"], "invalid");
+        assert_eq!(status["calibration"]["error"], "zone strip: gain G is 7");
+        assert_eq!(status["calibration"]["zones"]["strip"]["white"], json!([48, 46, 255]), "the gains actually in force");
+
+        let without = Gateway::new(None, vec!["no registry".to_owned()], Fake::default()).handle(Request::Status).await;
+        assert_eq!(without["calibration"], Value::Null);
     }
 
     #[tokio::test]

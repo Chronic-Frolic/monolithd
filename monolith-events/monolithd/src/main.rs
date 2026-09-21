@@ -1,3 +1,4 @@
+mod calibrate;
 mod config;
 mod controller;
 mod e131;
@@ -8,7 +9,7 @@ mod renderer;
 mod watchdog;
 
 fn usage() -> ! {
-    eprintln!("usage: monolithd <describe|render-idle|render-working CPU GPU MEMORY TASK|render-progress COMPLETED|render-warning|render-fault PHASE|render-quiet|render-controller-fault|e131-receiver|validate-registry [PATH]|scene <status|start NAME|replace NAME|stop NAME|progress ZONE N>|controller|watchdog>");
+    eprintln!("usage: monolithd <describe|render-idle|render-working CPU GPU MEMORY TASK|render-progress COMPLETED|render-warning|render-fault PHASE|render-quiet|render-controller-fault|e131-receiver|validate-registry [PATH]|scene <status|start NAME|start-set NAME...|replace NAME|stop NAME|progress ZONE N>|calibrate <--show|ZONE R G B>|controller|watchdog>");
     std::process::exit(2);
 }
 
@@ -20,13 +21,18 @@ fn validate_registry(path: Option<String>) -> Result<(), String> {
     let root = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).parent().unwrap().to_path_buf();
     let path = path.map(std::path::PathBuf::from).unwrap_or_else(|| root.join("qlc-functions.toml"));
     let layout = config::load_layout(&root.join("scene-layout.toml"))?;
-    let problems = registry::validate_files(&path, &layout)?;
+    let mut problems = registry::validate_files(&path, &layout)?;
+    match config::check_calibration_file(&root.join("led-calibration.toml"), &layout) {
+        Ok(Some(calibration)) => println!("calibration: {}", calibration.describe()),
+        Ok(None) => println!("calibration: no file; all zones at unity gain"),
+        Err(error) => problems.push(error),
+    }
     if problems.is_empty() {
-        println!("registry OK");
+        println!("registry and calibration OK");
         return Ok(());
     }
     for problem in &problems { eprintln!("  - {problem}"); }
-    Err(format!("{} registry problem(s)", problems.len()))
+    Err(format!("{} configuration problem(s)", problems.len()))
 }
 
 #[tokio::main]
@@ -43,6 +49,7 @@ async fn main() {
         Some("render-controller-fault") => renderer::controller_fault().await,
         Some("e131-receiver") => e131::run().await,
         Some("scene") => gateway::client(arguments.collect()).await,
+        Some("calibrate") => calibrate::run(arguments.collect()),
         Some("validate-registry") => validate_registry(arguments.next()),
         Some("controller") => { controller::run(); Ok(()) },
         Some("watchdog") => { watchdog::run(); Ok(()) },

@@ -97,8 +97,13 @@ pub async fn run() -> Result<(), String> {
     let listener: SocketAddr = layout.qlc_e131.listener.parse().map_err(|error| format!("parse qlc_e131.listener: {error}"))?;
     if !listener.ip().is_loopback() { return Err("qlc_e131.listener must be a loopback address".to_owned()); }
 
+    let mut calibration = config::CalibrationWatcher::new(layout_path().with_file_name("led-calibration.toml"), &layout);
+    if let Some(message) = calibration.poll() {
+        eprintln!("monolithd calibration: {message}");
+    }
+
     qlc::start_function(&layout.qlc_e131.web_listener, layout.qlc_e131.startup_function).await?;
-    gateway::spawn_for_stack(&layout, &layout_path().with_file_name("qlc-functions.toml"), layout.qlc_e131.startup_function).await;
+    gateway::spawn_for_stack(&layout, &layout_path().with_file_name("qlc-functions.toml"), layout.qlc_e131.startup_function, calibration.subscribe()).await;
 
     let receiver_config = ReceiverConfig::new()
         .with_allowed_start_codes(&[0x00])
@@ -116,8 +121,6 @@ pub async fn run() -> Result<(), String> {
     }
 
     let output = connect_output().await?;
-    let mut calibration = config::CalibrationWatcher::new(layout_path().with_file_name("led-calibration.toml"), &layout);
-    eprintln!("monolithd calibration: {}", calibration.poll().unwrap_or_else(|| "no calibration file; all zones at unity gain".to_owned()));
     let mut recalibrate = interval(Duration::from_millis(500));
     recalibrate.set_missed_tick_behavior(MissedTickBehavior::Skip);
     let mut assembler = FrameAssembler::new();
