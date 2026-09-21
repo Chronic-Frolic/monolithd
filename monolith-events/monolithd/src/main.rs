@@ -6,12 +6,13 @@ mod e131;
 mod gateway;
 mod qlc;
 mod registry;
+mod remote;
 mod renderer;
 mod supervisor;
 mod watchdog;
 
 fn usage() -> ! {
-    eprintln!("usage: monolithd <describe|render-idle|render-working CPU GPU MEMORY TASK|render-progress COMPLETED|render-warning|render-fault PHASE|render-quiet|render-controller-fault|e131-receiver|validate-registry [PATH]|scene <status|start NAME|start-set NAME...|replace NAME|stop NAME|progress ZONE N>|calibrate <--show|ZONE R G B>|event <status|ambient SET|job-start ID LABEL TOTAL [PRIORITY]|job-progress ID N [TOTAL]|job-complete ID|job-fail ID REASON|pause|resume>|probe-header <sweep [FROM TO [DWELL_MS]]|at N [SECONDS]>|controller|watchdog>");
+    eprintln!("usage: monolithd <describe|render-idle|render-working CPU GPU MEMORY TASK|render-progress COMPLETED|render-warning|render-fault PHASE|render-quiet|render-controller-fault|e131-receiver|validate-registry [PATH]|scene <status|start NAME|start-set NAME...|replace NAME|stop NAME|progress ZONE N>|calibrate <--show|ZONE R G B>|event <status|ambient SET|job-start ID LABEL TOTAL [PRIORITY]|job-progress ID N [TOTAL]|job-complete ID|job-fail ID REASON|pause|resume>|remote [PORT]|probe-header <sweep [FROM TO [DWELL_MS]]|at N [SECONDS]>|controller|watchdog>");
     std::process::exit(2);
 }
 
@@ -83,6 +84,7 @@ async fn main() {
         Some("validate-registry") => validate_registry(arguments.next()),
         Some("controller") => controller::run().await,
         Some("event") => controller::client(arguments.collect()).await,
+        Some("remote") => remote::run(arguments.next()).await,
         Some("watchdog") => { watchdog::run(); Ok(()) },
         _ => usage(),
     };

@@ -622,9 +622,8 @@ fn client_request(arguments: &[String]) -> Result<Value, String> {
     })
 }
 
-/// `monolithd event ...`: a one-shot client for the controller socket.
-pub async fn client(arguments: Vec<String>) -> Result<(), String> {
-    let request = client_request(&arguments)?;
+/// Send one request to the controller socket and return its reply.
+pub async fn call(request: &Value) -> Result<Value, String> {
     let path = socket_path()?;
     let exchange = async {
         let mut stream = UnixStream::connect(&path).await.map_err(|error| format!("connect {} (is the controller running?): {error}", path.display()))?;
@@ -634,7 +633,13 @@ pub async fn client(arguments: Vec<String>) -> Result<(), String> {
         Ok::<String, String>(reply)
     };
     let reply = timeout(CLIENT_TIMEOUT, exchange).await.map_err(|_| "controller did not answer in time".to_owned())??;
-    let reply: Value = serde_json::from_str(&reply).map_err(|error| format!("controller sent invalid JSON: {error}"))?;
+    serde_json::from_str(&reply).map_err(|error| format!("controller sent invalid JSON: {error}"))
+}
+
+/// `monolithd event ...`: a one-shot client for the controller socket.
+pub async fn client(arguments: Vec<String>) -> Result<(), String> {
+    let request = client_request(&arguments)?;
+    let reply = call(&request).await?;
     println!("{}", serde_json::to_string_pretty(&reply).unwrap_or_else(|_| reply.to_string()));
     if reply["ok"] == Value::Bool(true) {
         Ok(())

@@ -37,6 +37,16 @@ Commands, from monolithd/target/release/:
     monolithd calibrate --show               list the gains and what full white becomes
     monolithd calibrate ZONE R G B           set a zone gain (0.0 to 1.0), applied within a second
 
+## Monolith Remote
+
+monolithd remote [PORT] serves the machine's narrow control API (suspend, reboot, power
+off, Gaming and Desktop Mode, and the manual suspend block) behind a bearer token, on
+loopback only; Tailscale Serve exposes it. It runs as its own unit,
+systemd/user/monolith-remote.service, from a deliberately installed copy of the binary so
+a lighting rebuild cannot disturb it: install -m 0700 monolithd/target/release/monolithd
+~/.local/lib/monolith-remote/monolithd, then restart the unit. It replaced the original
+Python server with identical routes and responses; /status adds a lighting summary.
+
 ## Priority and composition
 
 fault > warning overlay > rgb-quiet > working > launch scene > idle
