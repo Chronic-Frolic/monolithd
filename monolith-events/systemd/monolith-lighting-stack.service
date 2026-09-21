@@ -11,6 +11,8 @@ PrivateTmp=yes
 UMask=0077
 ExecStart=/home/chronic_frolic/server-config/monolith-events/systemd/monolith-lighting-stack.sh
 Restart=on-failure
+# A deliberate stop makes the script exit 143 (SIGTERM); that is not a failure.
+SuccessExitStatus=143
 RestartSec=2
 
 [Install]
