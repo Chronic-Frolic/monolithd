@@ -1,4 +1,4 @@
-use crate::{config, gateway, qlc, renderer};
+use crate::{config, gateway, qlc, renderer, supervisor};
 use sacn::tokio::Receiver;
 use sacn::{ReceiverConfig, ReceiverEvent, Universe};
 use std::net::SocketAddr;
@@ -9,7 +9,10 @@ use tokio::time::{interval, MissedTickBehavior};
 const UNIVERSE_COUNT: usize = 5;
 const UNIVERSE_SLOTS: [usize; UNIVERSE_COUNT] = [24, 24, 24, 24, 225];
 const MAX_HARDWARE_FPS: u64 = 30;
-const OUTPUT_CONNECT_ATTEMPTS: usize = 60;
+/// How long to keep trying to reach OpenRGB and verify the Monolith controllers.
+const OUTPUT_CONNECT_WINDOW: Duration = Duration::from_secs(30);
+/// One attempt is bounded: a stalled OpenRGB can leave a connection hanging.
+const OUTPUT_CONNECT_ATTEMPT_TIMEOUT: Duration = Duration::from_secs(3);
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct QlcFrame {
@@ -72,23 +75,23 @@ fn accept_data(assembler: &mut FrameAssembler, latest: &mut Option<QlcFrame>, un
     Ok(())
 }
 
+/// Connect to OpenRGB and verify the Monolith controllers, retrying for up to 30 s.
 async fn connect_output() -> Result<renderer::QlcOutput, String> {
-    let mut last_error = None;
-    for attempt in 1..=OUTPUT_CONNECT_ATTEMPTS {
-        match renderer::QlcOutput::connect().await {
-            Ok(output) => return Ok(output),
-            Err(error) => {
-                last_error = Some(error);
-                if attempt < OUTPUT_CONNECT_ATTEMPTS {
-                    tokio::time::sleep(Duration::from_millis(500)).await;
-                }
-            }
+    let deadline = tokio::time::Instant::now() + OUTPUT_CONNECT_WINDOW;
+    let last_error = loop {
+        let error = match tokio::time::timeout(OUTPUT_CONNECT_ATTEMPT_TIMEOUT, renderer::QlcOutput::connect()).await {
+            Ok(Ok(output)) => return Ok(output),
+            Ok(Err(error)) => error,
+            Err(_) => format!("no answer from OpenRGB within {} s", OUTPUT_CONNECT_ATTEMPT_TIMEOUT.as_secs()),
+        };
+        if tokio::time::Instant::now() + Duration::from_millis(500) >= deadline {
+            break error;
         }
-    }
+        tokio::time::sleep(Duration::from_millis(500)).await;
+    };
     Err(format!(
-        "OpenRGB SDK did not expose the verified Monolith controllers after {} seconds: {}",
-        OUTPUT_CONNECT_ATTEMPTS / 2,
-        last_error.unwrap_or_else(|| "unknown controller-discovery failure".to_owned())
+        "OpenRGB SDK did not expose the verified Monolith controllers after {} seconds: {last_error}",
+        OUTPUT_CONNECT_WINDOW.as_secs()
     ))
 }
 
@@ -102,8 +105,10 @@ pub async fn run() -> Result<(), String> {
         eprintln!("monolithd calibration: {message}");
     }
 
+    let (output_report, output_health) = supervisor::channel();
+
     qlc::start_function(&layout.qlc_e131.web_listener, layout.qlc_e131.startup_function).await?;
-    gateway::spawn_for_stack(&layout, &layout_path().with_file_name("qlc-functions.toml"), layout.qlc_e131.startup_function, calibration.subscribe()).await;
+    gateway::spawn_for_stack(&layout, &layout_path().with_file_name("qlc-functions.toml"), layout.qlc_e131.startup_function, calibration.subscribe(), output_health).await;
 
     let receiver_config = ReceiverConfig::new()
         .with_allowed_start_codes(&[0x00])
@@ -120,7 +125,7 @@ pub async fn run() -> Result<(), String> {
         receiver.listen_on(universe, "127.0.0.1").await.map_err(|error| format!("listen universe {universe} on loopback: {error}"))?;
     }
 
-    let output = connect_output().await?;
+    let mut output = supervisor::Supervisor::new(connect_output().await?, connect_output, output_report);
     let mut recalibrate = interval(Duration::from_millis(500));
     recalibrate.set_missed_tick_behavior(MissedTickBehavior::Skip);
     let mut assembler = FrameAssembler::new();
@@ -150,8 +155,9 @@ pub async fn run() -> Result<(), String> {
             }
             _ = flush.tick() => {
                 if let Some(frame) = latest.take() {
-                    output.apply(&frame, calibration.current()).await?;
+                    output.offer(frame);
                 }
+                output.flush(calibration.current()).await?;
             }
         }
     }

@@ -23,7 +23,7 @@ a persistent loopback OpenRGB SDK client and cannot request power actions.
 Commands, from monolithd/target/release/:
 
     monolithd validate-registry              check the registry and calibration against the QLC+ workspace
-    monolithd scene status                   gateway state, zone owners, calibration in force
+    monolithd scene status                   gateway state, zone owners, calibration in force, output health
     monolithd scene start-set A B C          start several zone functions in phase
     monolithd scene progress ZONE N          select progress step N for a zone
     monolithd scene replace|start|stop NAME  see the gateway rules in the vault note

@@ -170,6 +170,15 @@ impl QlcOutput {
     }
 }
 
+impl crate::supervisor::Output for QlcOutput {
+    type Frame = QlcFrame;
+    type Context = Calibration;
+
+    fn apply(&self, frame: &QlcFrame, calibration: &Calibration) -> impl std::future::Future<Output = Result<(), String>> {
+        QlcOutput::apply(self, frame, calibration)
+    }
+}
+
 async fn direct_mode(resolved: &Resolved<'_>) -> Result<(), String> {
     for controller in &resolved.ram { controller.set_controllable_mode().await.map_err(|error| error.to_string())?; }
     resolved.rog_eye.0.set_controllable_mode().await.map_err(|error| error.to_string())?;

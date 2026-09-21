@@ -6,6 +6,7 @@ mod gateway;
 mod qlc;
 mod registry;
 mod renderer;
+mod supervisor;
 mod watchdog;
 
 fn usage() -> ! {

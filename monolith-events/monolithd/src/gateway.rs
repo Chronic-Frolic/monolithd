@@ -11,6 +11,7 @@
 
 use crate::config::{CalibrationReport, Layout};
 use crate::qlc::{self, FunctionStatus};
+use crate::supervisor::OutputReport;
 use crate::registry::{self, Registry};
 use serde::Deserialize;
 use serde_json::{json, Map, Value};
@@ -138,6 +139,7 @@ pub struct Gateway<Q> {
     qlc: Q,
     zones: BTreeMap<String, Mutex<ZoneState>>,
     calibration: Option<watch::Receiver<CalibrationReport>>,
+    output: Option<watch::Receiver<OutputReport>>,
     confirm_polls: usize,
     confirm_interval: Duration,
 }
@@ -150,7 +152,13 @@ impl<Q: Qlc> Gateway<Q> {
             .flat_map(|registry| registry.zones.keys())
             .map(|name| (name.clone(), Mutex::new(ZoneState::default())))
             .collect();
-        Self { registry, problems, qlc, zones, calibration: None, confirm_polls: CONFIRM_POLLS, confirm_interval: CONFIRM_INTERVAL }
+        Self { registry, problems, qlc, zones, calibration: None, output: None, confirm_polls: CONFIRM_POLLS, confirm_interval: CONFIRM_INTERVAL }
+    }
+
+    /// Let `status` report the health of the receiver's OpenRGB output.
+    pub fn with_output(mut self, report: watch::Receiver<OutputReport>) -> Self {
+        self.output = Some(report);
+        self
     }
 
     /// Let `status` report the calibration the receiver currently applies.
@@ -501,9 +509,22 @@ impl<Q: Qlc> Gateway<Q> {
         }
         let problems: Vec<&String> = self.problems.iter().take(10).collect();
         let calibration = self.calibration_json(&all);
+        let output = self.output_json();
         json!({
             "ok": true, "mode": mode, "qlc_reachable": reachable, "default_transition": Transition::default().as_str(),
-            "problem_count": self.problems.len(), "problems": problems, "zones": zones, "calibration": calibration,
+            "problem_count": self.problems.len(), "problems": problems, "zones": zones, "calibration": calibration, "output": output,
+        })
+    }
+
+    /// Whether the receiver's OpenRGB output is healthy, recovering, or being rebuilt.
+    fn output_json(&self) -> Value {
+        let Some(receiver) = &self.output else { return Value::Null };
+        let report = receiver.borrow().clone();
+        json!({
+            "state": report.state.as_str(),
+            "failures_in_a_row": report.failures_in_a_row,
+            "reconnects": report.reconnects,
+            "last_error": report.last_error,
         })
     }
 
@@ -649,7 +670,7 @@ pub async fn run<Q: Qlc + 'static>(gateway: Arc<Gateway<Q>>) {
 }
 
 /// Load and check the registry, then serve the gateway for the production stack.
-pub async fn spawn_for_stack(layout: &Layout, registry_path: &Path, boot_function: u32, calibration: watch::Receiver<CalibrationReport>) {
+pub async fn spawn_for_stack(layout: &Layout, registry_path: &Path, boot_function: u32, calibration: watch::Receiver<CalibrationReport>, output: watch::Receiver<OutputReport>) {
     let (registry, problems) = match registry::load_and_validate(registry_path, layout) {
         Ok((registry, problems)) => (Some(registry), problems),
         Err(error) => (None, vec![error]),
@@ -659,7 +680,7 @@ pub async fn spawn_for_stack(layout: &Layout, registry_path: &Path, boot_functio
     } else {
         eprintln!("monolithd gateway: READ-ONLY, {} registry problem(s); first: {}", problems.len(), problems[0]);
     }
-    let gateway = Arc::new(Gateway::new(registry, problems, qlc::Client::new(&layout.qlc_e131.web_listener)).with_calibration(calibration));
+    let gateway = Arc::new(Gateway::new(registry, problems, qlc::Client::new(&layout.qlc_e131.web_listener)).with_calibration(calibration).with_output(output));
     gateway.seed(boot_function).await;
     tokio::spawn(run(gateway));
 }
@@ -1135,6 +1156,33 @@ mod tests {
 
         let without = Gateway::new(None, vec!["no registry".to_owned()], Fake::default()).handle(Request::Status).await;
         assert_eq!(without["calibration"], Value::Null);
+    }
+
+    #[tokio::test]
+    async fn status_reports_the_output_health_and_follows_changes() {
+        use crate::supervisor::{OutputReport, OutputState};
+        let registry: Registry = toml::from_str(REGISTRY).unwrap();
+        let (sender, receiver) = crate::supervisor::channel();
+        let gateway = Gateway::new(Some(registry), Vec::new(), Fake::default()).with_output(receiver);
+
+        let status = gateway.handle(Request::Status).await;
+        assert_eq!(status["output"]["state"], "starting", "{status}");
+
+        // A recovery in progress is visible without restarting anything.
+        sender.send_replace(OutputReport {
+            state: OutputState::Recovering,
+            failures_in_a_row: 3,
+            reconnects: 1,
+            last_error: Some("Operation has timed out".to_owned()),
+        });
+        let status = gateway.handle(Request::Status).await;
+        assert_eq!(
+            status["output"],
+            json!({ "state": "recovering", "failures_in_a_row": 3, "reconnects": 1, "last_error": "Operation has timed out" })
+        );
+
+        let without = Gateway::new(None, vec!["no registry".to_owned()], Fake::default()).handle(Request::Status).await;
+        assert_eq!(without["output"], Value::Null);
     }
 
     #[tokio::test]
