@@ -17,6 +17,11 @@ pub struct Registry {
     pub functions: Vec<FunctionEntry>,
     #[serde(default)]
     pub progress: Vec<ProgressEntry>,
+    #[serde(default)]
+    pub ambient_sets: Vec<AmbientSet>,
+    /// Cycle length of each chaser, by Function ID, read from the workspace when the registry is validated.
+    #[serde(skip)]
+    pub periods_ms: BTreeMap<u32, u32>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -51,6 +56,13 @@ pub struct ProgressEntry {
     pub total: u32,
 }
 
+/// The zone functions that make up one ambient look, started together so they stay in phase.
+#[derive(Debug, Deserialize)]
+pub struct AmbientSet {
+    pub name: String,
+    pub functions: Vec<String>,
+}
+
 #[derive(Debug, Default)]
 pub struct Workspace {
     pub fixtures: BTreeMap<u32, Fixture>,
@@ -72,6 +84,8 @@ pub struct Function {
     pub writes: BTreeMap<u32, BTreeSet<u32>>,
     /// Child Function IDs in step order (chasers only).
     pub steps: Vec<u32>,
+    /// The Function's `Speed Duration` attribute, in milliseconds.
+    pub duration_ms: Option<u32>,
 }
 
 pub fn load(path: &Path) -> Result<Registry, String> {
@@ -95,6 +109,32 @@ impl Registry {
 
     pub fn progress_for_zone(&self, zone: &str) -> Option<&ProgressEntry> {
         self.progress.iter().find(|entry| entry.zone == zone)
+    }
+
+    pub fn ambient_set(&self, name: &str) -> Option<&AmbientSet> {
+        self.ambient_sets.iter().find(|set| set.name == name)
+    }
+
+    /// The ambient set a named Function belongs to, if any.
+    pub fn ambient_set_of(&self, function: &str) -> Option<&AmbientSet> {
+        self.ambient_sets.iter().find(|set| set.functions.iter().any(|member| member == function))
+    }
+
+    /// Cycle length of a chaser in milliseconds (step count times its per-step duration).
+    pub fn period_ms(&self, id: u32) -> Option<u32> {
+        self.periods_ms.get(&id).copied()
+    }
+
+    /// Read each chaser's cycle length from the workspace. Chasers run their steps in
+    /// turn for `Speed Duration` each, so a two-step chaser at 1800 ms cycles in 3.6 s.
+    pub fn attach_periods(&mut self, workspace: &Workspace) {
+        self.periods_ms.clear();
+        for entry in self.functions.iter().filter(|entry| entry.kind.eq_ignore_ascii_case("chaser")) {
+            let Some(function) = workspace.functions.get(&entry.id) else { continue };
+            if let Some(duration) = function.duration_ms.filter(|duration| *duration > 0) {
+                self.periods_ms.insert(entry.id, duration * function.steps.len() as u32);
+            }
+        }
     }
 
     fn zone_capacity(&self, zone: &str) -> Option<u32> {
@@ -178,7 +218,50 @@ impl Registry {
                 claim(entry.first_id + completed, format!("{} step {completed}", entry.name), &mut problems);
             }
         }
+        self.validate_ambient_sets(&mut problems);
         problems
+    }
+
+    fn validate_ambient_sets(&self, problems: &mut Vec<String>) {
+        let mut names = BTreeSet::new();
+        let mut claimed: BTreeMap<&str, &str> = BTreeMap::new();
+        for set in &self.ambient_sets {
+            let label = format!("ambient set {}", set.name);
+            if !names.insert(set.name.as_str()) {
+                problems.push(format!("{label}: defined more than once"));
+            }
+            if set.functions.is_empty() {
+                problems.push(format!("{label}: has no functions"));
+            }
+            let mut zones: BTreeSet<&str> = BTreeSet::new();
+            let mut periods = BTreeSet::new();
+            for name in &set.functions {
+                let Some(entry) = self.function(name) else {
+                    problems.push(format!("{label}: unknown function {name}"));
+                    continue;
+                };
+                if !entry.kind.eq_ignore_ascii_case("chaser") {
+                    problems.push(format!("{label}: {name} is a {}, ambient sets are made of chasers", entry.kind));
+                }
+                if !entry.composable || entry.zones.len() != 1 {
+                    problems.push(format!("{label}: {name} must be composable and own exactly one zone"));
+                }
+                for zone in &entry.zones {
+                    if !zones.insert(zone.as_str()) {
+                        problems.push(format!("{label}: two functions drive zone {zone}"));
+                    }
+                }
+                if let Some(period) = self.period_ms(entry.id) {
+                    periods.insert(period);
+                }
+                if let Some(other) = claimed.insert(name.as_str(), set.name.as_str()) {
+                    problems.push(format!("{label}: {name} is already in ambient set {other}"));
+                }
+            }
+            if periods.len() > 1 {
+                problems.push(format!("{label}: its chasers have different periods {periods:?} ms, so they cannot stay in phase"));
+            }
+        }
     }
 
     fn validate_geometry(&self, problems: &mut Vec<String>) {
@@ -330,6 +413,10 @@ impl Reading {
             self.writing_fixture = Some(number(&attribute(element, "ID")?.ok_or("FixtureVal without ID")?, "FixtureVal ID")?);
         } else if at(path, &["Workspace", "Engine", "Function"]) && name == "Step" {
             self.step_number = attribute(element, "Number")?.map(|n| number(&n, "Step Number")).transpose()?;
+        } else if at(path, &["Workspace", "Engine", "Function"]) && name == "Speed" {
+            if let Some((_, function)) = self.function.as_mut() {
+                function.duration_ms = attribute(element, "Duration")?.map(|value| number(&value, "Speed Duration")).transpose()?;
+            }
         }
         Ok(())
     }
@@ -425,10 +512,11 @@ pub fn parse_workspace(xml: &str) -> Result<Workspace, String> {
 /// Load the registry and check it against the workspace and scene-layout.toml.
 /// Returns the registry together with every problem found (empty means trustworthy).
 pub fn load_and_validate(registry_path: &Path, layout: &Layout) -> Result<(Registry, Vec<String>), String> {
-    let registry = load(registry_path)?;
+    let mut registry = load(registry_path)?;
     let workspace_path = registry.workspace_path(registry_path);
     let xml = std::fs::read_to_string(&workspace_path).map_err(|e| format!("read {}: {e}", workspace_path.display()))?;
     let workspace = parse_workspace(&xml).map_err(|e| format!("parse {}: {e}", workspace_path.display()))?;
+    registry.attach_periods(&workspace);
     let mut problems = registry.validate(&workspace);
     problems.extend(registry.validate_layout(layout));
     Ok((registry, problems))
@@ -597,5 +685,63 @@ mod tests {
         let layout = crate::config::load_layout(&root.join("scene-layout.toml")).unwrap();
         let problems = validate_files(&root.join("qlc-functions.toml"), &layout).unwrap();
         assert_eq!(problems, Vec::<String>::new());
+    }
+
+    #[test]
+    fn chaser_periods_come_from_the_workspace_speed_and_step_count() {
+        let xml = workspace_xml(|xml| {
+            xml.replace(
+                "<Function ID=\"3\" Type=\"Chaser\" Name=\"Pulse\">\n",
+                "<Function ID=\"3\" Type=\"Chaser\" Name=\"Pulse\">\n   <Speed FadeIn=\"10\" FadeOut=\"10\" Duration=\"250\"/>\n",
+            )
+        });
+        let mut registry: Registry = toml::from_str(REGISTRY).unwrap();
+        registry.attach_periods(&parse_workspace(&xml).unwrap());
+        assert_eq!(registry.period_ms(3), Some(500), "two steps of 250 ms");
+        assert_eq!(registry.period_ms(10), None, "progress scenes have no period");
+    }
+
+    #[test]
+    fn the_real_ambient_set_has_one_shared_period() {
+        let root = root();
+        let layout = crate::config::load_layout(&root.join("scene-layout.toml")).unwrap();
+        let (registry, problems) = load_and_validate(&root.join("qlc-functions.toml"), &layout).unwrap();
+        assert_eq!(problems, Vec::<String>::new());
+        assert_eq!([109, 112, 115].map(|id| registry.period_ms(id)), [Some(3600); 3]);
+        assert_eq!(registry.ambient_set("deep_violet").unwrap().functions.len(), 3);
+        assert_eq!(registry.ambient_set_of("ambient_eye").unwrap().name, "deep_violet");
+        assert!(registry.ambient_set_of("boot_proof").is_none());
+    }
+
+    fn set_problems(extra: &str) -> Vec<String> {
+        let registry: Registry = toml::from_str(&format!("{REGISTRY}\n{extra}")).unwrap();
+        let mut problems = Vec::new();
+        registry.validate_ambient_sets(&mut problems);
+        problems
+    }
+
+    #[test]
+    fn ambient_sets_are_validated() {
+        assert_eq!(set_problems("[[ambient_sets]]\nname = \"s\"\nfunctions = [\"ambient_left\"]\n"), Vec::<String>::new());
+        assert!(set_problems("[[ambient_sets]]\nname = \"s\"\nfunctions = [\"nope\"]\n")[0].contains("unknown function nope"));
+        assert!(set_problems("[[ambient_sets]]\nname = \"s\"\nfunctions = []\n")[0].contains("has no functions"));
+        let twice = set_problems(
+            "[[ambient_sets]]\nname = \"s\"\nfunctions = [\"ambient_left\"]\n[[ambient_sets]]\nname = \"s\"\nfunctions = [\"ambient_left\"]\n",
+        );
+        assert!(twice.iter().any(|p| p.contains("defined more than once")), "{twice:?}");
+        assert!(twice.iter().any(|p| p.contains("already in ambient set")), "{twice:?}");
+    }
+
+    #[test]
+    fn chasers_with_different_periods_cannot_share_a_set() {
+        let text = format!(
+            "{REGISTRY}\n[[functions]]\nname = \"ambient_right\"\nkind = \"chaser\"\nid = 5\nchildren = [1, 2]\nzones = [\"right\"]\ncomposable = true\n[[ambient_sets]]\nname = \"s\"\nfunctions = [\"ambient_left\", \"ambient_right\"]\n"
+        );
+        let mut registry: Registry = toml::from_str(&text).unwrap();
+        registry.periods_ms.insert(3, 3600);
+        registry.periods_ms.insert(5, 3000);
+        let mut problems = Vec::new();
+        registry.validate_ambient_sets(&mut problems);
+        assert!(problems.iter().any(|p| p.contains("different periods")), "{problems:?}");
     }
 }

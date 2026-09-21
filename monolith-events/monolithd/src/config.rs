@@ -64,7 +64,6 @@ pub struct Zone {
 pub struct QlcE131 {
     pub listener: String,
     pub web_listener: String,
-    pub startup_function: u32,
     pub ram_controller_ids: Vec<usize>,
     pub board_universe: u16,
 }
@@ -330,7 +329,6 @@ mod tests {
         assert_eq!(layout.idle_scene.kind, "direct");
         assert_eq!(layout.qlc_e131.listener, "127.0.0.1:5568");
         assert_eq!(layout.qlc_e131.web_listener, "127.0.0.1:9999");
-        assert_eq!(layout.qlc_e131.startup_function, 106);
         assert_eq!(layout.qlc_e131.ram_controller_ids, vec![0, 1, 2, 3]);
         assert_eq!(layout.qlc_e131.board_universe, 5);
         let palette = load_palette(&root.join("rgb-palette.toml")).unwrap();
@@ -399,7 +397,7 @@ mod calibration_tests {
 
     fn test_layout() -> Layout {
         toml::from_str(
-            "[zones.ram]\nkind=\"controllers\"\navailable=true\n[zones.rog_eye]\nkind=\"zone\"\navailable=true\n[zones.strip]\nkind=\"zone\"\navailable=true\n[status_routes]\n[qlc_e131]\nlistener=\"127.0.0.1:5568\"\nweb_listener=\"127.0.0.1:9999\"\nstartup_function=106\nram_controller_ids=[0,1,2,3]\nboard_universe=5\n",
+            "[zones.ram]\nkind=\"controllers\"\navailable=true\n[zones.rog_eye]\nkind=\"zone\"\navailable=true\n[zones.strip]\nkind=\"zone\"\navailable=true\n[status_routes]\n[qlc_e131]\nlistener=\"127.0.0.1:5568\"\nweb_listener=\"127.0.0.1:9999\"\nram_controller_ids=[0,1,2,3]\nboard_universe=5\n",
         )
         .unwrap()
     }

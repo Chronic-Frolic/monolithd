@@ -48,6 +48,5 @@ fault = ["ram", "rog_eye", "strip", "gpu_bracket"]
 [qlc_e131]
 listener = "127.0.0.1:5568"
 web_listener = "127.0.0.1:9999"
-startup_function = 106
 ram_controller_ids = [0, 1, 2, 3]
 board_universe = 5

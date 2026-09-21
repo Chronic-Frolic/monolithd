@@ -1,4 +1,4 @@
-use crate::{config, gateway, qlc, renderer, supervisor};
+use crate::{config, gateway, renderer, supervisor};
 use sacn::tokio::Receiver;
 use sacn::{ReceiverConfig, ReceiverEvent, Universe};
 use std::net::SocketAddr;
@@ -107,8 +107,7 @@ pub async fn run() -> Result<(), String> {
 
     let (output_report, output_health) = supervisor::channel();
 
-    qlc::start_function(&layout.qlc_e131.web_listener, layout.qlc_e131.startup_function).await?;
-    gateway::spawn_for_stack(&layout, &layout_path().with_file_name("qlc-functions.toml"), layout.qlc_e131.startup_function, calibration.subscribe(), output_health).await;
+    gateway::spawn_for_stack(&layout, &layout_path().with_file_name("qlc-functions.toml"), calibration.subscribe(), output_health).await;
 
     let receiver_config = ReceiverConfig::new()
         .with_allowed_start_codes(&[0x00])

@@ -20,7 +20,8 @@ use std::future::Future;
 use std::os::unix::fs::{DirBuilderExt, MetadataExt, PermissionsExt};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use std::time::Duration;
+use std::sync::Mutex as StdMutex;
+use std::time::{Duration, Instant};
 use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
 use tokio::net::{UnixListener, UnixStream};
 use tokio::sync::{watch, Mutex, MutexGuard};
@@ -35,6 +36,8 @@ const CONFIRM_INTERVAL: Duration = Duration::from_millis(5);
 const RESTART_DELAY: Duration = Duration::from_secs(2);
 const DEFAULT_OVERLAP: Duration = Duration::from_millis(40);
 const MAX_OVERLAP: Duration = Duration::from_millis(1000);
+/// A rejoin never fires closer than this to the boundary it aims at, so it cannot land just before it.
+const ALIGN_MARGIN: Duration = Duration::from_millis(30);
 
 /// One start (`true`) or stop (`false`) of a QLC+ Function.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -96,6 +99,8 @@ pub enum Request {
         overlap_ms: Option<u64>,
     },
     Stop { function: String },
+    /// Return a zone to its ambient set member, in phase with the members still running.
+    Rejoin { function: String },
     Progress {
         zone: String,
         completed: u32,
@@ -122,6 +127,14 @@ struct ZoneState {
     uncertain: bool,
 }
 
+/// When a running ambient set's cycle began and which members are running, so a member
+/// returning later can rejoin at the next cycle boundary instead of out of phase.
+#[derive(Default)]
+struct SetEpoch {
+    t0: Option<Instant>,
+    members: BTreeSet<String>,
+}
+
 type Held<'a> = BTreeMap<String, MutexGuard<'a, ZoneState>>;
 
 struct Failure {
@@ -140,6 +153,7 @@ pub struct Gateway<Q> {
     zones: BTreeMap<String, Mutex<ZoneState>>,
     calibration: Option<watch::Receiver<CalibrationReport>>,
     output: Option<watch::Receiver<OutputReport>>,
+    epochs: StdMutex<BTreeMap<String, SetEpoch>>,
     confirm_polls: usize,
     confirm_interval: Duration,
 }
@@ -152,7 +166,7 @@ impl<Q: Qlc> Gateway<Q> {
             .flat_map(|registry| registry.zones.keys())
             .map(|name| (name.clone(), Mutex::new(ZoneState::default())))
             .collect();
-        Self { registry, problems, qlc, zones, calibration: None, output: None, confirm_polls: CONFIRM_POLLS, confirm_interval: CONFIRM_INTERVAL }
+        Self { registry, problems, qlc, zones, calibration: None, output: None, epochs: StdMutex::new(BTreeMap::new()), confirm_polls: CONFIRM_POLLS, confirm_interval: CONFIRM_INTERVAL }
     }
 
     /// Let `status` report the health of the receiver's OpenRGB output.
@@ -174,6 +188,51 @@ impl<Q: Qlc> Gateway<Q> {
         self
     }
 
+    fn note_started(&self, registry: &Registry, function: &str, at: Instant) {
+        let Some(set) = registry.ambient_set_of(function) else { return };
+        let mut epochs = self.epochs.lock().unwrap();
+        let epoch = epochs.entry(set.name.clone()).or_default();
+        if epoch.members.is_empty() || epoch.t0.is_none() {
+            epoch.t0 = Some(at);
+        }
+        epoch.members.insert(function.to_owned());
+    }
+
+    fn note_stopped(&self, registry: &Registry, function: &str) {
+        let Some(set) = registry.ambient_set_of(function) else { return };
+        if let Some(epoch) = self.epochs.lock().unwrap().get_mut(&set.name) {
+            epoch.members.remove(function);
+        }
+    }
+
+    /// How long to wait so a start of `function` lands on the next cycle boundary of the
+    /// running members of its ambient set. None when there is nothing to align to.
+    fn align_delay(&self, registry: &Registry, function: &str, now: Instant) -> Option<Duration> {
+        let set = registry.ambient_set_of(function)?;
+        let period = u128::from(registry.period_ms(registry.function(function)?.id)?) * 1_000_000;
+        let epochs = self.epochs.lock().unwrap();
+        let epoch = epochs.get(&set.name)?;
+        if !epoch.members.iter().any(|member| member != function) {
+            return None;
+        }
+        let elapsed = now.saturating_duration_since(epoch.t0?);
+        let cycles = (elapsed + ALIGN_MARGIN).as_nanos().div_ceil(period);
+        let boundary = epoch.t0? + Duration::from_nanos((cycles * period) as u64);
+        Some(boundary.saturating_duration_since(now))
+    }
+
+    fn ambient_json(&self) -> Value {
+        let (Some(registry), epochs) = (&self.registry, self.epochs.lock().unwrap()) else { return Value::Null };
+        let now = Instant::now();
+        let mut sets = Map::new();
+        for (name, epoch) in epochs.iter().filter(|(_, epoch)| !epoch.members.is_empty()) {
+            let period = epoch.members.iter().find_map(|member| registry.function(member).and_then(|entry| registry.period_ms(entry.id)));
+            let phase = epoch.t0.zip(period).map(|(t0, period)| (now.saturating_duration_since(t0).as_millis() as u64) % u64::from(period));
+            sets.insert(name.clone(), json!({ "members": epoch.members, "period_ms": period, "phase_ms": phase }));
+        }
+        Value::Object(sets)
+    }
+
     /// Lock the named zones in alphabetical order (deadlock-free by construction).
     async fn lock_zones<'a>(&'a self, names: &[String]) -> Result<Held<'a>, Failure> {
         let ordered: BTreeSet<&String> = names.iter().collect();
@@ -185,7 +244,8 @@ impl<Q: Qlc> Gateway<Q> {
         Ok(held)
     }
 
-    /// Record that the stack started `function_id` itself at boot.
+    /// Record that `function_id` is already running (tests only).
+    #[cfg(test)]
     pub async fn seed(&self, function_id: u32) {
         let Some(registry) = &self.registry else { return };
         let Some(target) = target_for_id(registry, function_id) else {
@@ -228,23 +288,30 @@ impl<Q: Qlc> Gateway<Q> {
         match request {
             Request::Start { function } => {
                 let target = resolve_function(registry, &function)?;
-                self.activate(&target, false, Transition::default(), DEFAULT_OVERLAP).await
+                self.activate(registry, &target, false, Transition::default(), DEFAULT_OVERLAP, false).await
             }
             Request::StartSet { functions } => {
                 let targets = functions.iter().map(|name| resolve_function(registry, name)).collect::<Result<Vec<_>, _>>()?;
-                self.start_set(&targets).await
+                self.start_set(registry, &targets).await
             }
             Request::Replace { function, transition, overlap_ms } => {
                 let target = resolve_function(registry, &function)?;
-                self.activate(&target, true, transition, overlap(overlap_ms)?).await
+                self.activate(registry, &target, true, transition, overlap(overlap_ms)?, false).await
             }
             Request::Progress { zone, completed, transition, overlap_ms } => {
                 let target = resolve_progress(registry, &zone, completed)?;
-                self.activate(&target, true, transition, overlap(overlap_ms)?).await
+                self.activate(registry, &target, true, transition, overlap(overlap_ms)?, false).await
             }
             Request::Stop { function } => {
                 let target = resolve_function(registry, &function)?;
-                self.stop(&target).await
+                self.stop(registry, &target).await
+            }
+            Request::Rejoin { function } => {
+                let target = resolve_function(registry, &function)?;
+                if registry.ambient_set_of(&target.name).is_none() {
+                    return fail("not_ambient", format!("{} is not a member of an ambient set", target.name));
+                }
+                self.activate(registry, &target, true, Transition::default(), DEFAULT_OVERLAP, true).await
             }
             Request::Status => unreachable!("status is handled before mutation"),
         }
@@ -286,11 +353,13 @@ impl<Q: Qlc> Gateway<Q> {
         self.confirm(commands).await
     }
 
-    fn mark_uncertain(held: &mut Held<'_>, zones: &[String]) {
+    fn mark_uncertain(&self, registry: &Registry, held: &mut Held<'_>, zones: &[String]) {
         for zone in zones {
             if let Some(zone) = held.get_mut(zone) {
+                if let Some(owner) = zone.owner.take() {
+                    self.note_stopped(registry, &owner.name);
+                }
                 zone.uncertain = true;
-                zone.owner = None;
             }
         }
     }
@@ -302,7 +371,7 @@ impl<Q: Qlc> Gateway<Q> {
         }
     }
 
-    async fn activate(&self, target: &Target, replace: bool, transition: Transition, overlap: Duration) -> Result<Value, Failure> {
+    async fn activate(&self, registry: &Registry, target: &Target, replace: bool, transition: Transition, overlap: Duration, align: bool) -> Result<Value, Failure> {
         let mut held = self.lock_zones(&target.zones).await?;
         Self::check_free_of_uncertainty(&held)?;
 
@@ -332,6 +401,11 @@ impl<Q: Qlc> Gateway<Q> {
             }
         }
 
+        let wait = if align { self.align_delay(registry, &target.name, Instant::now()) } else { None };
+        if let Some(wait) = wait {
+            sleep(wait).await;
+        }
+        let sent_at = Instant::now();
         let stops: Vec<Command> = owners.iter().map(|owner| Command { id: owner.id, running: false }).collect();
         let start = Command { id: target.id, running: true };
         let outcome = if stops.is_empty() {
@@ -360,22 +434,26 @@ impl<Q: Qlc> Gateway<Q> {
             }
         };
         if let Err(error) = outcome {
-            Self::mark_uncertain(&mut held, &target.zones);
+            self.mark_uncertain(registry, &mut held, &target.zones);
             return fail("qlc_unconfirmed", format!("switching to {}: {error}", target.name));
         }
+        for owner in &owners {
+            self.note_stopped(registry, &owner.name);
+        }
+        self.note_started(registry, &target.name, sent_at);
         for zone in held.values_mut() {
             zone.owner = Some(target.clone());
         }
         let released: Vec<&str> = owners.iter().map(|owner| owner.name.as_str()).collect();
         Ok(json!({
             "ok": true, "changed": true, "function": target.name, "id": target.id, "zones": target.zones,
-            "released": released, "transition": if owners.is_empty() { Value::Null } else { json!(transition.as_str()) },
+            "aligned_wait_ms": wait.map(|wait| wait.as_millis() as u64), "released": released, "transition": if owners.is_empty() { Value::Null } else { json!(transition.as_str()) },
         }))
     }
 
     /// Start several functions together: every command goes out in one batch,
     /// so their chasers begin in the same QLC+ pass and stay in phase.
-    async fn start_set(&self, targets: &[Target]) -> Result<Value, Failure> {
+    async fn start_set(&self, registry: &Registry, targets: &[Target]) -> Result<Value, Failure> {
         if targets.is_empty() {
             return fail("bad_request", "start_set needs at least one function");
         }
@@ -404,9 +482,10 @@ impl<Q: Qlc> Gateway<Q> {
         }
         if !to_start.is_empty() {
             let commands: Vec<Command> = to_start.iter().map(|target| Command { id: target.id, running: true }).collect();
+            let sent_at = Instant::now();
             if let Err(error) = self.send_confirmed(&commands).await {
                 for target in &to_start {
-                    Self::mark_uncertain(&mut held, &target.zones);
+                    self.mark_uncertain(registry, &mut held, &target.zones);
                 }
                 return fail("qlc_unconfirmed", format!("starting the set: {error}"));
             }
@@ -416,19 +495,21 @@ impl<Q: Qlc> Gateway<Q> {
                         entry.owner = Some((*target).clone());
                     }
                 }
+                self.note_started(registry, &target.name, sent_at);
             }
         }
         let started: Vec<&str> = to_start.iter().map(|target| target.name.as_str()).collect();
         Ok(json!({ "ok": true, "changed": !to_start.is_empty(), "started": started }))
     }
 
-    async fn stop(&self, target: &Target) -> Result<Value, Failure> {
+    async fn stop(&self, registry: &Registry, target: &Target) -> Result<Value, Failure> {
         let mut held = self.lock_zones(&target.zones).await?;
         Self::check_free_of_uncertainty(&held)?;
         if let Err(error) = self.send_confirmed(&[Command { id: target.id, running: false }]).await {
-            Self::mark_uncertain(&mut held, &target.zones);
+            self.mark_uncertain(registry, &mut held, &target.zones);
             return fail("qlc_unconfirmed", format!("stopping {}: {error}", target.name));
         }
+        self.note_stopped(registry, &target.name);
         let mut changed = false;
         for zone in held.values_mut() {
             if zone.owner.as_ref().is_some_and(|owner| owner.id == target.id) {
@@ -507,12 +588,21 @@ impl<Q: Qlc> Gateway<Q> {
             };
             zones.insert(name.clone(), json!({ "owner": owner, "function_id": id, "qlc": qlc, "uncertain": zone.uncertain }));
         }
+        if !held.values().any(|zone| zone.owner.is_some()) {
+            // With nothing running there is no owner to ask, so probe QLC+ with any registered Function.
+            if let Some(id) = self.registry.as_ref().and_then(|registry| registry.functions.first()).map(|entry| entry.id) {
+                if self.qlc.status(id).await.is_err() {
+                    reachable = false;
+                }
+            }
+        }
         let problems: Vec<&String> = self.problems.iter().take(10).collect();
+        let ambient = self.ambient_json();
         let calibration = self.calibration_json(&all);
         let output = self.output_json();
         json!({
             "ok": true, "mode": mode, "qlc_reachable": reachable, "default_transition": Transition::default().as_str(),
-            "problem_count": self.problems.len(), "problems": problems, "zones": zones, "calibration": calibration, "output": output,
+            "problem_count": self.problems.len(), "problems": problems, "zones": zones, "calibration": calibration, "output": output, "ambient_sets": ambient,
         })
     }
 
@@ -589,7 +679,7 @@ pub fn socket_path() -> Result<PathBuf, String> {
 }
 
 /// Create the socket directory (0700) if needed, clear a dead socket, bind, and lock to 0600.
-fn prepare_socket(path: &Path) -> Result<UnixListener, String> {
+pub(crate) fn prepare_socket(path: &Path) -> Result<UnixListener, String> {
     let directory = path.parent().ok_or("gateway socket path has no parent")?;
     std::fs::DirBuilder::new()
         .recursive(true)
@@ -670,7 +760,7 @@ pub async fn run<Q: Qlc + 'static>(gateway: Arc<Gateway<Q>>) {
 }
 
 /// Load and check the registry, then serve the gateway for the production stack.
-pub async fn spawn_for_stack(layout: &Layout, registry_path: &Path, boot_function: u32, calibration: watch::Receiver<CalibrationReport>, output: watch::Receiver<OutputReport>) {
+pub async fn spawn_for_stack(layout: &Layout, registry_path: &Path, calibration: watch::Receiver<CalibrationReport>, output: watch::Receiver<OutputReport>) {
     let (registry, problems) = match registry::load_and_validate(registry_path, layout) {
         Ok((registry, problems)) => (Some(registry), problems),
         Err(error) => (None, vec![error]),
@@ -681,11 +771,10 @@ pub async fn spawn_for_stack(layout: &Layout, registry_path: &Path, boot_functio
         eprintln!("monolithd gateway: READ-ONLY, {} registry problem(s); first: {}", problems.len(), problems[0]);
     }
     let gateway = Arc::new(Gateway::new(registry, problems, qlc::Client::new(&layout.qlc_e131.web_listener)).with_calibration(calibration).with_output(output));
-    gateway.seed(boot_function).await;
     tokio::spawn(run(gateway));
 }
 
-const USAGE: &str = "usage: monolithd scene <status | start NAME | start-set NAME... | stop NAME | replace NAME [FLAGS] | progress ZONE COMPLETED [FLAGS]>\n  FLAGS: --transition sequential|pipelined|overlap   --overlap-ms N";
+const USAGE: &str = "usage: monolithd scene <status | start NAME | start-set NAME... | stop NAME | rejoin NAME | replace NAME [FLAGS] | progress ZONE COMPLETED [FLAGS]>\n  FLAGS: --transition sequential|pipelined|overlap   --overlap-ms N";
 
 /// Build the JSON request for `monolithd scene ...` from its arguments.
 fn client_request(arguments: &[String]) -> Result<Value, String> {
@@ -708,6 +797,7 @@ fn client_request(arguments: &[String]) -> Result<Value, String> {
         ["start", name] => json!({ "op": "start", "function": name }),
         ["start-set", names @ ..] if !names.is_empty() => json!({ "op": "start_set", "functions": names }),
         ["stop", name] => json!({ "op": "stop", "function": name }),
+        ["rejoin", name] => json!({ "op": "rejoin", "function": name }),
         ["replace", name] => json!({ "op": "replace", "function": name }),
         ["progress", zone, completed] => {
             let completed: u32 = completed.parse().map_err(|_| format!("COMPLETED must be an integer, not {completed:?}"))?;
@@ -727,9 +817,8 @@ fn client_request(arguments: &[String]) -> Result<Value, String> {
     Ok(request)
 }
 
-/// `monolithd scene ...`: a one-shot client for the gateway socket.
-pub async fn client(arguments: Vec<String>) -> Result<(), String> {
-    let request = client_request(&arguments)?;
+/// Send one request to the gateway socket and return its reply.
+pub async fn call(request: &Value) -> Result<Value, String> {
     let path = socket_path()?;
     let exchange = async {
         let mut stream = UnixStream::connect(&path).await.map_err(|error| format!("connect {}: {error}", path.display()))?;
@@ -739,7 +828,13 @@ pub async fn client(arguments: Vec<String>) -> Result<(), String> {
         Ok::<String, String>(reply)
     };
     let reply = timeout(CLIENT_TIMEOUT, exchange).await.map_err(|_| "gateway did not answer in time".to_owned())??;
-    let reply: Value = serde_json::from_str(&reply).map_err(|error| format!("gateway sent invalid JSON: {error}"))?;
+    serde_json::from_str(&reply).map_err(|error| format!("gateway sent invalid JSON: {error}"))
+}
+
+/// `monolithd scene ...`: a one-shot client for the gateway socket.
+pub async fn client(arguments: Vec<String>) -> Result<(), String> {
+    let request = client_request(&arguments)?;
+    let reply = call(&request).await?;
     println!("{}", serde_json::to_string_pretty(&reply).unwrap_or_else(|_| reply.to_string()));
     if reply["ok"] == Value::Bool(true) {
         Ok(())
@@ -791,6 +886,9 @@ mod tests {
         children = [113, 114]
         zones = ["strip"]
         composable = true
+        [[ambient_sets]]
+        name = "deep_violet"
+        functions = ["ambient_ram", "ambient_eye", "ambient_strip"]
         [[progress]]
         name = "progress_ram"
         zone = "ram"
@@ -810,6 +908,8 @@ mod tests {
         running: Arc<StdMutex<std::collections::BTreeSet<u32>>>,
         /// Every command, in the order QLC+ would apply it.
         calls: Arc<StdMutex<Vec<String>>>,
+        /// When each command was applied.
+        times: Arc<StdMutex<Vec<(String, Instant)>>>,
         /// The same commands grouped as they were delivered.
         batches: Arc<StdMutex<Vec<Vec<String>>>>,
         /// Functions whose start QLC+ silently ignores.
@@ -840,6 +940,7 @@ mod tests {
             self.batches.lock().unwrap().push(commands.iter().map(label).collect());
             for command in commands {
                 self.calls.lock().unwrap().push(label(command));
+                self.times.lock().unwrap().push((label(command), Instant::now()));
                 if command.running {
                     if !self.stuck.lock().unwrap().contains(&command.id) {
                         self.running.lock().unwrap().insert(command.id);
@@ -1183,6 +1284,103 @@ mod tests {
 
         let without = Gateway::new(None, vec!["no registry".to_owned()], Fake::default()).handle(Request::Status).await;
         assert_eq!(without["output"], Value::Null);
+    }
+
+    fn aligned_gateway(fake: &Fake, period_ms: u32) -> Gateway<Fake> {
+        let mut registry: Registry = toml::from_str(REGISTRY).unwrap();
+        for id in [109, 112, 115] {
+            registry.periods_ms.insert(id, period_ms);
+        }
+        Gateway::new(Some(registry), Vec::new(), fake.clone()).with_confirmation(3, Duration::from_millis(1))
+    }
+
+    fn rejoin(function: &str) -> Request {
+        Request::Rejoin { function: function.to_owned() }
+    }
+
+    fn time_of(fake: &Fake, label: &str, nth: usize) -> Instant {
+        fake.times.lock().unwrap().iter().filter(|(l, _)| l == label).nth(nth).map(|(_, t)| *t).unwrap_or_else(|| panic!("no {label} #{nth}"))
+    }
+
+    #[tokio::test]
+    async fn rejoin_waits_for_the_next_cycle_boundary_of_a_running_peer() {
+        let fake = Fake::default();
+        let gateway = aligned_gateway(&fake, 200);
+        assert_eq!(gateway.handle(start_set(&["ambient_ram", "ambient_eye"])).await["ok"], true);
+        gateway.handle(progress("ram", 5)).await;
+        tokio::time::sleep(Duration::from_millis(70)).await;
+        let reply = gateway.handle(rejoin("ambient_ram")).await;
+        assert_eq!(reply["ok"], true, "{reply}");
+        assert!(reply["aligned_wait_ms"].as_u64().unwrap() > 20, "it should have waited for the boundary: {reply}");
+        let set_started = time_of(&fake, "start 112", 0); // the start_set batch
+        let rejoined = time_of(&fake, "start 109", 1); // 0 = start_set, 1 = the rejoin
+        let offset = rejoined.duration_since(set_started).as_millis() % 200;
+        assert!(offset <= 15 || offset >= 185, "rejoin landed {offset} ms into a 200 ms cycle");
+        assert_eq!(fake.running(), vec![109, 112]);
+    }
+
+    #[tokio::test]
+    async fn rejoin_with_no_running_peer_starts_at_once() {
+        let fake = Fake::default();
+        let gateway = aligned_gateway(&fake, 200);
+        let started = Instant::now();
+        let reply = gateway.handle(rejoin("ambient_ram")).await;
+        assert_eq!(reply["ok"], true, "{reply}");
+        assert_eq!(reply["aligned_wait_ms"], Value::Null);
+        assert!(started.elapsed() < Duration::from_millis(100));
+    }
+
+    #[tokio::test]
+    async fn rejoin_ignores_a_peer_that_has_been_stopped() {
+        let fake = Fake::default();
+        let gateway = aligned_gateway(&fake, 200);
+        gateway.handle(start_set(&["ambient_ram", "ambient_eye"])).await;
+        gateway.handle(stop("ambient_eye")).await;
+        let started = Instant::now();
+        let reply = gateway.handle(rejoin("ambient_strip")).await;
+        assert_eq!(reply["ok"], true, "{reply}");
+        assert_eq!(reply["aligned_wait_ms"].as_u64().is_some(), true, "ram is still running, so it aligns to it: {reply}");
+        gateway.handle(stop("ambient_ram")).await;
+        gateway.handle(stop("ambient_strip")).await;
+        let reply = gateway.handle(rejoin("ambient_eye")).await;
+        assert_eq!(reply["aligned_wait_ms"], Value::Null, "nothing left running to align to");
+        assert!(started.elapsed() < Duration::from_secs(2));
+    }
+
+    #[tokio::test]
+    async fn rejoin_refuses_functions_outside_an_ambient_set() {
+        let gateway = aligned_gateway(&Fake::default(), 200);
+        assert_eq!(code(&gateway.handle(rejoin("boot_proof")).await), "not_ambient");
+        assert_eq!(code(&gateway.handle(rejoin("nonsense")).await), "unknown_function");
+    }
+
+    #[tokio::test]
+    async fn status_reports_running_ambient_sets_and_their_phase() {
+        let fake = Fake::default();
+        let gateway = aligned_gateway(&fake, 200);
+        gateway.handle(start_set(&["ambient_ram", "ambient_eye"])).await;
+        let status = gateway.handle(Request::Status).await;
+        let set = &status["ambient_sets"]["deep_violet"];
+        assert_eq!(set["members"], json!(["ambient_eye", "ambient_ram"]), "{status}");
+        assert_eq!(set["period_ms"], 200);
+        assert!(set["phase_ms"].as_u64().unwrap() < 200);
+    }
+
+    #[tokio::test]
+    async fn status_reports_qlc_unreachable_even_when_nothing_is_running() {
+        struct Dead;
+        impl Qlc for Dead {
+            async fn send(&self, _: &[Command]) -> Result<(), String> { Err("down".to_owned()) }
+            async fn status(&self, _: u32) -> Result<FunctionStatus, String> { Err("down".to_owned()) }
+        }
+        let registry: Registry = toml::from_str(REGISTRY).unwrap();
+        let status = Gateway::new(Some(registry), Vec::new(), Dead).handle(Request::Status).await;
+        assert_eq!(status["qlc_reachable"], false, "{status}");
+    }
+
+    #[test]
+    fn parses_the_rejoin_request() {
+        assert_eq!(serde_json::from_str::<Request>(r#"{"op":"rejoin","function":"ambient_ram"}"#).unwrap(), rejoin("ambient_ram"));
     }
 
     #[tokio::test]

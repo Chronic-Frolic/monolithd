@@ -65,6 +65,13 @@ children = [113, 114]
 zones = ["strip"]
 composable = true
 
+# Named ambient sets: the zone functions that make up one ambient look. A set is started
+# together (start_set) so its chasers stay in phase, and a member returning later rejoins
+# at the next cycle boundary. Sets are data; which one is selected is controller state.
+[[ambient_sets]]
+name = "deep_violet"
+functions = ["ambient_ram", "ambient_eye", "ambient_strip"]
+
 # Calibration reference: the eye at full nominal white. The eye has no other white
 # Function, so this is what it is compared against `progress ram 0` (all RAM white)
 # and `progress strip 0` (all strip white) when matching white points by eye. It can

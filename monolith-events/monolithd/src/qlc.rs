@@ -1,12 +1,11 @@
 use std::net::SocketAddr;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
-use tokio::time::{sleep, timeout, Duration};
+use tokio::time::{timeout, Duration};
 
 const HANDSHAKE_KEY: &str = "dGhlIHNhbXBsZSBub25jZQ==";
 const MAX_HANDSHAKE_BYTES: usize = 16 * 1024;
 const MAX_REPLY_BYTES: usize = 64 * 1024;
-const START_ATTEMPTS: usize = 60;
 const REPLY_TIMEOUT: Duration = Duration::from_secs(2);
 
 /// What QLC+ reports for a Function via `getFunctionStatus`.
@@ -62,32 +61,6 @@ fn parse_listener(listener: &str) -> Result<SocketAddr, String> {
     Ok(address)
 }
 
-/// Start a QLC+ Function, retrying until QLC+ is ready to accept commands.
-pub async fn start_function(listener: &str, function_id: u32) -> Result<(), String> {
-    let address = parse_listener(listener)?;
-
-    let mut last_error = None;
-    for attempt in 1..=START_ATTEMPTS {
-        match set_running_once(address, function_id, true).await {
-            Ok(()) => {
-                eprintln!("monolithd QLC control: started Function {function_id} through {address}");
-                return Ok(());
-            }
-            Err(error) => {
-                last_error = Some(error);
-                if attempt < START_ATTEMPTS {
-                    sleep(Duration::from_millis(500)).await;
-                }
-            }
-        }
-    }
-    Err(format!(
-        "QLC+ control at {address} was not ready after {} seconds: {}",
-        START_ATTEMPTS / 2,
-        last_error.unwrap_or_else(|| "unknown connection error".to_owned())
-    ))
-}
-
 /// Connect and complete the WebSocket handshake. Returns the stream plus any
 /// bytes that arrived after the handshake headers (the start of the first frame).
 async fn open(address: SocketAddr) -> Result<(TcpStream, Vec<u8>), String> {
@@ -129,10 +102,6 @@ async fn open(address: SocketAddr) -> Result<(TcpStream, Vec<u8>), String> {
         ));
     }
     Ok((stream, response.split_off(header_end)))
-}
-
-async fn set_running_once(address: SocketAddr, function_id: u32, running: bool) -> Result<(), String> {
-    set_running_batch_once(address, &[(function_id, running)]).await
 }
 
 async fn set_running_batch_once(address: SocketAddr, commands: &[(u32, bool)]) -> Result<(), String> {
@@ -351,7 +320,7 @@ mod tests {
     async fn sends_start_and_stop_commands() {
         for (running, expected) in [(true, "QLC+API|setFunctionStatus|109|1"), (false, "QLC+API|setFunctionStatus|109|0")] {
             let (address, server) = fake_qlc(None).await;
-            set_running_once(address, 109, running).await.unwrap();
+            set_running_batch_once(address, &[(109, running)]).await.unwrap();
             assert_eq!(server.await.unwrap(), expected);
         }
     }
