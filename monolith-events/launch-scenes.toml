@@ -1,12 +1,10 @@
 # Launch-scene policy. Steam launch observation supplies shortcut App IDs.
 # Higher-priority controller states still override any launch scene.
-
-[default]
-scene = "pretty_scene_1"
-
-[scenes.pretty_scene_1]
-profile = "profiles/scenes/pretty-scene-1.json"
-requires_plugins = ["OpenRGB Effects Plugin", "OpenRGB Visual Map Plugin"]
+#
+# Intentionally empty. The earlier OpenRGB-profile scenes were removed on
+# 2026-09-21 (recoverable from git history, commit 458a476). Launch scenes will
+# name QLC+ scenes or ambient sets registered in qlc-functions.toml once the
+# controller exists.
 
 [steam_launch]
 # Per-shortcut overrides:

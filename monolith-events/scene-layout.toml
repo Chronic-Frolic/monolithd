@@ -43,9 +43,6 @@ working = ["ram", "rog_eye"]
 warning = ["rog_eye"]
 fault = ["ram", "rog_eye", "strip", "gpu_bracket"]
 
-[scene_defaults]
-launch_scene = "pretty_scene_1"
-
 # QLC+ emits these logical OpenRGB controllers as unicast E1.31 universes 1-4.
 # The physical left-to-right order remains `zones.ram.controller_ids` above.
 [qlc_e131]

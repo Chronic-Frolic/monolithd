@@ -69,10 +69,11 @@ systemd/ contains the canonical user units.
 
 ## Launch-scene registry
 
-launch-scenes.toml is intentionally empty until a desired profile exists.
-Create and save an OpenRGB profile, copy it to profiles/scenes/, then bind its
-Steam shortcut App ID to a named scene in that file. Unbound launches remain
-observation only.
+launch-scenes.toml is intentionally empty until a desired scene exists. The
+OpenRGB-profile launch scenes were removed (they belonged to the Effects-plugin
+architecture, superseded by QLC+); launch scenes will name QLC+ scenes or
+ambient sets from qlc-functions.toml once the controller exists. Unbound
+launches remain observation only.
 
 ## Gamescope Game Observer
 
