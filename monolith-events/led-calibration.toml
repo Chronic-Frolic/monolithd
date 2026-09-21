@@ -15,20 +15,25 @@
 
 version = 1
 
-# RAM is the white reference the other zones are matched against.
+# RAM and the eye were judged neutral white and in agreement with each other at
+# unity gain (2026-09-21). No zone is canonical: every zone, RAM included, is
+# calibrated until all whites agree and read neutral. RAM's LED casings may yellow
+# with age; re-tune this line when they do.
 [zones.ram]
 gain = [1.0, 1.0, 1.0]
 
-# The eye looked close to RAM's white by eye (2026-09-21) but has no white
-# Function yet, so it could not be compared side by side. Revisit once one exists.
+# Judged neutral and matching RAM at unity gain (2026-09-21), using the
+# reference_white_eye Scene (Function 116) beside `progress ram 0`.
 [zones.rog_eye]
 gain = [1.0, 1.0, 1.0]
 
-# Tuned by eye against RAM's white on 2026-09-21. The strip's blue is weak and its
-# flexible casing has yellowed with age (a blue-absorbing filter), so the white
-# needs red and green cut hard: 0.19 / 0.18 is DMX 48 / 46 at full white. Neighbors
-# at this resolution: 48/46 leaned slightly green (chosen), 49/46 slightly red,
-# 45/43 slightly red, 42/40 red. The casing keeps yellowing, so expect to re-tune
-# this line over the years; nothing else needs to change when you do.
+# Tuned by eye on 2026-09-21. The strip's blue is weak and its flexible casing has
+# yellowed with age (a blue-absorbing filter), so its white needs red and green cut
+# hard: 0.18 / 0.18 is DMX 46 / 46 at full white. With all 70 LEDs white it agrees
+# with RAM and the eye and is about as bright. Trail: 0.19 / 0.18 (48 / 46) read
+# slightly green at 35 white LEDs and reddish at 70; 49 / 46 and 45 / 43 read
+# slightly red; 42 / 40 red. The strip is also uneven along its length (the casing
+# has yellowed unevenly, or its LEDs are mixed bins), which one gain per zone cannot
+# fix; a per-pixel map would. Expect to re-tune this line over the years.
 [zones.strip]
-gain = [0.19, 0.18, 1.0]
+gain = [0.18, 0.18, 1.0]
