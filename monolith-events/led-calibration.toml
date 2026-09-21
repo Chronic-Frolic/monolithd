@@ -30,13 +30,13 @@ gain = [1.0, 1.0, 1.0]
 # Tuned by eye on 2026-09-21. The strip's blue is weak and its flexible casing has
 # yellowed with age (a blue-absorbing filter), so its white needs red and green cut
 # hard: 0.18 / 0.18 is DMX 46 / 46 at full white. With all 70 LEDs white its color
-# agrees with RAM and the eye, but it is dimmer. Trail: 0.19 / 0.18 (48 / 46) read
+# agrees with RAM and the eye at about the same brightness (dimmer only
+# than its own uncalibrated baseline). Trail: 0.19 / 0.18 (48 / 46) read
 # slightly green at 35 white LEDs and reddish at 70; 49 / 46 and 45 / 43 read
 # slightly red; 42 / 40 red. The strip is also uneven along its length (the casing
 # has yellowed unevenly, or its LEDs are mixed bins), which one gain per zone cannot
 # fix; a per-pixel map would (deferred to a later pass). The owner's diagnosis is
 # that the strip's red and green LEDs are overpowered from the factory, which is why
-# they must be cut hard and the strip ends up dimmer. Expect to re-tune this line
-# over the years.
+# they must be cut hard. Expect to re-tune this line over the years.
 [zones.strip]
 gain = [0.18, 0.18, 1.0]
