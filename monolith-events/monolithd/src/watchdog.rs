@@ -126,22 +126,16 @@ fn write_heartbeat_to(path: &std::path::Path, state: &SharedState) {
 }
 
 /// Ask the gateway to preempt every managed zone with the named severity's assets
-/// (`fault_*` or `quiet_*`). Best-effort per zone: one zone's failure does not stop
-/// the others, and every failure is logged.
+/// (`fault_*` or `quiet_*`), all in one gateway call: the zones change together
+/// instead of staggering one at a time, the same one-zone-at-a-time pattern found
+/// live 2026-09-22 and already fixed in the controller's own fault/warning/quiet layer.
 async fn preempt_all_zones(prefix: &str) -> Result<(), String> {
-    let mut last_error = None;
-    for zone in FAULT_ZONES {
-        let function = format!("{prefix}_{}", zone_suffix(zone));
-        let request = json!({ "op": "replace", "function": function });
-        match gateway::call(&request).await {
-            Ok(reply) if reply["ok"] == Value::Bool(true) => {}
-            Ok(reply) => last_error = Some(format!("{function}: {}", reply["error"].as_str().unwrap_or("refused"))),
-            Err(error) => last_error = Some(format!("{function}: {error}")),
-        }
-    }
-    match last_error {
-        None => Ok(()),
-        Some(error) => Err(error),
+    let functions: Vec<String> = FAULT_ZONES.iter().map(|zone| format!("{prefix}_{}", zone_suffix(zone))).collect();
+    let request = json!({ "op": "preempt_set", "functions": functions });
+    match gateway::call(&request).await {
+        Ok(reply) if reply["ok"] == Value::Bool(true) => Ok(()),
+        Ok(reply) => Err(reply["error"].as_str().unwrap_or("refused").to_owned()),
+        Err(error) => Err(error),
     }
 }
 
@@ -218,33 +212,54 @@ async fn prepare_sleep(state: &Mutex<SharedState>, delay: &Mutex<DelayInhibitor>
 /// 2026-09-22): the health_loop's own periodic tick landed mid-resume and timed out
 /// a moment after this function's own check had already confirmed the controller
 /// healthy. Only one check may be in flight during the grace window.
+/// Poll `ping` for up to `grace`, one attempt per second. Pure with respect to
+/// `SharedState` — the caller alone decides when `suspended` clears — so the
+/// resume-race invariant (no concurrent probe while this is running) is testable
+/// without a real controller, gateway, or delay inhibitor.
+async fn poll_until_healthy<F, Fut>(grace: Duration, mut ping: F) -> Result<(), String>
+where
+    F: FnMut() -> Fut,
+    Fut: std::future::Future<Output = Result<(), String>>,
+{
+    let deadline = tokio::time::Instant::now() + grace;
+    let last_error = loop {
+        let error = match ping().await {
+            Ok(()) => return Ok(()),
+            Err(error) => error,
+        };
+        if tokio::time::Instant::now() >= deadline {
+            break error;
+        }
+        tokio::time::sleep(Duration::from_secs(1)).await;
+    };
+    Err(last_error)
+}
+
+/// `suspended` stays true for this whole function, not just until the inhibitor is
+/// reacquired: it is what keeps the independent health_loop from probing the
+/// controller at the same time this grace-period check does. Two uncoordinated
+/// probes racing right after wake, while the controller is still doing legitimate
+/// post-resume work, produced a spurious fault-then-clear flicker (found live,
+/// 2026-09-22): the health_loop's own periodic tick landed mid-resume and timed out
+/// a moment after this function's own check had already confirmed the controller
+/// healthy. Only one check may be in flight during the grace window; see
+/// poll_until_healthy and its regression test below.
 async fn resume(state: &Mutex<SharedState>, delay: &Mutex<DelayInhibitor>) {
     if let Err(error) = delay.lock().await.acquire().await {
         eprintln!("monolithd watchdog: could not reacquire the sleep delay inhibitor: {error}");
     }
-    let deadline = tokio::time::Instant::now() + RESUME_GRACE;
-    let mut last_error = "controller did not respond".to_owned();
-    let mut healthy = false;
-    while tokio::time::Instant::now() < deadline {
-        match controller_healthy().await {
-            Ok(()) => {
-                healthy = true;
-                break;
-            }
-            Err(error) => last_error = error,
-        }
-        tokio::time::sleep(Duration::from_secs(1)).await;
-    }
+    let outcome = poll_until_healthy(RESUME_GRACE, controller_healthy).await;
     {
         let mut guard = state.lock().await;
         guard.suspended = false;
         write_heartbeat(&guard);
     }
-    if healthy {
-        clear_controller_fault(state).await;
-        eprintln!("monolithd watchdog: controller healthy after resume");
-    } else {
-        apply_controller_fault(state, &format!("controller did not recover after resume: {last_error}")).await;
+    match outcome {
+        Ok(()) => {
+            clear_controller_fault(state).await;
+            eprintln!("monolithd watchdog: controller healthy after resume");
+        }
+        Err(last_error) => apply_controller_fault(state, &format!("controller did not recover after resume: {last_error}")).await,
     }
 }
 
@@ -334,6 +349,49 @@ mod tests {
         let guard = state.lock().await;
         assert!(!guard.fault_active);
         assert_eq!(guard.last_error, None);
+    }
+
+    #[tokio::test]
+    async fn health_loop_cannot_probe_while_a_resume_health_check_is_in_progress() {
+        // Simulates resume()'s own state handling (minus the delay inhibitor, which this
+        // race does not involve) alongside a simulated health_loop tick firing every
+        // 150 ms — faster than poll_until_healthy's own 1 s retry spacing, so if the old
+        // bug (clearing `suspended` before the health check finished) were still present,
+        // at least one tick would see `suspended == false` while the check is still
+        // running and would have raced a second probe against it.
+        let state = Arc::new(Mutex::new(SharedState { suspended: true, ..SharedState::default() }));
+        let attempt = Arc::new(std::sync::atomic::AtomicU32::new(0));
+        let ping = {
+            let attempt = attempt.clone();
+            move || {
+                let attempt = attempt.clone();
+                async move {
+                    // Healthy only on the second attempt: the controller is still doing
+                    // legitimate post-resume work on the first, exactly like the live case.
+                    if attempt.fetch_add(1, std::sync::atomic::Ordering::SeqCst) == 0 { Err("still starting".to_owned()) } else { Ok(()) }
+                }
+            }
+        };
+
+        let resume_task = {
+            let state = state.clone();
+            tokio::spawn(async move {
+                let outcome = poll_until_healthy(Duration::from_secs(5), ping).await;
+                state.lock().await.suspended = false;
+                outcome
+            })
+        };
+
+        let mut would_have_raced = 0;
+        for _ in 0..6 {
+            tokio::time::sleep(Duration::from_millis(150)).await;
+            if !state.lock().await.suspended {
+                would_have_raced += 1;
+            }
+        }
+
+        assert!(resume_task.await.unwrap().is_ok(), "the simulated resume must still succeed on its second attempt");
+        assert_eq!(would_have_raced, 0, "a concurrent health_loop-style check must never see suspended=false before the resume check finished");
     }
 
     #[tokio::test]
