@@ -155,7 +155,7 @@ enum Action {
     /// 2026-09-22, both directions: raising a multi-zone fault/quiet and clearing one).
     PreemptSet(Vec<String>),
     Rejoin(String),
-    Progress { zone: String, step: u32 },
+    Progress { zone: String, step: u32, family: String },
 }
 
 impl Action {
@@ -164,7 +164,7 @@ impl Action {
             Self::Stop(function) => json!({ "op": "stop", "function": function }),
             Self::PreemptSet(functions) => json!({ "op": "preempt_set", "functions": functions }),
             Self::Rejoin(function) => json!({ "op": "rejoin", "function": function }),
-            Self::Progress { zone, step } => json!({ "op": "progress", "zone": zone, "completed": step }),
+            Self::Progress { zone, step, family } => json!({ "op": "progress", "zone": zone, "completed": step, "pattern": family }),
         }
     }
 
@@ -173,7 +173,7 @@ impl Action {
             Self::Stop(function) => format!("stop {function}"),
             Self::PreemptSet(functions) => format!("preempt set [{}]", functions.join(", ")),
             Self::Rejoin(function) => format!("rejoin {function}"),
-            Self::Progress { zone, step } => format!("progress {zone} {step}"),
+            Self::Progress { zone, step, family } => format!("progress {zone} {step} ({family})"),
         }
     }
 }
@@ -334,11 +334,11 @@ fn plan(view: &GatewayView, wants: &BTreeMap<String, Want>, state: &BTreeMap<Str
                     free_for_ambient.push(function.clone());
                 }
             }
-            (Want::Progress { zone, step, .. }, foreign_or_other) => {
+            (Want::Progress { zone, step, family }, foreign_or_other) => {
                 if let Owner::Foreign(name) = foreign_or_other {
                     stop_foreign(name, &mut stops);
                 }
-                progress.push(Action::Progress { zone: zone.clone(), step: *step });
+                progress.push(Action::Progress { zone: zone.clone(), step: *step, family: family.clone() });
             }
         }
     }
@@ -442,9 +442,25 @@ impl<L: Link> Controller<L> {
     }
 
     /// The preemption layer: zone -> the function that must own it right now, fault over
-    /// warning over quiet. Empty when nothing is raised and quiet is not set.
+    /// warning over quiet over the automatic working indicator. Empty when nothing is
+    /// raised, quiet is not set, and no job is active.
     fn state_wants(&self) -> BTreeMap<String, String> {
         let mut wants = BTreeMap::new();
+        // Lowest tier: a job is running somewhere, shown on the eye (working_eye,
+        // white -- the same unmodulated FixtureVal as reference_white_eye, so it
+        // tracks the eye's calibration gain like every other white asset, with no
+        // separate color config). Computed fresh every pass from planner state, not
+        // tracked as its own ActiveFault, so quiet/warning/fault below all still
+        // overwrite it: an explicit "go quiet" request must suppress this cosmetic hint
+        // too, and a real operator warning is a more specific (and differently
+        // colored) signal than "something is running". `rog_eye` is literal, not
+        // iterated like the loops below, because the eye is the only zone this
+        // indicator ever claims (see the working-indicator tests).
+        if !self.planner.jobs().is_empty() {
+            if let Some(name) = self.state_asset("working", "rog_eye") {
+                wants.insert("rog_eye".to_owned(), name);
+            }
+        }
         if self.quiet.is_some() {
             for zone in self.registry.zones.keys() {
                 if let Some(name) = self.state_asset("quiet", zone) {
@@ -480,8 +496,19 @@ impl<L: Link> Controller<L> {
             }
         }
         for zone in &self.config.progress_zones {
-            if let (ZoneTarget::Progress { step }, Some(family)) = (self.planner.target(zone), self.registry.progress_for_zone(zone)) {
-                wants.insert(zone.clone(), Want::Progress { zone: zone.clone(), family: family.name.clone(), step });
+            if let ZoneTarget::Progress { step, pattern } = self.planner.target(zone) {
+                // A pattern only applies if it actually belongs to the zone the job
+                // landed on (it might have been requested for a different zone and
+                // assigned elsewhere, e.g. RAM was busy so the job took Strip instead);
+                // otherwise fall back to the zone's own default family.
+                let family = pattern
+                    .as_deref()
+                    .and_then(|name| self.registry.progress_by_name(name))
+                    .filter(|entry| entry.zone == *zone)
+                    .or_else(|| self.registry.progress_for_zone(zone));
+                if let Some(family) = family {
+                    wants.insert(zone.clone(), Want::Progress { zone: zone.clone(), family: family.name.clone(), step });
+                }
             }
         }
         wants
@@ -565,8 +592,11 @@ impl<L: Link> Controller<L> {
                     Ok(json!({ "ambient": set }))
                 }
             },
-            ControllerRequest::JobStart { id, label, total, priority } => {
-                self.planner.start(&id, &label, total, priority).map(|()| json!({ "job": self.job_json(&id) })).map_err(|error| ("bad_request", error))
+            ControllerRequest::JobStart { id, label, total, priority, pattern } => {
+                match &pattern {
+                    Some(name) if self.registry.progress_by_name(name).is_none() => Err(("unknown_pattern", format!("no progress pattern named {name}"))),
+                    _ => self.planner.start(&id, &label, total, priority, pattern).map(|()| json!({ "job": self.job_json(&id) })).map_err(|error| ("bad_request", error)),
+                }
             }
             ControllerRequest::JobProgress { id, completed, total } => {
                 self.planner.progress(&id, completed, total).map(|()| json!({ "job": self.job_json(&id) })).map_err(|error| ("unknown_job", error))
@@ -649,7 +679,7 @@ fn job_json(job: &crate::allocator::Job) -> Value {
         JobState::Leased(zone) => ("leased", json!(zone)),
         JobState::Completing { zone, .. } => ("completing", json!(zone)),
     };
-    json!({ "id": job.id, "label": job.label, "completed": job.completed, "total": job.total, "priority": job.priority, "state": state, "zone": zone })
+    json!({ "id": job.id, "label": job.label, "completed": job.completed, "total": job.total, "priority": job.priority, "pattern": job.pattern, "state": state, "zone": zone })
 }
 
 // ---------------------------------------------------------------- the control socket
@@ -668,6 +698,10 @@ pub enum ControllerRequest {
         total: u32,
         #[serde(default)]
         priority: i32,
+        /// A named progress family to render this job's zone with, instead of the
+        /// zone's default (e.g. progress_ram_interleaved instead of progress_ram).
+        #[serde(default)]
+        pattern: Option<String>,
     },
     #[serde(rename = "job.progress")]
     JobProgress { id: String, completed: u32, total: Option<u32> },
@@ -798,7 +832,7 @@ pub async fn run() -> Result<(), String> {
 
 // ---------------------------------------------------------------- the client
 
-const USAGE: &str = "usage: monolithd event <status | ambient SET | job-start ID LABEL TOTAL [PRIORITY] | job-progress ID COMPLETED [TOTAL] | job-complete ID | job-fail ID REASON... | fault-raise ID warning|fault [--zones a,b,c] REASON... | fault-clear ID | quiet-set REASON... | quiet-clear | pause | resume>";
+const USAGE: &str = "usage: monolithd event <status | ambient SET | job-start ID LABEL TOTAL [PRIORITY] [--pattern NAME] | job-progress ID COMPLETED [TOTAL] | job-complete ID | job-fail ID REASON... | fault-raise ID warning|fault [--zones a,b,c] REASON... | fault-clear ID | quiet-set REASON... | quiet-clear | pause | resume>";
 
 fn client_request(arguments: &[String]) -> Result<Value, String> {
     let words: Vec<&str> = arguments.iter().map(String::as_str).collect();
@@ -806,10 +840,31 @@ fn client_request(arguments: &[String]) -> Result<Value, String> {
     Ok(match words.as_slice() {
         ["status"] => json!({ "op": "status" }),
         ["ambient", set] => json!({ "op": "ambient.select", "set": set }),
-        ["job-start", id, label, total] => json!({ "op": "job.start", "id": id, "label": label, "total": number(total)? }),
-        ["job-start", id, label, total, priority] => {
-            let priority = priority.parse::<i32>().map_err(|_| format!("{priority:?} is not an integer"))?;
-            json!({ "op": "job.start", "id": id, "label": label, "total": number(total)?, "priority": priority })
+        ["job-start", rest @ ..] if !rest.is_empty() => {
+            let mut rest: Vec<&str> = rest.to_vec();
+            let pattern = if let Some(position) = rest.iter().position(|word| *word == "--pattern") {
+                if position + 1 >= rest.len() {
+                    return Err("--pattern needs a value".to_owned());
+                }
+                let value = rest[position + 1];
+                rest.drain(position..=position + 1);
+                Some(value)
+            } else {
+                None
+            };
+            let (id, label, total, priority) = match rest.as_slice() {
+                [id, label, total] => (*id, *label, *total, None),
+                [id, label, total, priority] => (*id, *label, *total, Some(*priority)),
+                _ => return Err(USAGE.to_owned()),
+            };
+            let mut request = json!({ "op": "job.start", "id": id, "label": label, "total": number(total)? });
+            if let Some(priority) = priority {
+                request["priority"] = json!(priority.parse::<i32>().map_err(|_| format!("{priority:?} is not an integer"))?);
+            }
+            if let Some(pattern) = pattern {
+                request["pattern"] = json!(pattern);
+            }
+            request
         }
         ["job-progress", id, completed] => json!({ "op": "job.progress", "id": id, "completed": number(completed)? }),
         ["job-progress", id, completed, total] => json!({ "op": "job.progress", "id": id, "completed": number(completed)?, "total": number(total)? }),
@@ -970,6 +1025,13 @@ mod tests {
         children = []
         zones = ["strip"]
         composable = true
+        [[functions]]
+        name = "working_eye"
+        kind = "scene"
+        id = 207
+        children = []
+        zones = ["rog_eye"]
+        composable = true
         [[ambient_sets]]
         name = "deep_violet"
         functions = ["ambient_ram", "ambient_eye", "ambient_strip"]
@@ -978,6 +1040,12 @@ mod tests {
         zone = "ram"
         label = "RAM"
         first_id = 0
+        total = 32
+        [[progress]]
+        name = "progress_ram_interleaved"
+        zone = "ram"
+        label = "RAM (interleaved)"
+        first_id = 300
         total = 32
         [[progress]]
         name = "progress_strip"
@@ -1117,14 +1185,16 @@ mod tests {
     fn a_leased_zone_shows_its_progress_step_and_the_others_stay_ambient() {
         let link = FakeLink::default();
         let mut controller = controller_with(&link);
-        controller.handle(ControllerRequest::JobStart { id: "a".into(), label: "x".into(), total: 10, priority: 0 }, Instant::now());
+        controller.handle(ControllerRequest::JobStart { id: "a".into(), label: "x".into(), total: 10, priority: 0, pattern: None }, Instant::now());
         controller.handle(ControllerRequest::JobProgress { id: "a".into(), completed: 5, total: None }, Instant::now());
         let plan = plan_for(&healthy(AMBIENT), &controller);
-        assert_eq!(plan.actions, vec![Action::Progress { zone: "ram".to_owned(), step: 16 }]);
-        assert_eq!(plan_for(&healthy([Some("progress_ram:16"), Some("ambient_eye"), Some("ambient_strip")]), &controller).actions, vec![], "already showing it");
+        // The eye also picks up the job-running indicator (see the working-indicator
+        // tests below); the state layer always goes first.
+        assert_eq!(plan.actions, vec![Action::PreemptSet(vec!["working_eye".to_owned()]), Action::Progress { zone: "ram".to_owned(), step: 16, family: "progress_ram".to_owned() }]);
+        assert_eq!(plan_for(&healthy([Some("progress_ram:16"), Some("working_eye"), Some("ambient_strip")]), &controller).actions, vec![], "already showing it");
         assert_eq!(
-            plan_for(&healthy([Some("progress_ram:12"), Some("ambient_eye"), Some("ambient_strip")]), &controller).actions,
-            vec![Action::Progress { zone: "ram".to_owned(), step: 16 }],
+            plan_for(&healthy([Some("progress_ram:12"), Some("working_eye"), Some("ambient_strip")]), &controller).actions,
+            vec![Action::Progress { zone: "ram".to_owned(), step: 16, family: "progress_ram".to_owned() }],
             "a stale step is replaced"
         );
     }
@@ -1139,14 +1209,21 @@ mod tests {
     #[test]
     fn startup_with_a_job_already_running_sets_up_everything_at_once() {
         let mut controller = controller_with(&FakeLink::default());
-        controller.handle(ControllerRequest::JobStart { id: "a".into(), label: "x".into(), total: 4, priority: 0 }, Instant::now());
+        controller.handle(ControllerRequest::JobStart { id: "a".into(), label: "x".into(), total: 4, priority: 0, pattern: None }, Instant::now());
         let plan = plan_for(&healthy([Some("boot_proof"); 3]), &controller);
-        // ram's progress transition needs boot_proof (non-composable) stopped explicitly
-        // first; that incidentally frees eye and strip too, but they still go through
-        // their own preempt_set call, same as any other fresh whole-zone bring-up.
+        // The eye is claimed by the job-running indicator, not the ambient bring-up, so
+        // it drops out of that batch entirely; ram's progress transition still needs
+        // boot_proof (non-composable) stopped explicitly first, which incidentally frees
+        // strip too, and strip goes through its own preempt_set, same as any other fresh
+        // whole-zone bring-up.
         assert_eq!(
             plan.actions,
-            vec![Action::Stop("boot_proof".to_owned()), Action::PreemptSet(vec!["ambient_eye".to_owned(), "ambient_strip".to_owned()]), Action::Progress { zone: "ram".to_owned(), step: 0 }]
+            vec![
+                Action::PreemptSet(vec!["working_eye".to_owned()]),
+                Action::Stop("boot_proof".to_owned()),
+                Action::PreemptSet(vec!["ambient_strip".to_owned()]),
+                Action::Progress { zone: "ram".to_owned(), step: 0, family: "progress_ram".to_owned() },
+            ]
         );
     }
 
@@ -1178,6 +1255,33 @@ mod tests {
         assert!(plan_for(&unsure, &controller).blocked.unwrap().contains("unconfirmed"));
     }
 
+    #[test]
+    fn a_job_can_choose_an_alternate_progress_pattern() {
+        let mut controller = controller_with(&FakeLink::default());
+        controller.handle(
+            ControllerRequest::JobStart { id: "a".into(), label: "x".into(), total: 10, priority: 0, pattern: Some("progress_ram_interleaved".into()) },
+            Instant::now(),
+        );
+        controller.handle(ControllerRequest::JobProgress { id: "a".into(), completed: 5, total: None }, Instant::now());
+        assert_eq!(controller.wants()["ram"], Want::Progress { zone: "ram".to_owned(), family: "progress_ram_interleaved".to_owned(), step: 16 });
+    }
+
+    #[test]
+    fn a_pattern_for_a_different_zone_than_the_job_landed_on_falls_back_to_that_zones_default() {
+        // RAM is taken first, so a second job requesting the RAM-only interleaved
+        // pattern lands on Strip instead; Strip has no such pattern, so it must fall
+        // back to its own default family rather than silently applying nothing or a
+        // wrong family.
+        let mut controller = controller_with(&FakeLink::default());
+        controller.handle(ControllerRequest::JobStart { id: "first".into(), label: "x".into(), total: 10, priority: 0, pattern: None }, Instant::now());
+        controller.handle(
+            ControllerRequest::JobStart { id: "second".into(), label: "x".into(), total: 10, priority: 0, pattern: Some("progress_ram_interleaved".into()) },
+            Instant::now(),
+        );
+        controller.handle(ControllerRequest::JobProgress { id: "second".into(), completed: 5, total: None }, Instant::now());
+        assert_eq!(controller.wants()["strip"], Want::Progress { zone: "strip".to_owned(), family: "progress_strip".to_owned(), step: 35 });
+    }
+
     // ------------------------------------------------------------ the loop
 
     #[tokio::test]
@@ -1196,16 +1300,18 @@ mod tests {
         let mut controller = controller_with(&link);
         let start = Instant::now();
 
-        controller.handle(ControllerRequest::JobStart { id: "backup".into(), label: "Backup".into(), total: 32, priority: 0 }, start);
+        controller.handle(ControllerRequest::JobStart { id: "backup".into(), label: "Backup".into(), total: 32, priority: 0, pattern: None }, start);
         controller.handle(ControllerRequest::JobProgress { id: "backup".into(), completed: 8, total: None }, start);
         controller.reconcile(start).await;
-        assert_eq!(ops(&link), vec![r#"{"completed":8,"op":"progress","zone":"ram"}"#]);
+        // The eye picks up the job-running indicator in the same pass, ahead of the
+        // progress action (the state layer always goes first).
+        assert_eq!(ops(&link), vec![r#"{"functions":["working_eye"],"op":"preempt_set"}"#, r#"{"completed":8,"op":"progress","pattern":"progress_ram","zone":"ram"}"#]);
 
         // The plant now shows it; a completed job holds at 100%.
         *link.status.lock().unwrap() = healthy([Some("progress_ram:8"), Some("ambient_eye"), Some("ambient_strip")]);
         controller.handle(ControllerRequest::JobComplete { id: "backup".into() }, start);
         controller.reconcile(start + Duration::from_secs(1)).await;
-        assert_eq!(ops(&link).last().unwrap(), r#"{"completed":32,"op":"progress","zone":"ram"}"#);
+        assert_eq!(ops(&link).last().unwrap(), r#"{"completed":32,"op":"progress","pattern":"progress_ram","zone":"ram"}"#);
 
         // After the 15 s hold the zone returns to the ambient set.
         *link.status.lock().unwrap() = healthy([Some("progress_ram:32"), Some("ambient_eye"), Some("ambient_strip")]);
@@ -1219,14 +1325,19 @@ mod tests {
         let link = FakeLink::default();
         *link.status.lock().unwrap() = healthy(AMBIENT);
         let mut controller = controller_with(&link);
-        controller.handle(ControllerRequest::JobStart { id: "a".into(), label: "x".into(), total: 10, priority: 0 }, Instant::now());
+        controller.handle(ControllerRequest::JobStart { id: "a".into(), label: "x".into(), total: 10, priority: 0, pattern: None }, Instant::now());
         controller.handle(ControllerRequest::JobProgress { id: "a".into(), completed: 5, total: None }, Instant::now());
         // The stack restarts: the gateway comes back with nothing running.
         *link.status.lock().unwrap() = healthy([None; 3]);
         controller.reconcile(Instant::now()).await;
+        // The eye is claimed by the job-running indicator instead of the ambient batch.
         assert_eq!(
             ops(&link),
-            vec![r#"{"functions":["ambient_eye","ambient_strip"],"op":"preempt_set"}"#, r#"{"completed":16,"op":"progress","zone":"ram"}"#]
+            vec![
+                r#"{"functions":["working_eye"],"op":"preempt_set"}"#,
+                r#"{"functions":["ambient_strip"],"op":"preempt_set"}"#,
+                r#"{"completed":16,"op":"progress","pattern":"progress_ram","zone":"ram"}"#,
+            ]
         );
     }
 
@@ -1245,20 +1356,24 @@ mod tests {
 
     #[tokio::test]
     async fn a_refused_action_stops_the_batch_and_is_retried_next_time() {
-        // A job is leasing ram, so the boot-scene plan still has three actions:
-        // Stop(boot_proof), PreemptSet([eye, strip]), Progress{ram}. Refusing the
-        // first must stop the planner from attempting the other two this pass.
+        // A job is leasing ram, so the boot-scene plan has four actions: the eye's
+        // job-running indicator (state layer, always first and a different op, so it is
+        // not refused), Stop(boot_proof), PreemptSet([strip]), Progress{ram}. Refusing
+        // "stop" must stop the planner from attempting the last two this pass.
         let link = FakeLink::default();
         *link.status.lock().unwrap() = healthy([Some("boot_proof"); 3]);
         *link.refuse.lock().unwrap() = Some("stop".to_owned());
         let mut controller = controller_with(&link);
-        controller.handle(ControllerRequest::JobStart { id: "a".into(), label: "x".into(), total: 4, priority: 0 }, Instant::now());
+        controller.handle(ControllerRequest::JobStart { id: "a".into(), label: "x".into(), total: 4, priority: 0, pattern: None }, Instant::now());
         controller.reconcile(Instant::now()).await;
-        assert_eq!(ops(&link).len(), 1, "the preempt_set and progress must not be attempted after a refused stop");
+        assert_eq!(ops(&link).len(), 2, "the eye's indicator succeeds; the preempt_set and progress must not be attempted after the refused stop");
         assert!(controller.report.recent.back().unwrap().contains("refused"));
         *link.refuse.lock().unwrap() = None;
         controller.reconcile(Instant::now()).await;
-        assert_eq!(ops(&link).len(), 4, "the refused attempt plus the retry's stop, preempt_set, and progress");
+        // FakeLink's simulated status never reflects a sent command's effect (it is a
+        // fixed fixture, not a real gateway), so the retry replans from scratch: the
+        // eye's indicator, the stop, the preempt_set, and the progress, four more ops.
+        assert_eq!(ops(&link).len(), 6, "the full four-action plan is retried, on top of the two ops already sent");
     }
 
     #[tokio::test]
@@ -1281,17 +1396,20 @@ mod tests {
     fn requests_report_the_lease_and_reject_nonsense() {
         let mut controller = controller_with(&FakeLink::default());
         let now = Instant::now();
-        let reply = controller.handle(ControllerRequest::JobStart { id: "a".into(), label: "Backup".into(), total: 10, priority: 0 }, now);
+        let reply = controller.handle(ControllerRequest::JobStart { id: "a".into(), label: "Backup".into(), total: 10, priority: 0, pattern: None }, now);
         assert_eq!((reply["ok"].clone(), reply["job"]["state"].clone(), reply["job"]["zone"].clone()), (json!(true), json!("leased"), json!("ram")));
-        controller.handle(ControllerRequest::JobStart { id: "b".into(), label: "x".into(), total: 10, priority: 0 }, now);
-        let third = controller.handle(ControllerRequest::JobStart { id: "c".into(), label: "x".into(), total: 10, priority: 0 }, now);
+        controller.handle(ControllerRequest::JobStart { id: "b".into(), label: "x".into(), total: 10, priority: 0, pattern: None }, now);
+        let third = controller.handle(ControllerRequest::JobStart { id: "c".into(), label: "x".into(), total: 10, priority: 0, pattern: None }, now);
         assert_eq!(third["job"]["state"], "queued");
 
         let unknown = controller.handle(ControllerRequest::JobProgress { id: "zzz".into(), completed: 1, total: None }, now);
         assert_eq!((unknown["ok"].clone(), unknown["code"].clone()), (json!(false), json!("unknown_job")));
-        assert_eq!(controller.handle(ControllerRequest::JobStart { id: "z".into(), label: "x".into(), total: 0, priority: 0 }, now)["code"], "bad_request");
+        assert_eq!(controller.handle(ControllerRequest::JobStart { id: "z".into(), label: "x".into(), total: 0, priority: 0, pattern: None }, now)["code"], "bad_request");
         assert_eq!(controller.handle(ControllerRequest::AmbientSelect { set: "nope".into() }, now)["code"], "unknown_set");
         assert_eq!(controller.handle(ControllerRequest::AmbientSelect { set: "deep_violet".into() }, now)["ok"], true);
+
+        assert_eq!(controller.handle(ControllerRequest::JobStart { id: "y".into(), label: "x".into(), total: 10, priority: 0, pattern: Some("nonsense".into()) }, now)["code"], "unknown_pattern");
+        assert!(!controller.planner.jobs().iter().any(|job| job.id == "y"), "the job must not be created on a rejected pattern");
 
         let failed = controller.handle(ControllerRequest::JobFail { id: "a".into(), reason: "disk full".into() }, now);
         assert_eq!(failed["ok"], true);
@@ -1306,7 +1424,7 @@ mod tests {
         assert_eq!(parse(r#"{"op":"status"}"#).unwrap(), ControllerRequest::Status);
         assert_eq!(
             parse(r#"{"op":"job.start","id":"a","label":"x","total":3}"#).unwrap(),
-            ControllerRequest::JobStart { id: "a".into(), label: "x".into(), total: 3, priority: 0 }
+            ControllerRequest::JobStart { id: "a".into(), label: "x".into(), total: 3, priority: 0, pattern: None }
         );
         assert_eq!(parse(r#"{"op":"ambient.select","set":"deep_violet"}"#).unwrap(), ControllerRequest::AmbientSelect { set: "deep_violet".into() });
         assert!(parse(r#"{"op":"job.start","id":"a","label":"x"}"#).is_err(), "a job needs a total");
@@ -1321,6 +1439,16 @@ mod tests {
     fn builds_client_requests_from_arguments() {
         let words = |text: &str| text.split_whitespace().map(str::to_owned).collect::<Vec<_>>();
         assert_eq!(client_request(&words("job-start a Backup 10 2")).unwrap(), json!({ "op": "job.start", "id": "a", "label": "Backup", "total": 10, "priority": 2 }));
+        assert_eq!(
+            client_request(&words("job-start a Backup 10 2 --pattern progress_ram_interleaved")).unwrap(),
+            json!({ "op": "job.start", "id": "a", "label": "Backup", "total": 10, "priority": 2, "pattern": "progress_ram_interleaved" })
+        );
+        assert_eq!(
+            client_request(&words("job-start a Backup 10 --pattern progress_ram_interleaved")).unwrap(),
+            json!({ "op": "job.start", "id": "a", "label": "Backup", "total": 10, "pattern": "progress_ram_interleaved" }),
+            "the pattern flag works without an explicit priority too"
+        );
+        assert!(client_request(&words("job-start a Backup 10 --pattern")).is_err(), "--pattern needs a value");
         assert_eq!(client_request(&words("job-progress a 4 8")).unwrap(), json!({ "op": "job.progress", "id": "a", "completed": 4, "total": 8 }));
         assert_eq!(client_request(&words("job-fail a disk is full")).unwrap(), json!({ "op": "job.fail", "id": "a", "reason": "disk is full" }));
         assert_eq!(client_request(&words("ambient deep_violet")).unwrap(), json!({ "op": "ambient.select", "set": "deep_violet" }));
@@ -1475,6 +1603,47 @@ mod tests {
     }
 
     #[test]
+    fn a_running_job_shows_white_on_the_eye_via_its_own_working_asset() {
+        let mut controller = controller_with(&FakeLink::default());
+        assert!(!controller.state_wants().contains_key("rog_eye"), "nothing running yet");
+        controller.handle(ControllerRequest::JobStart { id: "a".into(), label: "x".into(), total: 4, priority: 0, pattern: None }, Instant::now());
+        assert_eq!(controller.state_wants()["rog_eye"], "working_eye", "its own asset, not a reuse of warning_eye");
+        // Still in the planner during the completion hold, so still shown.
+        controller.handle(ControllerRequest::JobComplete { id: "a".into() }, Instant::now());
+        assert_eq!(controller.state_wants()["rog_eye"], "working_eye", "the hold still counts as running");
+    }
+
+    #[test]
+    fn quiet_and_a_real_fault_still_win_over_the_running_job_indicator() {
+        let mut controller = controller_with(&FakeLink::default());
+        controller.handle(ControllerRequest::JobStart { id: "a".into(), label: "x".into(), total: 4, priority: 0, pattern: None }, Instant::now());
+        assert_eq!(controller.state_wants()["rog_eye"], "working_eye");
+
+        controller.handle(ControllerRequest::QuietSet { reason: "recording".into() }, Instant::now());
+        assert_eq!(controller.state_wants()["rog_eye"], "quiet_eye", "an explicit quiet request must suppress the cosmetic hint too");
+        controller.handle(ControllerRequest::QuietClear, Instant::now());
+
+        controller.handle(fault_raise("f", "fault", Some(&["rog_eye"]), "x"), Instant::now());
+        assert_eq!(controller.state_wants()["rog_eye"], "fault_eye", "a real fault still wins over the automatic job indicator");
+    }
+
+    #[test]
+    fn a_real_warning_is_visually_distinguishable_from_the_job_indicator() {
+        // Different colors, different assets: raising a real operator warning (amber)
+        // while a job is running (white) must show warning_eye, not working_eye, and
+        // clearing the warning must fall back to working_eye (white again, now
+        // provably the job's doing, not a stuck warning) rather than silently looking
+        // like nothing happened.
+        let mut controller = controller_with(&FakeLink::default());
+        controller.handle(ControllerRequest::JobStart { id: "a".into(), label: "x".into(), total: 4, priority: 0, pattern: None }, Instant::now());
+        assert_eq!(controller.state_wants()["rog_eye"], "working_eye");
+        controller.handle(fault_raise("w", "warning", Some(&["rog_eye"]), "thermal"), Instant::now());
+        assert_eq!(controller.state_wants()["rog_eye"], "warning_eye", "the real warning wins, and is a distinct asset from the job indicator");
+        controller.handle(fault_clear("w"), Instant::now());
+        assert_eq!(controller.state_wants()["rog_eye"], "working_eye", "falls back to the job indicator, not to nothing, since the job is still running");
+    }
+
+    #[test]
     fn priority_is_fault_over_warning_over_quiet() {
         let mut controller = controller_with(&FakeLink::default());
         let now = Instant::now();
@@ -1492,23 +1661,27 @@ mod tests {
         *link.status.lock().unwrap() = healthy(AMBIENT);
         let mut controller = controller_with(&link);
         let start = Instant::now();
-        controller.handle(ControllerRequest::JobStart { id: "backup".into(), label: "Backup".into(), total: 32, priority: 0 }, start);
+        controller.handle(ControllerRequest::JobStart { id: "backup".into(), label: "Backup".into(), total: 32, priority: 0, pattern: None }, start);
         controller.handle(ControllerRequest::JobProgress { id: "backup".into(), completed: 16, total: None }, start);
         controller.reconcile(start).await;
-        assert_eq!(ops(&link), vec![r#"{"completed":16,"op":"progress","zone":"ram"}"#]);
+        // The eye picks up the job-running indicator in the same pass, ahead of the
+        // progress action (the state layer always goes first).
+        assert_eq!(ops(&link), vec![r#"{"functions":["working_eye"],"op":"preempt_set"}"#, r#"{"completed":16,"op":"progress","pattern":"progress_ram","zone":"ram"}"#]);
 
         // RAM is now showing the bar; raise a RAM fault.
         *link.status.lock().unwrap() = healthy([Some("progress_ram:16"), Some("ambient_eye"), Some("ambient_strip")]);
         controller.handle(fault_raise("psu", "fault", Some(&["ram"]), "PSU over temperature"), start);
         controller.reconcile(start).await;
-        assert_eq!(ops(&link).last().unwrap(), r#"{"functions":["fault_ram"],"op":"preempt_set"}"#, "preempted, not a rejoin: fault_ram is not an ambient-set member");
+        // fault_ram and the still-active job's eye indicator both land in the same
+        // preempt_set call: unrelated zone claims changing at once still batch together.
+        assert_eq!(ops(&link).last().unwrap(), r#"{"functions":["fault_ram","working_eye"],"op":"preempt_set"}"#, "preempted, not a rejoin: fault_ram is not an ambient-set member");
         assert!(!controller.planner.jobs().is_empty(), "the lease is untouched; only the display was preempted");
 
         // Clear it: the zone must go straight back to the progress bar, unharmed.
         *link.status.lock().unwrap() = healthy([Some("fault_ram"), Some("ambient_eye"), Some("ambient_strip")]);
         controller.handle(fault_clear("psu"), start);
         controller.reconcile(start).await;
-        assert_eq!(ops(&link).last().unwrap(), r#"{"completed":16,"op":"progress","zone":"ram"}"#);
+        assert_eq!(ops(&link).last().unwrap(), r#"{"completed":16,"op":"progress","pattern":"progress_ram","zone":"ram"}"#);
     }
 
     #[tokio::test]

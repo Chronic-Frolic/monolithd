@@ -132,6 +132,21 @@ children = []
 zones = ["strip"]
 composable = true
 
+# Job-running indicator (2026-09-22): a job is active somewhere, shown as white --
+# the same unmodulated FixtureVal as reference_white_eye, so it automatically tracks
+# the eye's calibration gain like every other white asset, with no separate color
+# config. A distinct asset from reference_white_eye (a calibration aid, not meant to
+# appear during normal operation) and from warning_eye (amber; a real operator-raised
+# warning stays visually and programmatically distinct from "something is running").
+# Lowest tier: state_wants() computes this first, so quiet/warning/fault all override it.
+[[functions]]
+name = "working_eye"
+kind = "scene"
+id = 127
+children = []
+zones = ["rog_eye"]
+composable = true
+
 [[functions]]
 name = "controller_fault_ram"
 kind = "scene"
@@ -184,6 +199,16 @@ zone = "strip"
 label = "Strip"
 first_id = 33
 total = 70
+
+[[progress]]
+# Alternate RAM fill: one LED-height across all four sticks at a time, left to
+# right, instead of filling each stick fully before moving to the next. Opt in
+# per job (job.start's "pattern" field); progress_ram remains the default.
+name = "progress_ram_interleaved"
+zone = "ram"
+label = "RAM (interleaved)"
+first_id = 128
+total = 32
 
 # Warning, fault, Quiet, and controller-fault assets do not exist yet and are
 # deliberately absent. Author and register them before wiring automatic use.
