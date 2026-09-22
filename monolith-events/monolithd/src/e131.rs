@@ -13,12 +13,6 @@ const MAX_HARDWARE_FPS: u64 = 30;
 const OUTPUT_CONNECT_WINDOW: Duration = Duration::from_secs(30);
 /// One attempt is bounded: a stalled OpenRGB can leave a connection hanging.
 const OUTPUT_CONNECT_ATTEMPT_TIMEOUT: Duration = Duration::from_secs(3);
-/// How long to wait after a resume signal before proactively rebuilding the OpenRGB
-/// connection: PrepareForSleep(false) fires the instant the kernel resumes, before
-/// OpenRGB and the hardware have settled, so reconnecting at T+0 risks re-asserting
-/// direct/controllable mode onto a device that then reverts to firmware mode a
-/// moment later.
-const RESUME_RECONNECT_DELAY: Duration = Duration::from_secs(5);
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct QlcFrame {
@@ -134,13 +128,19 @@ pub async fn run() -> Result<(), String> {
     // A resume can leave a device silently back in firmware mode without ever
     // failing a write (found live 2026-09-22), so the write-failure-triggered
     // reconnect in `flush` alone can miss it. Force a reconnect on every resume
-    // signal too, independent of whether anything has actually failed.
+    // signal too, independent of whether anything has actually failed. Fired
+    // immediately at T+0, not after a blind delay: the hardware is controllable
+    // from the instant it has voltage (owner, 2026-09-22) -- the firmware's own
+    // rainbow default is what shows before anything takes control, not evidence
+    // it needs to "settle" -- and `force_reconnect` -> `connect_output` is
+    // already the bounded, retrying, check-then-connect loop that finds out
+    // when OpenRGB itself is actually ready, the same one used at cold start.
+    // No timer substitutes for that.
     let (resume_tx, mut resume_rx) = tokio::sync::mpsc::channel::<()>(1);
     tokio::spawn(watchdog::watch_sleep_signal(move |sleeping| {
         let resume_tx = resume_tx.clone();
         async move {
             if !sleeping {
-                tokio::time::sleep(RESUME_RECONNECT_DELAY).await;
                 let _ = resume_tx.send(()).await;
             }
         }
