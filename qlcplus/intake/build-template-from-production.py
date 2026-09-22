@@ -98,8 +98,8 @@ def merged_chaser(name: str, low_ids: list[int], high_ids: list[int], speed_from
 functions = [
     merged_chaser("Base Ambient", low_ids=[107, 110, 113], high_ids=[108, 111, 114], speed_from_id=109),
     merged_scene(fresh_id(), "State — Fault", [118, 119, 126]),
-    merged_scene(fresh_id(), "State — Warning", [117]),
-    merged_scene(fresh_id(), "State — Working", [127]),
+    merged_scene(fresh_id(), "State — Warning", [200, 117, 201]),
+    merged_scene(fresh_id(), "State — Working", [202, 127, 203]),
     merged_scene(fresh_id(), "State — Controller Fault", [123, 124, 125]),
 ]
 

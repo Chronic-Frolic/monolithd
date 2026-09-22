@@ -148,6 +148,38 @@ zones = ["rog_eye"]
 composable = true
 
 [[functions]]
+name = "warning_ram"
+kind = "scene"
+id = 200
+children = []
+zones = ["ram"]
+composable = true
+
+[[functions]]
+name = "warning_strip"
+kind = "scene"
+id = 201
+children = []
+zones = ["strip"]
+composable = true
+
+[[functions]]
+name = "working_ram"
+kind = "scene"
+id = 202
+children = []
+zones = ["ram"]
+composable = true
+
+[[functions]]
+name = "working_strip"
+kind = "scene"
+id = 203
+children = []
+zones = ["strip"]
+composable = true
+
+[[functions]]
 name = "controller_fault_ram"
 kind = "scene"
 id = 123

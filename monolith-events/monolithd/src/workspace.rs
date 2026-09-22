@@ -22,10 +22,12 @@ use std::path::{Path, PathBuf};
 
 /// One contract entry: an owner-authored whole-machine Function name in the intake
 /// file, and which already-registered (`qlc-functions.toml`) per-zone Function each
-/// zone's slice is written into. Zone scope is fixed by the state semantics already
-/// settled elsewhere in this project (warning/working are eye-only; fault,
-/// controller-fault, and ambient are whole-machine) -- this table does not invent
-/// that, it encodes it.
+/// zone's slice is written into. As of 2026-09-22 every contract entry is
+/// whole-machine-authorable (ram, rog_eye, strip) -- which zone a warning or the
+/// working indicator actually *displays on* at runtime is a separate, owner-editable
+/// policy in `controller.toml` (`warning_zones`/`working_zones`), not fixed here.
+/// This table only says what the owner is allowed to author and where it can land if
+/// asked for; it does not decide when it's shown.
 struct ContractEntry {
     intake_name: &'static str,
     /// (zone name, registered target Function name)
@@ -35,8 +37,8 @@ struct ContractEntry {
 const CONTRACT: &[ContractEntry] = &[
     ContractEntry { intake_name: "Base Ambient", targets: &[("ram", "ambient_ram"), ("rog_eye", "ambient_eye"), ("strip", "ambient_strip")] },
     ContractEntry { intake_name: "State — Fault", targets: &[("ram", "fault_ram"), ("rog_eye", "fault_eye"), ("strip", "fault_strip")] },
-    ContractEntry { intake_name: "State — Warning", targets: &[("rog_eye", "warning_eye")] },
-    ContractEntry { intake_name: "State — Working", targets: &[("rog_eye", "working_eye")] },
+    ContractEntry { intake_name: "State — Warning", targets: &[("ram", "warning_ram"), ("rog_eye", "warning_eye"), ("strip", "warning_strip")] },
+    ContractEntry { intake_name: "State — Working", targets: &[("ram", "working_ram"), ("rog_eye", "working_eye"), ("strip", "working_strip")] },
     ContractEntry { intake_name: "State — Controller Fault", targets: &[("ram", "controller_fault_ram"), ("rog_eye", "controller_fault_eye"), ("strip", "controller_fault_strip")] },
 ];
 

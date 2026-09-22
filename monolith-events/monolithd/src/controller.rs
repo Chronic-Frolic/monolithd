@@ -41,10 +41,27 @@ pub struct ControllerConfig {
     pub complete_hold_seconds: u64,
     #[serde(default = "default_poll_interval")]
     pub poll_interval_ms: u64,
+    /// Zones a warning claims when raised with no explicit `--zones` (each needs its
+    /// own registered `warning_<zone>` asset). Owner-editable: as of 2026-09-22 every
+    /// zone can author warning content, so this picks which one(s) actually show it.
+    #[serde(default = "default_warning_zones")]
+    pub warning_zones: Vec<String>,
+    /// Zones the automatic "a job is running" indicator claims. Same shape as
+    /// `warning_zones`, for `working_<zone>`.
+    #[serde(default = "default_working_zones")]
+    pub working_zones: Vec<String>,
 }
 
 fn default_poll_interval() -> u64 {
     1000
+}
+
+fn default_warning_zones() -> Vec<String> {
+    vec!["rog_eye".to_owned()]
+}
+
+fn default_working_zones() -> Vec<String> {
+    vec!["rog_eye".to_owned()]
 }
 
 pub fn load_config(path: &Path) -> Result<ControllerConfig, String> {
@@ -80,7 +97,28 @@ pub fn check_config(config: &ControllerConfig, registry: &Registry) -> Vec<Strin
     if !(100..=60_000).contains(&config.poll_interval_ms) {
         problems.push("poll_interval_ms must be between 100 and 60000".to_owned());
     }
+    check_state_zones(&mut problems, "warning_zones", &config.warning_zones, "warning", registry);
+    check_state_zones(&mut problems, "working_zones", &config.working_zones, "working", registry);
     problems
+}
+
+/// Shared validation for `warning_zones`/`working_zones`: non-empty, no duplicates,
+/// every zone real, every zone has the matching `<prefix>_<zone>` asset registered.
+fn check_state_zones(problems: &mut Vec<String>, field: &str, zones: &[String], prefix: &str, registry: &Registry) {
+    if zones.is_empty() {
+        problems.push(format!("{field} is empty"));
+    }
+    let mut seen = BTreeSet::new();
+    for zone in zones {
+        if !seen.insert(zone) {
+            problems.push(format!("{field}: zone {zone} is listed twice"));
+        }
+        if !registry.zones.contains_key(zone) {
+            problems.push(format!("{field}: unknown zone {zone}"));
+        } else if registry.function(&format!("{prefix}_{}", zone_suffix(zone))).is_none() {
+            problems.push(format!("{field}: no {prefix} asset for zone {zone} ({prefix}_{} is not registered)", zone_suffix(zone)));
+        }
+    }
 }
 
 // ---------------------------------------------------------------- planning
@@ -417,12 +455,13 @@ impl<L: Link> Controller<L> {
     }
 
     /// Validate and default the zones a raised warning/fault claims. Warning defaults to
-    /// the eye only (the only warning asset authored); fault defaults to every managed
-    /// zone that has a fault asset. An explicit zone with no matching asset is refused.
+    /// `controller.toml`'s `warning_zones` (owner-editable, since 2026-09-22 every zone
+    /// can author warning content); fault defaults to every managed zone that has a
+    /// fault asset. An explicit zone with no matching asset is refused.
     fn resolve_state_zones(&self, severity: Severity, zones: Option<Vec<String>>) -> Result<BTreeSet<String>, String> {
         let requested: Vec<String> = match zones {
             None => match severity {
-                Severity::Warning => vec!["rog_eye".to_owned()],
+                Severity::Warning => self.config.warning_zones.clone(),
                 Severity::Fault => self.registry.zones.keys().cloned().collect(),
             },
             Some(zones) if zones.is_empty() => return Err("at least one zone is required".to_owned()),
@@ -446,19 +485,21 @@ impl<L: Link> Controller<L> {
     /// raised, quiet is not set, and no job is active.
     fn state_wants(&self) -> BTreeMap<String, String> {
         let mut wants = BTreeMap::new();
-        // Lowest tier: a job is running somewhere, shown on the eye (working_eye,
-        // white -- the same unmodulated FixtureVal as reference_white_eye, so it
-        // tracks the eye's calibration gain like every other white asset, with no
-        // separate color config). Computed fresh every pass from planner state, not
-        // tracked as its own ActiveFault, so quiet/warning/fault below all still
-        // overwrite it: an explicit "go quiet" request must suppress this cosmetic hint
-        // too, and a real operator warning is a more specific (and differently
-        // colored) signal than "something is running". `rog_eye` is literal, not
-        // iterated like the loops below, because the eye is the only zone this
-        // indicator ever claims (see the working-indicator tests).
+        // Lowest tier: a job is running somewhere, shown on `controller.toml`'s
+        // `working_zones` (working_eye's white is the same unmodulated FixtureVal as
+        // reference_white_eye, so the eye copy tracks its calibration gain like every
+        // other white asset there; ram/strip copies exist since 2026-09-22 too, with
+        // no separate color config beyond what the owner authors). Computed fresh
+        // every pass from planner state, not tracked as its own ActiveFault, so
+        // quiet/warning/fault below all still overwrite it: an explicit "go quiet"
+        // request must suppress this cosmetic hint too, and a real operator warning is
+        // a more specific (and differently colored) signal than "something is
+        // running".
         if !self.planner.jobs().is_empty() {
-            if let Some(name) = self.state_asset("working", "rog_eye") {
-                wants.insert("rog_eye".to_owned(), name);
+            for zone in &self.config.working_zones {
+                if let Some(name) = self.state_asset("working", zone) {
+                    wants.insert(zone.clone(), name);
+                }
             }
         }
         if self.quiet.is_some() {
@@ -1059,6 +1100,44 @@ mod tests {
         toml::from_str(REGISTRY).unwrap()
     }
 
+    /// `registry()` plus warning/working assets for ram and strip (production has
+    /// these since 2026-09-22; the shared `registry()`/`REGISTRY` fixture deliberately
+    /// keeps them eye-only so `requests_are_rejected_for_unknown_severities_zones_or_missing_assets`
+    /// still has a real "zone with no matching asset" case to exercise).
+    fn registry_with_whole_machine_states() -> Registry {
+        let extra = r#"
+        [[functions]]
+        name = "warning_ram"
+        kind = "scene"
+        id = 208
+        children = []
+        zones = ["ram"]
+        composable = true
+        [[functions]]
+        name = "warning_strip"
+        kind = "scene"
+        id = 209
+        children = []
+        zones = ["strip"]
+        composable = true
+        [[functions]]
+        name = "working_ram"
+        kind = "scene"
+        id = 210
+        children = []
+        zones = ["ram"]
+        composable = true
+        [[functions]]
+        name = "working_strip"
+        kind = "scene"
+        id = 211
+        children = []
+        zones = ["strip"]
+        composable = true
+        "#;
+        toml::from_str(&format!("{REGISTRY}\n{extra}")).unwrap()
+    }
+
     fn config() -> ControllerConfig {
         toml::from_str("version = 1\ndefault_ambient = \"deep_violet\"\nprogress_zones = [\"ram\", \"strip\"]\ncomplete_hold_seconds = 15\n").unwrap()
     }
@@ -1113,6 +1192,17 @@ mod tests {
 
     fn controller_with(link: &FakeLink) -> Controller<FakeLink> {
         Controller::new(link.clone(), registry(), config())
+    }
+
+    /// `warning_zones`/`working_zones` covering all three zones, for testing the
+    /// whole-machine-authorable states added 2026-09-22 (default `config()` stays
+    /// eye-only, matching this project's original, still-valid default).
+    fn config_with_whole_machine_states() -> ControllerConfig {
+        toml::from_str(
+            "version = 1\ndefault_ambient = \"deep_violet\"\nprogress_zones = [\"ram\", \"strip\"]\ncomplete_hold_seconds = 15\n\
+             warning_zones = [\"ram\", \"rog_eye\", \"strip\"]\nworking_zones = [\"ram\", \"rog_eye\", \"strip\"]\n",
+        )
+        .unwrap()
     }
 
     fn ops(link: &FakeLink) -> Vec<String> {
@@ -1561,12 +1651,44 @@ mod tests {
     }
 
     #[test]
+    fn warning_zones_is_owner_editable_and_can_claim_the_whole_machine() {
+        let link = FakeLink::default();
+        let mut controller = Controller::new(link.clone(), registry_with_whole_machine_states(), config_with_whole_machine_states());
+        let reply = controller.handle(fault_raise("thermal", "warning", None, "running warm"), Instant::now());
+        assert_eq!(reply["zones"], json!(["ram", "rog_eye", "strip"]));
+        assert_eq!(
+            controller.state_wants(),
+            BTreeMap::from([
+                ("ram".to_owned(), "warning_ram".to_owned()),
+                ("rog_eye".to_owned(), "warning_eye".to_owned()),
+                ("strip".to_owned(), "warning_strip".to_owned()),
+            ])
+        );
+    }
+
+    #[test]
+    fn working_zones_is_owner_editable_and_can_claim_the_whole_machine() {
+        let link = FakeLink::default();
+        let mut controller = Controller::new(link.clone(), registry_with_whole_machine_states(), config_with_whole_machine_states());
+        controller.handle(ControllerRequest::JobStart { id: "a".into(), label: "x".into(), total: 10, priority: 0, pattern: None }, Instant::now());
+        assert_eq!(
+            controller.state_wants(),
+            BTreeMap::from([
+                ("ram".to_owned(), "working_ram".to_owned()),
+                ("rog_eye".to_owned(), "working_eye".to_owned()),
+                ("strip".to_owned(), "working_strip".to_owned()),
+            ])
+        );
+    }
+
+    #[test]
     fn requests_are_rejected_for_unknown_severities_zones_or_missing_assets() {
         let mut controller = controller_with(&FakeLink::default());
         let now = Instant::now();
         assert_eq!(controller.handle(fault_raise("a", "critical", None, "x"), now)["code"], "bad_request");
         assert_eq!(controller.handle(fault_raise("a", "fault", Some(&["nowhere"]), "x"), now)["code"], "bad_request");
-        // A warning asset exists only for the eye: asking for RAM must be refused, not silently substituted.
+        // This fixture registers a warning asset only for the eye (production has all three
+        // since 2026-09-22): asking for a zone with no matching asset must be refused, not silently substituted.
         let reply = controller.handle(fault_raise("a", "warning", Some(&["ram"]), "x"), now);
         assert_eq!(reply["code"], "bad_request");
         assert!(reply["error"].as_str().unwrap().contains("warning_ram"), "{reply}");

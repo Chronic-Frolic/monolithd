@@ -17,3 +17,18 @@ complete_hold_seconds = 15
 # How often the controller compares the plant with what it wants, besides reacting
 # at once to every request.
 poll_interval_ms = 1000
+
+# Zones a warning claims when raised with no explicit --zones. Every zone can author
+# warning content since 2026-09-22 (see the intake contract) -- this is what actually
+# picks where it's shown. Kept at the eye only, the original default.
+warning_zones = ["rog_eye"]
+
+# Zones the automatic "a job is running somewhere" indicator claims. Same shape as
+# warning_zones. Kept at the eye only, the original default.
+#
+# Caution if you add "ram" or "strip" here: the indicator is "any job is active
+# anywhere", not "a job is active on this zone" -- it will cover a running progress
+# bar on that same zone with a flat indicator color for as long as any job anywhere
+# is active, which defeats the progress bar on that zone specifically. Fine for the
+# eye (never a progress zone); think it through before adding a progress zone here.
+working_zones = ["rog_eye"]
