@@ -210,29 +210,42 @@ async fn prepare_sleep(state: &Mutex<SharedState>, delay: &Mutex<DelayInhibitor>
     write_heartbeat(&*state.lock().await);
 }
 
+/// `suspended` stays true for this whole function, not just until the inhibitor is
+/// reacquired: it is what keeps the independent health_loop from probing the
+/// controller at the same time this grace-period check does. Two uncoordinated
+/// probes racing right after wake, while the controller is still doing legitimate
+/// post-resume work, produced a spurious fault-then-clear flicker (found live,
+/// 2026-09-22): the health_loop's own periodic tick landed mid-resume and timed out
+/// a moment after this function's own check had already confirmed the controller
+/// healthy. Only one check may be in flight during the grace window.
 async fn resume(state: &Mutex<SharedState>, delay: &Mutex<DelayInhibitor>) {
     if let Err(error) = delay.lock().await.acquire().await {
         eprintln!("monolithd watchdog: could not reacquire the sleep delay inhibitor: {error}");
+    }
+    let deadline = tokio::time::Instant::now() + RESUME_GRACE;
+    let mut last_error = "controller did not respond".to_owned();
+    let mut healthy = false;
+    while tokio::time::Instant::now() < deadline {
+        match controller_healthy().await {
+            Ok(()) => {
+                healthy = true;
+                break;
+            }
+            Err(error) => last_error = error,
+        }
+        tokio::time::sleep(Duration::from_secs(1)).await;
     }
     {
         let mut guard = state.lock().await;
         guard.suspended = false;
         write_heartbeat(&guard);
     }
-    let deadline = tokio::time::Instant::now() + RESUME_GRACE;
-    let mut last_error = "controller did not respond".to_owned();
-    while tokio::time::Instant::now() < deadline {
-        match controller_healthy().await {
-            Ok(()) => {
-                clear_controller_fault(state).await;
-                eprintln!("monolithd watchdog: controller healthy after resume");
-                return;
-            }
-            Err(error) => last_error = error,
-        }
-        tokio::time::sleep(Duration::from_secs(1)).await;
+    if healthy {
+        clear_controller_fault(state).await;
+        eprintln!("monolithd watchdog: controller healthy after resume");
+    } else {
+        apply_controller_fault(state, &format!("controller did not recover after resume: {last_error}")).await;
     }
-    apply_controller_fault(state, &format!("controller did not recover after resume: {last_error}")).await;
 }
 
 /// Parse one `gdbus monitor` line for `PrepareForSleep`'s boolean argument.
