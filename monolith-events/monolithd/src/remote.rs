@@ -7,7 +7,7 @@
 //! actions behind a bearer token. It listens on loopback only; Tailscale Serve exposes it.
 //!
 //! It is a drop-in replacement for the Python server it folded in: the same routes, JSON,
-//! and status codes, so the Android shortcuts and the `monolithctl` script are unchanged.
+//! and status codes, so the Android shortcuts and the `monolith-remote` script (renamed 2026-09-21 from `monolithctl`, kept as a symlink alias) are unchanged.
 //! `/status` keeps its original keys and adds a `lighting` summary.
 
 use crate::{controller, gateway};
