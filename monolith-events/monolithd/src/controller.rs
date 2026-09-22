@@ -85,6 +85,48 @@ pub fn check_config(config: &ControllerConfig, registry: &Registry) -> Vec<Strin
 
 // ---------------------------------------------------------------- planning
 
+/// warning or fault, exactly as the original event contract's `fault.raise(id, severity, reason)`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Severity {
+    Warning,
+    Fault,
+}
+
+impl Severity {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::Warning => "warning",
+            Self::Fault => "fault",
+        }
+    }
+
+    /// The prefix of the state asset's name: `<prefix>_<zone suffix>`.
+    fn asset_prefix(self) -> &'static str {
+        match self {
+            Self::Warning => "warning",
+            Self::Fault => "fault",
+        }
+    }
+}
+
+/// The short zone name state assets are named after (`rog_eye` -> `eye`), matching the
+/// QLC+ Scenes authored for Phase 4 (`warning_eye`, `fault_ram`, `quiet_strip`, ...).
+fn zone_suffix(zone: &str) -> &str {
+    match zone {
+        "rog_eye" => "eye",
+        other => other,
+    }
+}
+
+/// A raised warning or fault, claiming zones until cleared.
+#[derive(Debug, Clone)]
+struct ActiveFault {
+    severity: Severity,
+    zones: BTreeSet<String>,
+    #[allow(dead_code)] // carried for status/diagnosis, not read by planning
+    reason: String,
+}
+
 /// What one managed zone should show.
 #[derive(Debug, Clone, PartialEq)]
 enum Want {
@@ -105,6 +147,10 @@ impl Want {
 #[derive(Debug, Clone, PartialEq)]
 enum Action {
     Stop(String),
+    /// Preempt whatever owns the function's zone(s) at once: used only for the
+    /// fault/warning/quiet layer, which is never a member of an ambient set and so
+    /// cannot wait for a phase-aligned rejoin.
+    Replace(String),
     StartSet(Vec<String>),
     Rejoin(String),
     Progress { zone: String, step: u32 },
@@ -114,6 +160,7 @@ impl Action {
     fn request(&self) -> Value {
         match self {
             Self::Stop(function) => json!({ "op": "stop", "function": function }),
+            Self::Replace(function) => json!({ "op": "replace", "function": function }),
             Self::StartSet(functions) => json!({ "op": "start_set", "functions": functions }),
             Self::Rejoin(function) => json!({ "op": "rejoin", "function": function }),
             Self::Progress { zone, step } => json!({ "op": "progress", "zone": zone, "completed": step }),
@@ -123,6 +170,7 @@ impl Action {
     fn describe(&self) -> String {
         match self {
             Self::Stop(function) => format!("stop {function}"),
+            Self::Replace(function) => format!("replace with {function}"),
             Self::StartSet(functions) => format!("start set [{}]", functions.join(", ")),
             Self::Rejoin(function) => format!("rejoin {function}"),
             Self::Progress { zone, step } => format!("progress {zone} {step}"),
@@ -191,7 +239,7 @@ fn classify<'a>(owner: Option<&'a String>, registry: &Registry) -> Owner<'a> {
 }
 
 /// Turn desired state and gateway state into the actions that close the gap.
-fn plan(view: &GatewayView, wants: &BTreeMap<String, Want>, registry: &Registry) -> Plan {
+fn plan(view: &GatewayView, wants: &BTreeMap<String, Want>, state: &BTreeMap<String, String>, registry: &Registry) -> Plan {
     let blocked = |reason: String| Plan { actions: Vec::new(), blocked: Some(reason) };
     if view.mode != "control" {
         return blocked(format!("the gateway is {}, not in control mode", view.mode));
@@ -202,12 +250,30 @@ fn plan(view: &GatewayView, wants: &BTreeMap<String, Want>, registry: &Registry)
     if let Some(state) = view.output_state.as_deref().filter(|state| *state != "ok") {
         return blocked(format!("the OpenRGB output is {state}"));
     }
-    for zone in wants.keys() {
+    for zone in wants.keys().chain(state.keys()) {
         match view.zones.get(zone) {
             None => return blocked(format!("the gateway does not know zone {zone}")),
             Some(entry) if entry.uncertain => return blocked(format!("zone {zone} is in an unconfirmed state")),
             Some(_) => {}
         }
+    }
+
+    // The preemption layer always goes first: it must never wait behind an ambient batch.
+    // A non-composable current owner (only the retired boot_proof, in practice) must be
+    // stopped explicitly first, exactly like the base loop's stop_foreign: a fault must
+    // never fail silently and be retried forever because the gateway refused a bare replace.
+    let mut actions: Vec<Action> = Vec::new();
+    for (zone, function) in state {
+        let owner = view.zones[zone].owner.as_deref();
+        if owner == Some(function.as_str()) {
+            continue;
+        }
+        if let Some(owner) = owner {
+            if !registry.function(owner).is_some_and(|entry| entry.composable) {
+                actions.push(Action::Stop(owner.to_owned()));
+            }
+        }
+        actions.push(Action::Replace(function.clone()));
     }
 
     let mut stops: Vec<String> = Vec::new();
@@ -217,6 +283,9 @@ fn plan(view: &GatewayView, wants: &BTreeMap<String, Want>, registry: &Registry)
     let mut ambient_running = false;
 
     for (zone, want) in wants {
+        if state.contains_key(zone) {
+            continue; // preempted this pass; the base want waits for the next one
+        }
         let owner = view.zones[zone].owner.as_ref();
         if owner.is_some_and(|name| *name == want.owner_name()) {
             ambient_running |= matches!(want, Want::Ambient { .. });
@@ -249,7 +318,7 @@ fn plan(view: &GatewayView, wants: &BTreeMap<String, Want>, registry: &Registry)
         }
     }
 
-    let mut actions: Vec<Action> = stops.into_iter().map(Action::Stop).collect();
+    actions.extend(stops.into_iter().map(Action::Stop));
     if !free_for_ambient.is_empty() {
         if ambient_running {
             actions.extend(free_for_ambient.into_iter().map(Action::Rejoin));
@@ -295,6 +364,8 @@ struct Controller<L: Link> {
     ambient: String,
     paused: bool,
     dirty: bool,
+    faults: BTreeMap<String, ActiveFault>,
+    quiet: Option<String>,
     report: Report,
 }
 
@@ -311,11 +382,70 @@ impl<L: Link> Controller<L> {
             .collect();
         let planner = Planner::new(zones, Duration::from_secs(config.complete_hold_seconds));
         let ambient = config.default_ambient.clone();
-        Self { link, registry, config, planner, ambient, paused: false, dirty: true, report: Report::default() }
+        Self { link, registry, config, planner, ambient, paused: false, dirty: true, faults: BTreeMap::new(), quiet: None, report: Report::default() }
     }
 
     fn take_dirty(&mut self) -> bool {
         std::mem::take(&mut self.dirty)
+    }
+
+    /// Which state asset (if any) is registered for a zone at a given severity/quiet.
+    fn state_asset(&self, prefix: &str, zone: &str) -> Option<String> {
+        let name = format!("{prefix}_{}", zone_suffix(zone));
+        self.registry.function(&name).map(|_| name)
+    }
+
+    /// Validate and default the zones a raised warning/fault claims. Warning defaults to
+    /// the eye only (the only warning asset authored); fault defaults to every managed
+    /// zone that has a fault asset. An explicit zone with no matching asset is refused.
+    fn resolve_state_zones(&self, severity: Severity, zones: Option<Vec<String>>) -> Result<BTreeSet<String>, String> {
+        let requested: Vec<String> = match zones {
+            None => match severity {
+                Severity::Warning => vec!["rog_eye".to_owned()],
+                Severity::Fault => self.registry.zones.keys().cloned().collect(),
+            },
+            Some(zones) if zones.is_empty() => return Err("at least one zone is required".to_owned()),
+            Some(zones) => zones,
+        };
+        let mut resolved = BTreeSet::new();
+        for zone in requested {
+            if !self.registry.zones.contains_key(&zone) {
+                return Err(format!("unknown zone {zone}"));
+            }
+            if self.state_asset(severity.asset_prefix(), &zone).is_none() {
+                return Err(format!("no {} asset for zone {zone} ({}_{} is not registered)", severity.as_str(), severity.asset_prefix(), zone_suffix(&zone)));
+            }
+            resolved.insert(zone);
+        }
+        Ok(resolved)
+    }
+
+    /// The preemption layer: zone -> the function that must own it right now, fault over
+    /// warning over quiet. Empty when nothing is raised and quiet is not set.
+    fn state_wants(&self) -> BTreeMap<String, String> {
+        let mut wants = BTreeMap::new();
+        if self.quiet.is_some() {
+            for zone in self.registry.zones.keys() {
+                if let Some(name) = self.state_asset("quiet", zone) {
+                    wants.insert(zone.clone(), name);
+                }
+            }
+        }
+        for fault in self.faults.values().filter(|fault| fault.severity == Severity::Warning) {
+            for zone in &fault.zones {
+                if let Some(name) = self.state_asset("warning", zone) {
+                    wants.insert(zone.clone(), name);
+                }
+            }
+        }
+        for fault in self.faults.values().filter(|fault| fault.severity == Severity::Fault) {
+            for zone in &fault.zones {
+                if let Some(name) = self.state_asset("fault", zone) {
+                    wants.insert(zone.clone(), name);
+                }
+            }
+        }
+        wants
     }
 
     /// The zones the controller manages and what each should show.
@@ -374,9 +504,13 @@ impl<L: Link> Controller<L> {
         self.report.gateway = json!({ "mode": view.mode, "qlc_reachable": view.qlc_reachable, "output": view.output_state, "calibration": view.calibration_state });
         self.report.owners = view.zones.iter().map(|(zone, entry)| (zone.clone(), entry.owner.clone())).collect();
         let wants = self.wants();
+        let state = self.state_wants();
         self.report.wants = wants.iter().map(|(zone, want)| (zone.clone(), want.owner_name())).collect();
+        for (zone, function) in &state {
+            self.report.wants.insert(zone.clone(), function.clone());
+        }
 
-        let plan = plan(&view, &wants, &self.registry);
+        let plan = plan(&view, &wants, &state, &self.registry);
         self.block(plan.blocked);
         for action in plan.actions {
             let reply = match self.link.call(action.request()).await {
@@ -418,6 +552,33 @@ impl<L: Link> Controller<L> {
             }
             ControllerRequest::JobComplete { id } => self.planner.complete(&id, now).map(|()| json!({ "job": self.job_json(&id) })).map_err(|error| ("unknown_job", error)),
             ControllerRequest::JobFail { id, reason } => self.planner.fail(&id, &reason).map(|()| json!({})).map_err(|error| ("unknown_job", error)),
+            ControllerRequest::FaultRaise { id, severity, zones, reason } => {
+                let severity = match severity.as_str() {
+                    "warning" => Ok(Severity::Warning),
+                    "fault" => Ok(Severity::Fault),
+                    other => Err(format!("severity must be \"warning\" or \"fault\", not {other:?}")),
+                };
+                match severity.and_then(|severity| self.resolve_state_zones(severity, zones).map(|zones| (severity, zones))) {
+                    Ok((severity, zones)) => {
+                        let reply = json!({ "id": id, "severity": severity.as_str(), "zones": zones });
+                        self.faults.insert(id, ActiveFault { severity, zones, reason });
+                        Ok(reply)
+                    }
+                    Err(error) => Err(("bad_request", error)),
+                }
+            }
+            ControllerRequest::FaultClear { id } => match self.faults.remove(&id) {
+                Some(_) => Ok(json!({ "id": id })),
+                None => Err(("unknown_fault", format!("no active warning/fault with id {id}"))),
+            },
+            ControllerRequest::QuietSet { reason } => {
+                self.quiet = Some(reason.clone());
+                Ok(json!({ "reason": reason }))
+            }
+            ControllerRequest::QuietClear => {
+                self.quiet = None;
+                Ok(json!({}))
+            }
             ControllerRequest::Pause => {
                 self.paused = true;
                 Ok(json!({ "paused": true }))
@@ -453,6 +614,8 @@ impl<L: Link> Controller<L> {
             "zones": zones,
             "jobs": self.planner.jobs().iter().map(job_json).collect::<Vec<_>>(),
             "failures": failures,
+            "quiet": self.quiet,
+            "active_faults": self.faults.iter().map(|(id, fault)| json!({ "id": id, "severity": fault.severity.as_str(), "zones": fault.zones, "reason": fault.reason })).collect::<Vec<_>>(),
             "recent_actions": self.report.recent,
             "reconciles": self.report.reconciles,
         })
@@ -491,6 +654,21 @@ pub enum ControllerRequest {
     JobComplete { id: String },
     #[serde(rename = "job.fail")]
     JobFail { id: String, reason: String },
+    /// Zone list defaults per severity if omitted; see `resolve_state_zones`.
+    #[serde(rename = "fault.raise")]
+    FaultRaise {
+        id: String,
+        severity: String,
+        #[serde(default)]
+        zones: Option<Vec<String>>,
+        reason: String,
+    },
+    #[serde(rename = "fault.clear")]
+    FaultClear { id: String },
+    #[serde(rename = "quiet.set")]
+    QuietSet { reason: String },
+    #[serde(rename = "quiet.clear")]
+    QuietClear,
     #[serde(rename = "pause")]
     Pause,
     #[serde(rename = "resume")]
@@ -599,7 +777,7 @@ pub async fn run() -> Result<(), String> {
 
 // ---------------------------------------------------------------- the client
 
-const USAGE: &str = "usage: monolithd event <status | ambient SET | job-start ID LABEL TOTAL [PRIORITY] | job-progress ID COMPLETED [TOTAL] | job-complete ID | job-fail ID REASON... | pause | resume>";
+const USAGE: &str = "usage: monolithd event <status | ambient SET | job-start ID LABEL TOTAL [PRIORITY] | job-progress ID COMPLETED [TOTAL] | job-complete ID | job-fail ID REASON... | fault-raise ID warning|fault [--zones a,b,c] REASON... | fault-clear ID | quiet-set REASON... | quiet-clear | pause | resume>";
 
 fn client_request(arguments: &[String]) -> Result<Value, String> {
     let words: Vec<&str> = arguments.iter().map(String::as_str).collect();
@@ -616,6 +794,31 @@ fn client_request(arguments: &[String]) -> Result<Value, String> {
         ["job-progress", id, completed, total] => json!({ "op": "job.progress", "id": id, "completed": number(completed)?, "total": number(total)? }),
         ["job-complete", id] => json!({ "op": "job.complete", "id": id }),
         ["job-fail", id, reason @ ..] if !reason.is_empty() => json!({ "op": "job.fail", "id": id, "reason": reason.join(" ") }),
+        ["fault-raise", rest @ ..] if rest.len() >= 3 => {
+            let mut rest: Vec<&str> = rest.to_vec();
+            let zones = if let Some(position) = rest.iter().position(|word| *word == "--zones") {
+                if position + 1 >= rest.len() {
+                    return Err("--zones needs a comma-separated value".to_owned());
+                }
+                let value = rest[position + 1];
+                rest.drain(position..=position + 1);
+                Some(value.split(',').map(str::to_owned).collect::<Vec<_>>())
+            } else {
+                None
+            };
+            let (id, severity, reason) = match rest.as_slice() {
+                [id, severity, reason @ ..] if !reason.is_empty() => (*id, *severity, reason.join(" ")),
+                _ => return Err(USAGE.to_owned()),
+            };
+            let mut request = json!({ "op": "fault.raise", "id": id, "severity": severity, "reason": reason });
+            if let Some(zones) = zones {
+                request["zones"] = json!(zones);
+            }
+            request
+        }
+        ["fault-clear", id] => json!({ "op": "fault.clear", "id": id }),
+        ["quiet-set", reason @ ..] if !reason.is_empty() => json!({ "op": "quiet.set", "reason": reason.join(" ") }),
+        ["quiet-clear"] => json!({ "op": "quiet.clear" }),
         ["pause"] => json!({ "op": "pause" }),
         ["resume"] => json!({ "op": "resume" }),
         _ => return Err(USAGE.to_owned()),
@@ -697,6 +900,55 @@ mod tests {
         children = []
         zones = ["rog_eye"]
         composable = true
+        [[functions]]
+        name = "warning_eye"
+        kind = "scene"
+        id = 200
+        children = []
+        zones = ["rog_eye"]
+        composable = true
+        [[functions]]
+        name = "fault_ram"
+        kind = "scene"
+        id = 201
+        children = []
+        zones = ["ram"]
+        composable = true
+        [[functions]]
+        name = "fault_eye"
+        kind = "scene"
+        id = 202
+        children = []
+        zones = ["rog_eye"]
+        composable = true
+        [[functions]]
+        name = "fault_strip"
+        kind = "scene"
+        id = 203
+        children = []
+        zones = ["strip"]
+        composable = true
+        [[functions]]
+        name = "quiet_ram"
+        kind = "scene"
+        id = 204
+        children = []
+        zones = ["ram"]
+        composable = true
+        [[functions]]
+        name = "quiet_eye"
+        kind = "scene"
+        id = 205
+        children = []
+        zones = ["rog_eye"]
+        composable = true
+        [[functions]]
+        name = "quiet_strip"
+        kind = "scene"
+        id = 206
+        children = []
+        zones = ["strip"]
+        composable = true
         [[ambient_sets]]
         name = "deep_violet"
         functions = ["ambient_ram", "ambient_eye", "ambient_strip"]
@@ -743,7 +995,7 @@ mod tests {
     }
 
     fn plan_for(status: &Value, controller: &Controller<FakeLink>) -> Plan {
-        plan(&GatewayView::from_status(status).unwrap(), &wants_for(controller), &controller.registry)
+        plan(&GatewayView::from_status(status).unwrap(), &wants_for(controller), &controller.state_wants(), &controller.registry)
     }
 
     #[derive(Clone, Default)]
@@ -1018,6 +1270,20 @@ mod tests {
         assert!(client_request(&words("job-start a Backup")).is_err());
         assert!(client_request(&words("job-fail a")).is_err());
         assert!(client_request(&words("job-progress a many")).is_err());
+        assert_eq!(
+            client_request(&words("fault-raise psu fault PSU over temperature")).unwrap(),
+            json!({ "op": "fault.raise", "id": "psu", "severity": "fault", "reason": "PSU over temperature" })
+        );
+        assert_eq!(
+            client_request(&words("fault-raise psu fault --zones ram,strip PSU over temperature")).unwrap(),
+            json!({ "op": "fault.raise", "id": "psu", "severity": "fault", "reason": "PSU over temperature", "zones": ["ram", "strip"] })
+        );
+        assert_eq!(client_request(&words("fault-clear psu")).unwrap(), json!({ "op": "fault.clear", "id": "psu" }));
+        assert_eq!(client_request(&words("quiet-set movie night")).unwrap(), json!({ "op": "quiet.set", "reason": "movie night" }));
+        assert_eq!(client_request(&words("quiet-clear")).unwrap(), json!({ "op": "quiet.clear" }));
+        assert!(client_request(&words("fault-raise psu fault")).is_err(), "a reason is required");
+        assert!(client_request(&words("fault-raise psu fault --zones")).is_err(), "--zones needs a value");
+        assert!(client_request(&words("quiet-set")).is_err());
     }
 
     // ------------------------------------------------------------ configuration
@@ -1074,5 +1340,161 @@ mod tests {
             assert_eq!(third["saw"], "Status");
             let _ = std::fs::remove_dir_all(&directory);
         });
+    }
+
+    // ------------------------------------------------------------ warning/fault/quiet
+
+    fn fault_raise(id: &str, severity: &str, zones: Option<&[&str]>, reason: &str) -> ControllerRequest {
+        ControllerRequest::FaultRaise {
+            id: id.to_owned(),
+            severity: severity.to_owned(),
+            zones: zones.map(|zones| zones.iter().map(|zone| (*zone).to_owned()).collect()),
+            reason: reason.to_owned(),
+        }
+    }
+
+    fn fault_clear(id: &str) -> ControllerRequest {
+        ControllerRequest::FaultClear { id: id.to_owned() }
+    }
+
+    #[test]
+    fn a_fault_with_no_zones_given_claims_every_managed_zone_by_default() {
+        let mut controller = controller_with(&FakeLink::default());
+        let reply = controller.handle(fault_raise("disk", "fault", None, "disk full"), Instant::now());
+        assert_eq!(reply["ok"], true, "{reply}");
+        assert_eq!(reply["zones"], json!(["ram", "rog_eye", "strip"]));
+        let state = controller.state_wants();
+        assert_eq!(state, BTreeMap::from([("ram".to_owned(), "fault_ram".to_owned()), ("rog_eye".to_owned(), "fault_eye".to_owned()), ("strip".to_owned(), "fault_strip".to_owned())]));
+    }
+
+    #[test]
+    fn a_warning_with_no_zones_given_defaults_to_the_eye_only() {
+        let mut controller = controller_with(&FakeLink::default());
+        let reply = controller.handle(fault_raise("thermal", "warning", None, "running warm"), Instant::now());
+        assert_eq!(reply["zones"], json!(["rog_eye"]));
+        assert_eq!(controller.state_wants(), BTreeMap::from([("rog_eye".to_owned(), "warning_eye".to_owned())]));
+    }
+
+    #[test]
+    fn requests_are_rejected_for_unknown_severities_zones_or_missing_assets() {
+        let mut controller = controller_with(&FakeLink::default());
+        let now = Instant::now();
+        assert_eq!(controller.handle(fault_raise("a", "critical", None, "x"), now)["code"], "bad_request");
+        assert_eq!(controller.handle(fault_raise("a", "fault", Some(&["nowhere"]), "x"), now)["code"], "bad_request");
+        // A warning asset exists only for the eye: asking for RAM must be refused, not silently substituted.
+        let reply = controller.handle(fault_raise("a", "warning", Some(&["ram"]), "x"), now);
+        assert_eq!(reply["code"], "bad_request");
+        assert!(reply["error"].as_str().unwrap().contains("warning_ram"), "{reply}");
+        assert_eq!(controller.handle(fault_raise("a", "fault", Some(&[]), "x"), now)["code"], "bad_request", "an empty zone list is not a silent default");
+    }
+
+    #[test]
+    fn clearing_an_unknown_fault_is_refused_and_a_known_one_releases_its_zones() {
+        let mut controller = controller_with(&FakeLink::default());
+        let now = Instant::now();
+        assert_eq!(controller.handle(fault_clear("nope"), now)["code"], "unknown_fault");
+        controller.handle(fault_raise("a", "fault", Some(&["ram"]), "x"), now);
+        assert!(!controller.state_wants().is_empty());
+        let reply = controller.handle(fault_clear("a"), now);
+        assert_eq!(reply["ok"], true);
+        assert!(controller.state_wants().is_empty());
+        assert_eq!(controller.handle(fault_clear("a"), now)["code"], "unknown_fault", "already cleared");
+    }
+
+    #[test]
+    fn quiet_set_and_clear_toggle_every_zone_and_report_the_reason() {
+        let mut controller = controller_with(&FakeLink::default());
+        let now = Instant::now();
+        let reply = controller.handle(ControllerRequest::QuietSet { reason: "movie night".into() }, now);
+        assert_eq!(reply["ok"], true);
+        assert_eq!(
+            controller.state_wants(),
+            BTreeMap::from([("ram".to_owned(), "quiet_ram".to_owned()), ("rog_eye".to_owned(), "quiet_eye".to_owned()), ("strip".to_owned(), "quiet_strip".to_owned())])
+        );
+        assert_eq!(controller.status_json()["quiet"], "movie night");
+        controller.handle(ControllerRequest::QuietClear, now);
+        assert!(controller.state_wants().is_empty());
+        assert_eq!(controller.status_json()["quiet"], Value::Null);
+    }
+
+    #[test]
+    fn priority_is_fault_over_warning_over_quiet() {
+        let mut controller = controller_with(&FakeLink::default());
+        let now = Instant::now();
+        controller.handle(ControllerRequest::QuietSet { reason: "x".into() }, now);
+        controller.handle(fault_raise("w", "warning", Some(&["rog_eye"]), "x"), now);
+        assert_eq!(controller.state_wants()["rog_eye"], "warning_eye", "warning beats quiet on the shared zone");
+        assert_eq!(controller.state_wants()["ram"], "quiet_ram", "quiet still covers what nothing else claims");
+        controller.handle(fault_raise("f", "fault", Some(&["rog_eye"]), "x"), now);
+        assert_eq!(controller.state_wants()["rog_eye"], "fault_eye", "fault beats warning on the shared zone");
+    }
+
+    #[tokio::test]
+    async fn a_fault_preempts_a_running_job_and_the_bar_resumes_unharmed_after_it_clears() {
+        let link = FakeLink::default();
+        *link.status.lock().unwrap() = healthy(AMBIENT);
+        let mut controller = controller_with(&link);
+        let start = Instant::now();
+        controller.handle(ControllerRequest::JobStart { id: "backup".into(), label: "Backup".into(), total: 32, priority: 0 }, start);
+        controller.handle(ControllerRequest::JobProgress { id: "backup".into(), completed: 16, total: None }, start);
+        controller.reconcile(start).await;
+        assert_eq!(ops(&link), vec![r#"{"completed":16,"op":"progress","zone":"ram"}"#]);
+
+        // RAM is now showing the bar; raise a RAM fault.
+        *link.status.lock().unwrap() = healthy([Some("progress_ram:16"), Some("ambient_eye"), Some("ambient_strip")]);
+        controller.handle(fault_raise("psu", "fault", Some(&["ram"]), "PSU over temperature"), start);
+        controller.reconcile(start).await;
+        assert_eq!(ops(&link).last().unwrap(), r#"{"function":"fault_ram","op":"replace"}"#, "replace, not a rejoin: fault_ram is not an ambient-set member");
+        assert!(!controller.planner.jobs().is_empty(), "the lease is untouched; only the display was preempted");
+
+        // Clear it: the zone must go straight back to the progress bar, unharmed.
+        *link.status.lock().unwrap() = healthy([Some("fault_ram"), Some("ambient_eye"), Some("ambient_strip")]);
+        controller.handle(fault_clear("psu"), start);
+        controller.reconcile(start).await;
+        assert_eq!(ops(&link).last().unwrap(), r#"{"completed":16,"op":"progress","zone":"ram"}"#);
+    }
+
+    #[tokio::test]
+    async fn a_quiet_request_preempts_the_whole_ambient_set_and_reconciles_in_one_pass() {
+        let link = FakeLink::default();
+        *link.status.lock().unwrap() = healthy(AMBIENT);
+        let mut controller = controller_with(&link);
+        controller.handle(ControllerRequest::QuietSet { reason: "recording".into() }, Instant::now());
+        controller.reconcile(Instant::now()).await;
+        let mut sent = ops(&link);
+        sent.sort();
+        assert_eq!(sent, vec![r#"{"function":"quiet_eye","op":"replace"}"#, r#"{"function":"quiet_ram","op":"replace"}"#, r#"{"function":"quiet_strip","op":"replace"}"#]);
+
+        let after_first_reconcile = ops(&link).len();
+        *link.status.lock().unwrap() = healthy([Some("quiet_ram"), Some("quiet_eye"), Some("quiet_strip")]);
+        controller.handle(ControllerRequest::QuietClear, Instant::now());
+        controller.reconcile(Instant::now()).await;
+        // Back to ambient: every zone was a Foreign, composable owner, so this is a phase-aligned rejoin, not a raw replace.
+        let mut sent = ops(&link)[after_first_reconcile..].to_vec();
+        sent.sort();
+        assert_eq!(sent, vec![r#"{"function":"ambient_eye","op":"rejoin"}"#, r#"{"function":"ambient_ram","op":"rejoin"}"#, r#"{"function":"ambient_strip","op":"rejoin"}"#]);
+    }
+
+    #[tokio::test]
+    async fn a_preempted_zone_is_left_out_of_the_uncertain_check_for_other_zones() {
+        // Regression guard: plan() must fold state zones into its readiness check too.
+        let link = FakeLink::default();
+        let mut status = healthy(AMBIENT);
+        status["zones"]["ram"]["uncertain"] = json!(true);
+        *link.status.lock().unwrap() = status;
+        let mut controller = controller_with(&link);
+        controller.handle(fault_raise("f", "fault", Some(&["ram"]), "x"), Instant::now());
+        controller.reconcile(Instant::now()).await;
+        assert!(ops(&link).is_empty(), "an uncertain zone must block even a preemption action");
+        assert!(controller.report.blocked.as_deref().unwrap().contains("unconfirmed"));
+    }
+
+    #[test]
+    fn state_wants_falls_back_silently_when_an_asset_is_somehow_missing() {
+        // resolve_state_zones already refuses this at raise time; state_wants defends in depth
+        // in case a fault is constructed without going through it (defensive, not reachable via the API).
+        let mut controller = controller_with(&FakeLink::default());
+        controller.faults.insert("x".to_owned(), ActiveFault { severity: Severity::Fault, zones: BTreeSet::from(["gpu_bracket".to_owned()]), reason: "x".to_owned() });
+        assert!(controller.state_wants().is_empty(), "no fault_bracket asset exists, so nothing is planned for it");
     }
 }
