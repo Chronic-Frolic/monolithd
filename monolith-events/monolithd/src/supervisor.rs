@@ -207,6 +207,19 @@ where
             }
         }
     }
+
+    /// Rebuild the connection unconditionally, bypassing the write-failure and
+    /// reconnect-spacing checks `flush` otherwise gates on: for use when something
+    /// external (a resume signal) tells us the device may have silently reverted
+    /// without ever failing a write. Best-effort: a failure here is logged, not
+    /// propagated -- the regular write-failure path in `flush` still handles
+    /// escalation (and eventually gives up) if the device is genuinely gone.
+    pub async fn force_reconnect(&mut self) {
+        eprintln!("monolithd output: resume signal received; proactively rebuilding the connection");
+        if let Err(error) = self.reconnect().await {
+            eprintln!("monolithd output: proactive reconnect after resume failed: {error}");
+        }
+    }
 }
 
 #[cfg(test)]
@@ -291,6 +304,20 @@ mod tests {
         let (_supervisor, report) = supervised(&script);
         let seen = report.borrow();
         assert_eq!((seen.state, seen.failures_in_a_row, seen.reconnects, seen.last_error.clone()), (OutputState::Ok, 0, 0, None));
+    }
+
+    #[tokio::test]
+    async fn force_reconnect_rebuilds_the_connection_even_with_no_write_failure() {
+        // The resume-signal path: nothing has failed a write, so flush's own
+        // failure-triggered reconnect never fires, but force_reconnect must still
+        // rebuild the connection (and, on the real Output impl, re-assert
+        // direct/controllable mode) on demand.
+        let script = Script::default();
+        let (mut supervisor, report) = supervised(&script);
+        assert_eq!(connects(&script), 0, "nothing has failed yet");
+        supervisor.force_reconnect().await;
+        assert_eq!(connects(&script), 1);
+        assert_eq!((report.borrow().state, report.borrow().reconnects), (OutputState::Recovering, 1));
     }
 
     #[tokio::test]

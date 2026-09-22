@@ -298,10 +298,17 @@ fn prepare_for_sleep_value(line: &str) -> Option<bool> {
     }
 }
 
-async fn sleep_loop(state: Arc<Mutex<SharedState>>, delay: Arc<Mutex<DelayInhibitor>>) {
-    if let Err(error) = delay.lock().await.acquire().await {
-        eprintln!("monolithd watchdog: could not acquire the sleep delay inhibitor: {error}; sleep/wake handling is degraded");
-    }
+/// Watch `org.freedesktop.login1`'s `PrepareForSleep` signal via `gdbus monitor`,
+/// calling `on_signal(true)` just before suspend and `on_signal(false)` on resume.
+/// Respawns the subprocess if it exits or fails to spawn (mirroring the old
+/// watchdog's respawn backoff). Runs forever; the caller spawns this as its own
+/// task. Generic so more than the watchdog can react to the same signal -- the
+/// receiver also uses this to force an OpenRGB reconnect on resume (see e131.rs).
+pub(crate) async fn watch_sleep_signal<F, Fut>(mut on_signal: F)
+where
+    F: FnMut(bool) -> Fut,
+    Fut: std::future::Future<Output = ()>,
+{
     loop {
         let child = Command::new("gdbus")
             .args(["monitor", "--system", "--dest", "org.freedesktop.login1", "--object-path", "/org/freedesktop/login1"])
@@ -312,7 +319,7 @@ async fn sleep_loop(state: Arc<Mutex<SharedState>>, delay: Arc<Mutex<DelayInhibi
         let mut child = match child {
             Ok(child) => child,
             Err(error) => {
-                eprintln!("monolithd watchdog: spawn gdbus monitor: {error}; retrying in {} s", RESPAWN_BACKOFF.as_secs());
+                eprintln!("monolithd: spawn gdbus monitor: {error}; retrying in {} s", RESPAWN_BACKOFF.as_secs());
                 tokio::time::sleep(RESPAWN_BACKOFF).await;
                 continue;
             }
@@ -320,16 +327,32 @@ async fn sleep_loop(state: Arc<Mutex<SharedState>>, delay: Arc<Mutex<DelayInhibi
         let Some(stdout) = child.stdout.take() else { continue };
         let mut lines = BufReader::new(stdout).lines();
         while let Ok(Some(line)) = lines.next_line().await {
-            match prepare_for_sleep_value(&line) {
-                Some(true) => prepare_sleep(&state, &delay).await,
-                Some(false) => resume(&state, &delay).await,
-                None => {}
+            if let Some(value) = prepare_for_sleep_value(&line) {
+                on_signal(value).await;
             }
         }
         let _ = child.wait().await;
-        eprintln!("monolithd watchdog: gdbus monitor exited; restarting in {} s", RESPAWN_BACKOFF.as_secs());
+        eprintln!("monolithd: gdbus monitor exited; restarting in {} s", RESPAWN_BACKOFF.as_secs());
         tokio::time::sleep(RESPAWN_BACKOFF).await;
     }
+}
+
+async fn sleep_loop(state: Arc<Mutex<SharedState>>, delay: Arc<Mutex<DelayInhibitor>>) {
+    if let Err(error) = delay.lock().await.acquire().await {
+        eprintln!("monolithd watchdog: could not acquire the sleep delay inhibitor: {error}; sleep/wake handling is degraded");
+    }
+    watch_sleep_signal(|sleeping| {
+        let state = state.clone();
+        let delay = delay.clone();
+        async move {
+            if sleeping {
+                prepare_sleep(&state, &delay).await;
+            } else {
+                resume(&state, &delay).await;
+            }
+        }
+    })
+    .await;
 }
 
 pub async fn run() -> Result<(), String> {

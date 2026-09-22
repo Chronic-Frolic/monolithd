@@ -1,4 +1,4 @@
-use crate::{config, gateway, renderer, supervisor};
+use crate::{config, gateway, renderer, supervisor, watchdog};
 use sacn::tokio::Receiver;
 use sacn::{ReceiverConfig, ReceiverEvent, Universe};
 use std::net::SocketAddr;
@@ -13,6 +13,12 @@ const MAX_HARDWARE_FPS: u64 = 30;
 const OUTPUT_CONNECT_WINDOW: Duration = Duration::from_secs(30);
 /// One attempt is bounded: a stalled OpenRGB can leave a connection hanging.
 const OUTPUT_CONNECT_ATTEMPT_TIMEOUT: Duration = Duration::from_secs(3);
+/// How long to wait after a resume signal before proactively rebuilding the OpenRGB
+/// connection: PrepareForSleep(false) fires the instant the kernel resumes, before
+/// OpenRGB and the hardware have settled, so reconnecting at T+0 risks re-asserting
+/// direct/controllable mode onto a device that then reverts to firmware mode a
+/// moment later.
+const RESUME_RECONNECT_DELAY: Duration = Duration::from_secs(5);
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct QlcFrame {
@@ -125,6 +131,20 @@ pub async fn run() -> Result<(), String> {
     }
 
     let mut output = supervisor::Supervisor::new(connect_output().await?, connect_output, output_report);
+    // A resume can leave a device silently back in firmware mode without ever
+    // failing a write (found live 2026-09-22), so the write-failure-triggered
+    // reconnect in `flush` alone can miss it. Force a reconnect on every resume
+    // signal too, independent of whether anything has actually failed.
+    let (resume_tx, mut resume_rx) = tokio::sync::mpsc::channel::<()>(1);
+    tokio::spawn(watchdog::watch_sleep_signal(move |sleeping| {
+        let resume_tx = resume_tx.clone();
+        async move {
+            if !sleeping {
+                tokio::time::sleep(RESUME_RECONNECT_DELAY).await;
+                let _ = resume_tx.send(()).await;
+            }
+        }
+    }));
     let mut recalibrate = interval(Duration::from_millis(500));
     recalibrate.set_missed_tick_behavior(MissedTickBehavior::Skip);
     let mut assembler = FrameAssembler::new();
@@ -158,6 +178,7 @@ pub async fn run() -> Result<(), String> {
                 }
                 output.flush(calibration.current()).await?;
             }
+            Some(()) = resume_rx.recv() => output.force_reconnect().await,
         }
     }
 }
