@@ -34,6 +34,10 @@ pub struct Job {
     pub total: u32,
     pub completed: u32,
     pub priority: i32,
+    /// Which named progress family to render this job's zone with, if the caller
+    /// asked for one instead of the zone's default (e.g. an alternate RAM fill
+    /// order). Opaque here: the allocator just stores and reports the name.
+    pub pattern: Option<String>,
     seq: u64,
     pub state: JobState,
 }
@@ -46,10 +50,10 @@ pub struct FailedJob {
 }
 
 /// What one progress zone should show.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ZoneTarget {
     Ambient,
-    Progress { step: u32 },
+    Progress { step: u32, pattern: Option<String> },
 }
 
 pub struct Planner {
@@ -76,7 +80,7 @@ impl Planner {
 
     /// Announce a job. Announcing an existing job again is harmless (adapters re-announce
     /// after a restart): its label, total and priority are updated and its lease is kept.
-    pub fn start(&mut self, id: &str, label: &str, total: u32, priority: i32) -> Result<(), String> {
+    pub fn start(&mut self, id: &str, label: &str, total: u32, priority: i32, pattern: Option<String>) -> Result<(), String> {
         if total == 0 {
             return Err("total must be greater than zero".to_owned());
         }
@@ -87,9 +91,10 @@ impl Planner {
             job.label = label.to_owned();
             job.total = total;
             job.priority = priority;
+            job.pattern = pattern;
             job.completed = job.completed.min(total);
         } else {
-            self.jobs.push(Job { id: id.to_owned(), label: label.to_owned(), total, completed: 0, priority, seq: self.next_seq, state: JobState::Queued });
+            self.jobs.push(Job { id: id.to_owned(), label: label.to_owned(), total, completed: 0, priority, pattern, seq: self.next_seq, state: JobState::Queued });
             self.next_seq += 1;
         }
         self.assign();
@@ -169,7 +174,7 @@ impl Planner {
         match self.jobs.iter().find(|job| job.state.zone() == Some(zone)) {
             Some(job) => {
                 let fraction = f64::from(job.completed) / f64::from(job.total);
-                ZoneTarget::Progress { step: ((fraction * f64::from(*steps)).round() as u32).min(*steps) }
+                ZoneTarget::Progress { step: ((fraction * f64::from(*steps)).round() as u32).min(*steps), pattern: job.pattern.clone() }
             }
             None => ZoneTarget::Ambient,
         }
@@ -194,12 +199,12 @@ mod tests {
     fn jobs_take_ram_then_strip_and_the_rest_queue() {
         let mut planner = planner();
         for id in ["a", "b", "c"] {
-            planner.start(id, id, 10, 0).unwrap();
+            planner.start(id, id, 10, 0, None).unwrap();
         }
         assert_eq!(state(&planner, "a"), JobState::Leased("ram".to_owned()));
         assert_eq!(state(&planner, "b"), JobState::Leased("strip".to_owned()));
         assert_eq!(state(&planner, "c"), JobState::Queued);
-        assert_eq!(planner.target("ram"), ZoneTarget::Progress { step: 0 });
+        assert_eq!(planner.target("ram"), ZoneTarget::Progress { step: 0, pattern: None });
         assert_eq!(planner.target("rog_eye"), ZoneTarget::Ambient, "the eye is never a progress zone");
     }
 
@@ -208,7 +213,7 @@ mod tests {
         let mut planner = planner();
         let now = Instant::now();
         for id in ["a", "b", "c"] {
-            planner.start(id, id, 10, 0).unwrap();
+            planner.start(id, id, 10, 0, None).unwrap();
         }
         planner.complete("a", now).unwrap();
         planner.tick(now + HOLD - Duration::from_millis(1));
@@ -223,24 +228,24 @@ mod tests {
     #[test]
     fn a_completed_job_holds_at_full_scale() {
         let mut planner = planner();
-        planner.start("a", "a", 4, 0).unwrap();
+        planner.start("a", "a", 4, 0, None).unwrap();
         planner.progress("a", 1, None).unwrap();
-        assert_eq!(planner.target("ram"), ZoneTarget::Progress { step: 8 });
+        assert_eq!(planner.target("ram"), ZoneTarget::Progress { step: 8, pattern: None });
         planner.complete("a", Instant::now()).unwrap();
-        assert_eq!(planner.target("ram"), ZoneTarget::Progress { step: 32 });
+        assert_eq!(planner.target("ram"), ZoneTarget::Progress { step: 32, pattern: None });
         planner.progress("a", 0, None).unwrap();
-        assert_eq!(planner.target("ram"), ZoneTarget::Progress { step: 32 }, "progress after completion is ignored");
+        assert_eq!(planner.target("ram"), ZoneTarget::Progress { step: 32, pattern: None }, "progress after completion is ignored");
     }
 
     #[test]
     fn free_zones_go_to_the_highest_priority_then_the_earliest() {
         let mut planner = planner();
         let now = Instant::now();
-        planner.start("first", "x", 10, 0).unwrap();
-        planner.start("second", "x", 10, 0).unwrap();
-        planner.start("low", "x", 10, 0).unwrap();
-        planner.start("urgent", "x", 10, 5).unwrap();
-        planner.start("also-low", "x", 10, 0).unwrap();
+        planner.start("first", "x", 10, 0, None).unwrap();
+        planner.start("second", "x", 10, 0, None).unwrap();
+        planner.start("low", "x", 10, 0, None).unwrap();
+        planner.start("urgent", "x", 10, 5, None).unwrap();
+        planner.start("also-low", "x", 10, 0, None).unwrap();
         planner.complete("first", now).unwrap();
         planner.tick(now + HOLD);
         assert_eq!(state(&planner, "urgent"), JobState::Leased("ram".to_owned()), "priority beats arrival order");
@@ -253,24 +258,24 @@ mod tests {
     #[test]
     fn progress_maps_completed_over_total_onto_the_zone_steps() {
         let mut planner = planner();
-        planner.start("ram-job", "x", 10, 0).unwrap();
-        planner.start("strip-job", "x", 3, 0).unwrap();
+        planner.start("ram-job", "x", 10, 0, None).unwrap();
+        planner.start("strip-job", "x", 3, 0, None).unwrap();
         planner.progress("ram-job", 5, None).unwrap();
         planner.progress("strip-job", 1, None).unwrap();
-        assert_eq!(planner.target("ram"), ZoneTarget::Progress { step: 16 });
-        assert_eq!(planner.target("strip"), ZoneTarget::Progress { step: 23 }, "70 / 3 rounds to 23");
+        assert_eq!(planner.target("ram"), ZoneTarget::Progress { step: 16, pattern: None });
+        assert_eq!(planner.target("strip"), ZoneTarget::Progress { step: 23, pattern: None }, "70 / 3 rounds to 23");
         planner.progress("ram-job", 999, None).unwrap();
-        assert_eq!(planner.target("ram"), ZoneTarget::Progress { step: 32 }, "completed is clamped to total");
+        assert_eq!(planner.target("ram"), ZoneTarget::Progress { step: 32, pattern: None }, "completed is clamped to total");
         planner.progress("ram-job", 5, Some(20)).unwrap();
-        assert_eq!(planner.target("ram"), ZoneTarget::Progress { step: 8 }, "a new total rescales the bar");
+        assert_eq!(planner.target("ram"), ZoneTarget::Progress { step: 8, pattern: None }, "a new total rescales the bar");
     }
 
     #[test]
     fn a_failed_job_releases_its_zone_at_once_and_is_remembered() {
         let mut planner = planner();
-        planner.start("a", "backup", 10, 0).unwrap();
-        planner.start("b", "x", 10, 0).unwrap();
-        planner.start("c", "x", 10, 0).unwrap();
+        planner.start("a", "backup", 10, 0, None).unwrap();
+        planner.start("b", "x", 10, 0, None).unwrap();
+        planner.start("c", "x", 10, 0, None).unwrap();
         planner.fail("a", "disk full").unwrap();
         assert_eq!(state(&planner, "c"), JobState::Leased("ram".to_owned()));
         assert_eq!(planner.failures().back(), Some(&FailedJob { id: "a".to_owned(), label: "backup".to_owned(), reason: "disk full".to_owned() }));
@@ -281,7 +286,7 @@ mod tests {
         let mut planner = planner();
         for index in 0..12 {
             let id = format!("job{index}");
-            planner.start(&id, "x", 1, 0).unwrap();
+            planner.start(&id, "x", 1, 0, None).unwrap();
             planner.fail(&id, "boom").unwrap();
         }
         assert_eq!(planner.failures().len(), MAX_FAILURES);
@@ -291,9 +296,9 @@ mod tests {
     #[test]
     fn announcing_a_job_again_keeps_its_lease_and_updates_it() {
         let mut planner = planner();
-        planner.start("a", "old", 10, 0).unwrap();
+        planner.start("a", "old", 10, 0, None).unwrap();
         planner.progress("a", 8, None).unwrap();
-        planner.start("a", "new", 5, 3).unwrap();
+        planner.start("a", "new", 5, 3, None).unwrap();
         let job = &planner.jobs()[0];
         assert_eq!((job.label.as_str(), job.total, job.completed, job.priority), ("new", 5, 5, 3));
         assert_eq!(job.state, JobState::Leased("ram".to_owned()));
@@ -304,7 +309,7 @@ mod tests {
     fn a_queued_job_that_completes_just_disappears() {
         let mut planner = planner();
         for id in ["a", "b", "c"] {
-            planner.start(id, "x", 10, 0).unwrap();
+            planner.start(id, "x", 10, 0, None).unwrap();
         }
         planner.complete("c", Instant::now()).unwrap();
         assert_eq!(planner.jobs().len(), 2);
@@ -313,14 +318,14 @@ mod tests {
     #[test]
     fn bad_requests_are_rejected() {
         let mut planner = planner();
-        assert!(planner.start("a", "x", 0, 0).is_err(), "a job needs a truthful total");
-        planner.start("a", "x", 10, 0).unwrap();
+        assert!(planner.start("a", "x", 0, 0, None).is_err(), "a job needs a truthful total");
+        planner.start("a", "x", 10, 0, None).unwrap();
         assert!(planner.progress("nope", 1, None).is_err());
         assert!(planner.progress("a", 1, Some(0)).is_err());
         assert!(planner.complete("nope", Instant::now()).is_err());
         assert!(planner.fail("nope", "x").is_err());
         planner.complete("a", Instant::now()).unwrap();
-        assert!(planner.start("a", "x", 10, 0).is_err(), "cannot re-announce a completing job");
+        assert!(planner.start("a", "x", 10, 0, None).is_err(), "cannot re-announce a completing job");
         assert!(planner.complete("a", Instant::now()).is_ok(), "completing twice is harmless");
     }
 }

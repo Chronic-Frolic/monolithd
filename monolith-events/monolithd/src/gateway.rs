@@ -108,6 +108,10 @@ pub enum Request {
     Progress {
         zone: String,
         completed: u32,
+        /// A named progress family to use instead of the zone's default (e.g. an
+        /// alternate RAM fill order). Falls back to the zone's default if absent.
+        #[serde(default)]
+        pattern: Option<String>,
         #[serde(default)]
         transition: Transition,
         overlap_ms: Option<u64>,
@@ -302,8 +306,8 @@ impl<Q: Qlc> Gateway<Q> {
                 let target = resolve_function(registry, &function)?;
                 self.activate(registry, &target, true, transition, overlap(overlap_ms)?, false).await
             }
-            Request::Progress { zone, completed, transition, overlap_ms } => {
-                let target = resolve_progress(registry, &zone, completed)?;
+            Request::Progress { zone, completed, pattern, transition, overlap_ms } => {
+                let target = resolve_progress(registry, &zone, completed, pattern.as_deref())?;
                 self.activate(registry, &target, true, transition, overlap(overlap_ms)?, false).await
             }
             Request::Stop { function } => {
@@ -722,9 +726,17 @@ fn resolve_function(registry: &Registry, name: &str) -> Result<Target, Failure> 
     }
 }
 
-fn resolve_progress(registry: &Registry, zone: &str, completed: u32) -> Result<Target, Failure> {
-    let Some(progress) = registry.progress_for_zone(zone) else {
-        return fail("unknown_zone", format!("zone {zone} has no progress family"));
+fn resolve_progress(registry: &Registry, zone: &str, completed: u32, pattern: Option<&str>) -> Result<Target, Failure> {
+    let progress = match pattern {
+        Some(name) => match registry.progress_by_name(name) {
+            Some(entry) if entry.zone == zone => entry,
+            Some(entry) => return fail("wrong_zone", format!("progress pattern {name} belongs to zone {}, not {zone}", entry.zone)),
+            None => return fail("unknown_pattern", format!("no progress pattern named {name}")),
+        },
+        None => match registry.progress_for_zone(zone) {
+            Some(progress) => progress,
+            None => return fail("unknown_zone", format!("zone {zone} has no progress family")),
+        },
     };
     if completed > progress.total {
         return fail("out_of_range", format!("completed must be 0 through {}, not {completed}", progress.total));
@@ -850,13 +862,14 @@ pub async fn spawn_for_stack(layout: &Layout, registry_path: &Path, calibration:
     tokio::spawn(run(gateway));
 }
 
-const USAGE: &str = "usage: monolithd scene <status | start NAME | start-set NAME... | stop NAME | rejoin NAME | preempt-set NAME... | replace NAME [FLAGS] | progress ZONE COMPLETED [FLAGS]>\n  FLAGS: --transition sequential|pipelined|overlap   --overlap-ms N";
+const USAGE: &str = "usage: monolithd scene <status | start NAME | start-set NAME... | stop NAME | rejoin NAME | preempt-set NAME... | replace NAME [FLAGS] | progress ZONE COMPLETED [FLAGS]>\n  FLAGS: --transition sequential|pipelined|overlap   --overlap-ms N   --pattern NAME (progress only)";
 
 /// Build the JSON request for `monolithd scene ...` from its arguments.
 fn client_request(arguments: &[String]) -> Result<Value, String> {
     let mut positional: Vec<&str> = Vec::new();
     let mut transition: Option<&str> = None;
     let mut overlap_ms: Option<u64> = None;
+    let mut pattern: Option<&str> = None;
     let mut rest = arguments.iter().map(String::as_str);
     while let Some(word) = rest.next() {
         match word {
@@ -865,6 +878,7 @@ fn client_request(arguments: &[String]) -> Result<Value, String> {
                 let value = rest.next().ok_or("--overlap-ms needs a value")?;
                 overlap_ms = Some(value.parse().map_err(|_| format!("--overlap-ms must be an integer, not {value:?}"))?);
             }
+            "--pattern" => pattern = Some(rest.next().ok_or("--pattern needs a value")?),
             other => positional.push(other),
         }
     }
@@ -884,6 +898,12 @@ fn client_request(arguments: &[String]) -> Result<Value, String> {
     };
     if (transition.is_some() || overlap_ms.is_some()) && !matches!(request["op"].as_str(), Some("replace" | "progress")) {
         return Err("--transition and --overlap-ms apply only to replace and progress".to_owned());
+    }
+    if pattern.is_some() && request["op"] != "progress" {
+        return Err("--pattern applies only to progress".to_owned());
+    }
+    if let Some(pattern) = pattern {
+        request["pattern"] = json!(pattern);
     }
     if let Some(transition) = transition {
         request["transition"] = json!(transition);
@@ -980,6 +1000,12 @@ mod tests {
         first_id = 0
         total = 32
         [[progress]]
+        name = "progress_ram_alt"
+        zone = "ram"
+        label = "RAM (alt)"
+        first_id = 300
+        total = 32
+        [[progress]]
         name = "progress_strip"
         zone = "strip"
         label = "Strip"
@@ -1050,9 +1076,12 @@ mod tests {
     fn preempt_set(functions: &[&str]) -> Request { Request::PreemptSet { functions: functions.iter().map(|f| (*f).to_owned()).collect() } }
     fn replace(function: &str) -> Request { Request::Replace { function: function.to_owned(), transition: Transition::default(), overlap_ms: None } }
     fn stop(function: &str) -> Request { Request::Stop { function: function.to_owned() } }
-    fn progress(zone: &str, completed: u32) -> Request { Request::Progress { zone: zone.to_owned(), completed, transition: Transition::default(), overlap_ms: None } }
+    fn progress(zone: &str, completed: u32) -> Request { Request::Progress { zone: zone.to_owned(), completed, pattern: None, transition: Transition::default(), overlap_ms: None } }
     fn progress_with(zone: &str, completed: u32, transition: Transition, overlap_ms: Option<u64>) -> Request {
-        Request::Progress { zone: zone.to_owned(), completed, transition, overlap_ms }
+        Request::Progress { zone: zone.to_owned(), completed, pattern: None, transition, overlap_ms }
+    }
+    fn progress_pattern(zone: &str, completed: u32, pattern: &str) -> Request {
+        Request::Progress { zone: zone.to_owned(), completed, pattern: Some(pattern.to_owned()), transition: Transition::default(), overlap_ms: None }
     }
     fn code(reply: &Value) -> &str { reply["code"].as_str().unwrap_or("") }
 
@@ -1185,6 +1214,22 @@ mod tests {
         assert_eq!(code(&gateway.handle(progress("strip", 71)).await), "out_of_range");
         assert_eq!(code(&gateway.handle(progress("rog_eye", 1)).await), "unknown_zone");
         assert_eq!(code(&gateway.handle(start("nonsense")).await), "unknown_function");
+    }
+
+    #[tokio::test]
+    async fn progress_with_a_named_pattern_starts_that_familys_function_not_the_zones_default() {
+        let fake = Fake::default();
+        let gateway = gateway(&fake);
+        let reply = gateway.handle(progress_pattern("ram", 5, "progress_ram_alt")).await;
+        assert_eq!(reply["ok"], true, "{reply}");
+        assert_eq!(fake.calls(), vec!["start 305"], "300 + 5, not the default family's 0 + 5");
+    }
+
+    #[tokio::test]
+    async fn progress_rejects_an_unknown_pattern_or_one_belonging_to_a_different_zone() {
+        let gateway = gateway(&Fake::default());
+        assert_eq!(code(&gateway.handle(progress_pattern("ram", 5, "nonsense")).await), "unknown_pattern");
+        assert_eq!(code(&gateway.handle(progress_pattern("ram", 5, "progress_strip")).await), "wrong_zone", "progress_strip belongs to strip, not ram");
     }
 
     #[tokio::test]

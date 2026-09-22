@@ -111,6 +111,12 @@ impl Registry {
         self.progress.iter().find(|entry| entry.zone == zone)
     }
 
+    /// A named progress family regardless of zone, for a job that asked for a
+    /// specific one (e.g. an alternate RAM fill order) instead of its zone's default.
+    pub fn progress_by_name(&self, name: &str) -> Option<&ProgressEntry> {
+        self.progress.iter().find(|entry| entry.name == name)
+    }
+
     pub fn ambient_set(&self, name: &str) -> Option<&AmbientSet> {
         self.ambient_sets.iter().find(|set| set.name == name)
     }
