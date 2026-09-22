@@ -494,9 +494,17 @@ impl<L: Link> Controller<L> {
         // quiet/warning/fault below all still overwrite it: an explicit "go quiet"
         // request must suppress this cosmetic hint too, and a real operator warning is
         // a more specific (and differently colored) signal than "something is
-        // running".
+        // running". A zone that is itself progress-capable and currently holding a
+        // real lease is skipped here (2026-09-22, owner: reverse that priority) -- its
+        // own progress bar is strictly more informative than the generic "something is
+        // running" indicator, so it wins on the zone it actually occupies; the
+        // indicator still covers every *other* configured zone, including a
+        // progress-capable one that's simply idle right now.
         if !self.planner.jobs().is_empty() {
             for zone in &self.config.working_zones {
+                if matches!(self.planner.target(zone), ZoneTarget::Progress { .. }) {
+                    continue;
+                }
                 if let Some(name) = self.state_asset("working", zone) {
                     wants.insert(zone.clone(), name);
                 }
@@ -1668,16 +1676,34 @@ mod tests {
 
     #[test]
     fn working_zones_is_owner_editable_and_can_claim_the_whole_machine() {
+        // The job leases "ram" (config's progress_zones puts it first), so the
+        // indicator must not claim ram too -- see the next test for that half of the
+        // behavior. This one just proves working_zones reaches beyond the eye at all.
         let link = FakeLink::default();
         let mut controller = Controller::new(link.clone(), registry_with_whole_machine_states(), config_with_whole_machine_states());
         controller.handle(ControllerRequest::JobStart { id: "a".into(), label: "x".into(), total: 10, priority: 0, pattern: None }, Instant::now());
         assert_eq!(
             controller.state_wants(),
-            BTreeMap::from([
-                ("ram".to_owned(), "working_ram".to_owned()),
-                ("rog_eye".to_owned(), "working_eye".to_owned()),
-                ("strip".to_owned(), "working_strip".to_owned()),
-            ])
+            BTreeMap::from([("rog_eye".to_owned(), "working_eye".to_owned()), ("strip".to_owned(), "working_strip".to_owned())])
+        );
+    }
+
+    #[test]
+    fn a_zones_own_progress_lease_wins_over_the_generic_working_indicator() {
+        // Per the owner (2026-09-22): "progress bars if configured for a zone get
+        // shown rather than the base scene" -- reversing the working indicator's
+        // priority on the specific zone a job actually occupies, not everywhere.
+        let link = FakeLink::default();
+        let mut controller = Controller::new(link.clone(), registry_with_whole_machine_states(), config_with_whole_machine_states());
+        controller.handle(ControllerRequest::JobStart { id: "a".into(), label: "x".into(), total: 10, priority: 0, pattern: None }, Instant::now());
+        // ram holds the real lease: state_wants() must not claim it for the indicator...
+        assert!(!controller.state_wants().contains_key("ram"), "{:?}", controller.state_wants());
+        // ...so wants()'s own progress entry for ram is free to take effect instead.
+        assert!(matches!(controller.wants().get("ram"), Some(Want::Progress { .. })), "{:?}", controller.wants());
+        // rog_eye and strip have no lease, so the indicator still covers them normally.
+        assert_eq!(
+            controller.state_wants(),
+            BTreeMap::from([("rog_eye".to_owned(), "working_eye".to_owned()), ("strip".to_owned(), "working_strip".to_owned())])
         );
     }
 
