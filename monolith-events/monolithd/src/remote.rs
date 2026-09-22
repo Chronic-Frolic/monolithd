@@ -1,4 +1,4 @@
-//! Monolith Remote: the narrow, authenticated control API for the machine.
+//! Monolith Remote: the narrow, authenticated API for the machine.
 //!
 //! This is the recovery path: it wakes nothing but it can suspend, reboot, power off,
 //! switch between Gaming and Desktop Mode, and hold or release the manual suspend block

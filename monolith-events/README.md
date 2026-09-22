@@ -39,7 +39,7 @@ Commands, from monolithd/target/release/:
 
 ## Monolith Remote
 
-monolithd remote [PORT] serves the machine's narrow control API (suspend, reboot, power
+monolithd remote [PORT] serves the machine's narrow remote API (suspend, reboot, power
 off, Gaming and Desktop Mode, and the manual suspend block) behind a bearer token, on
 loopback only; Tailscale Serve exposes it. It runs as its own unit,
 systemd/user/monolith-remote.service, from a deliberately installed copy of the binary so
