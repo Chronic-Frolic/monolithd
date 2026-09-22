@@ -156,7 +156,51 @@ async fn manual_block_status() -> Value {
     json!({ "active": active, "reason": active.then_some("Manual remote suspend block"), "expires_in_seconds": expires_in_seconds })
 }
 
+// ---------------------------------------------------------------- the watchdog heartbeat
+
+/// A heartbeat this stale (well over the watchdog's own 10 s health interval) means the
+/// watchdog itself has stopped ticking, not merely that nothing has happened recently.
+const WATCHDOG_STALE_AFTER: u64 = 30;
+
+fn heartbeat_file_path() -> Result<PathBuf, String> {
+    let runtime = std::env::var_os("XDG_RUNTIME_DIR").ok_or("XDG_RUNTIME_DIR is not set")?;
+    Ok(PathBuf::from(runtime).join("monolith-events/watchdog-status.json"))
+}
+
+fn watchdog_status() -> Value {
+    match heartbeat_file_path() {
+        Ok(path) => watchdog_status_at(&path),
+        Err(error) => unreachable(error),
+    }
+}
+
+fn watchdog_status_at(path: &std::path::Path) -> Value {
+    let text = match std::fs::read_to_string(path) {
+        Ok(text) => text,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return unreachable(format!("{} does not exist; the watchdog may not have run yet", path.display())),
+        Err(error) => return unreachable(format!("read {}: {error}", path.display())),
+    };
+    let body: Value = match serde_json::from_str(&text) {
+        Ok(body) => body,
+        Err(error) => return unreachable(format!("{}: invalid JSON: {error}", path.display())),
+    };
+    let Some(updated_at) = body["updated_at"].as_u64() else { return unreachable("heartbeat file has no updated_at".to_owned()) };
+    let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|duration| duration.as_secs()).unwrap_or(updated_at);
+    let age_seconds = now.saturating_sub(updated_at);
+    if age_seconds > WATCHDOG_STALE_AFTER {
+        return unreachable(format!("heartbeat is {age_seconds} s old (stale after {WATCHDOG_STALE_AFTER} s)"));
+    }
+    json!({
+        "reachable": true,
+        "age_seconds": age_seconds,
+        "suspended": body["suspended"],
+        "controller_fault_active": body["controller_fault_active"],
+        "last_error": body["last_error"],
+    })
+}
+
 // ---------------------------------------------------------------- the lighting summary
+
 
 async fn ask<F: std::future::Future<Output = Result<Value, String>>>(request: F) -> Result<Value, String> {
     timeout(LIGHTING_TIMEOUT, request).await.unwrap_or_else(|_| Err("no answer in time".to_owned()))
@@ -167,7 +211,7 @@ async fn ask<F: std::future::Future<Output = Result<Value, String>>>(request: F)
 async fn lighting_status() -> Value {
     let request = json!({ "op": "status" });
     let (gateway, controller) = tokio::join!(ask(gateway::call(&request)), ask(controller::call(&request)));
-    json!({ "gateway": summarize_gateway(gateway), "controller": summarize_controller(controller) })
+    json!({ "gateway": summarize_gateway(gateway), "controller": summarize_controller(controller), "watchdog": watchdog_status() })
 }
 
 fn unreachable(error: String) -> Value {
@@ -317,7 +361,7 @@ mod tests {
         );
         assert!(body["manual_suspend_block"]["active"].is_boolean());
         assert!(body["manual_suspend_block"].get("reason").is_some() && body["manual_suspend_block"].get("expires_in_seconds").is_some());
-        assert!(body["lighting"]["gateway"]["reachable"].is_boolean() && body["lighting"]["controller"]["reachable"].is_boolean());
+        assert!(body["lighting"]["gateway"]["reachable"].is_boolean() && body["lighting"]["controller"]["reachable"].is_boolean() && body["lighting"]["watchdog"]["reachable"].is_boolean());
     }
 
     #[tokio::test]
@@ -407,6 +451,33 @@ mod tests {
         assert_eq!(property(output, "ActiveEnterTimestampMonotonic"), "123456");
         assert_eq!(property(output, "Missing"), "");
         assert_eq!(property("ActiveState=inactive\n", "ActiveState"), "inactive");
+    }
+
+    #[test]
+    fn watchdog_heartbeat_reports_fresh_stale_missing_and_corrupt_correctly() {
+        let directory = std::env::temp_dir().join(format!("monolithd-remote-watchdog-test-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&directory);
+        std::fs::create_dir_all(&directory).unwrap();
+        let path = directory.join("watchdog-status.json");
+
+        let missing = watchdog_status_at(&path);
+        assert_eq!(missing["reachable"], false);
+        assert!(missing["error"].as_str().unwrap().contains("does not exist"), "{missing}");
+
+        let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_secs();
+        std::fs::write(&path, format!(r#"{{"updated_at":{now},"suspended":false,"controller_fault_active":true,"last_error":"boom"}}"#)).unwrap();
+        let fresh = watchdog_status_at(&path);
+        assert_eq!((fresh["reachable"].clone(), fresh["controller_fault_active"].clone(), fresh["last_error"].clone()), (json!(true), json!(true), json!("boom")));
+        assert!(fresh["age_seconds"].as_u64().unwrap() < 5);
+
+        std::fs::write(&path, format!(r#"{{"updated_at":{},"suspended":false,"controller_fault_active":false,"last_error":null}}"#, now - 60)).unwrap();
+        let stale = watchdog_status_at(&path);
+        assert_eq!(stale["reachable"], false);
+        assert!(stale["error"].as_str().unwrap().contains("stale"), "{stale}");
+
+        std::fs::write(&path, "not json").unwrap();
+        assert_eq!(watchdog_status_at(&path)["reachable"], false);
+        let _ = std::fs::remove_dir_all(&directory);
     }
 
     #[test]

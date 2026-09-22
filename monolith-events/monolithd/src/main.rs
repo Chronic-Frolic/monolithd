@@ -85,7 +85,7 @@ async fn main() {
         Some("controller") => controller::run().await,
         Some("event") => controller::client(arguments.collect()).await,
         Some("remote") => remote::run(arguments.next()).await,
-        Some("watchdog") => { watchdog::run(); Ok(()) },
+        Some("watchdog") => watchdog::run().await,
         _ => usage(),
     };
     if let Err(error) = result { eprintln!("monolithd: {error}"); std::process::exit(1); }

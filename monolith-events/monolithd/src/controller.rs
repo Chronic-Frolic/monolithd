@@ -111,7 +111,7 @@ impl Severity {
 
 /// The short zone name state assets are named after (`rog_eye` -> `eye`), matching the
 /// QLC+ Scenes authored for Phase 4 (`warning_eye`, `fault_ram`, `quiet_strip`, ...).
-fn zone_suffix(zone: &str) -> &str {
+pub(crate) fn zone_suffix(zone: &str) -> &str {
     match zone {
         "rog_eye" => "eye",
         other => other,
