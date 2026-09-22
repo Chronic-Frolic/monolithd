@@ -86,10 +86,6 @@ fn authenticated(state: &AppState, headers: &HeaderMap) -> bool {
     constant_time_eq(given.as_bytes(), format!("Bearer {}", state.token).as_bytes())
 }
 
-async fn health() -> Response {
-    reply(StatusCode::OK, json!({ "status": "ok" }))
-}
-
 async fn status(State(state): State<Shared>, headers: HeaderMap) -> Response {
     if !authenticated(&state, &headers) {
         return unauthorized();
@@ -262,7 +258,6 @@ fn summarize_controller(status: Result<Value, String>) -> Value {
 
 fn router(state: Shared) -> Router {
     Router::new()
-        .route("/health", get(health))
         .route("/status", get(status))
         .route("/{action}", post(action))
         .fallback(not_found)
@@ -341,12 +336,6 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn health_needs_no_token() {
-        let address = serve(&scratch("health"), Duration::ZERO).await;
-        assert_eq!(http(address, "GET", "/health", None).await, (200, json!({ "status": "ok" })));
-    }
-
-    #[tokio::test]
     async fn status_needs_the_right_token_and_keeps_its_original_keys() {
         let address = serve(&scratch("status"), Duration::ZERO).await;
         for authorization in [None, Some("Bearer wrong"), Some("Bearer"), Some(TOKEN), Some("bearer test-token-value")] {
@@ -368,7 +357,7 @@ mod tests {
     #[tokio::test]
     async fn unknown_paths_and_wrong_methods_are_404_before_authentication() {
         let address = serve(&scratch("notfound"), Duration::ZERO).await;
-        for (method, path) in [("GET", "/"), ("GET", "/nope"), ("GET", "/suspend"), ("POST", "/nope"), ("POST", "/health"), ("POST", "/status"), ("POST", "/")] {
+        for (method, path) in [("GET", "/"), ("GET", "/nope"), ("GET", "/suspend"), ("GET", "/health"), ("POST", "/nope"), ("POST", "/status"), ("POST", "/")] {
             assert_eq!(http(address, method, path, None).await, (404, json!({ "error": "not found" })), "{method} {path}");
         }
     }
