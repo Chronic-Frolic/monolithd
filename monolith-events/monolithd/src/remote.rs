@@ -196,6 +196,7 @@ fn watchdog_status_at(path: &std::path::Path) -> Value {
         "suspended": body["suspended"],
         "controller_fault_active": body["controller_fault_active"],
         "last_error": body["last_error"],
+        "jobs_blocking_sleep": body["jobs_blocking_sleep"],
     })
 }
 

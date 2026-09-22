@@ -23,7 +23,7 @@ use std::os::unix::fs::{DirBuilderExt, PermissionsExt};
 use std::path::PathBuf;
 use std::process::Stdio;
 use std::sync::Arc;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::{Child, Command};
 use tokio::sync::Mutex;
@@ -46,26 +46,38 @@ fn heartbeat_path() -> Result<PathBuf, String> {
     Ok(runtime_directory()?.join("watchdog-status.json"))
 }
 
-/// Holds the sleep delay inhibitor as a child process, exactly as the retired
-/// Python watchdog did: `systemd-inhibit --mode=delay ... sleep infinity`, released
-/// by terminating the child.
-struct DelayInhibitor {
+/// Holds a systemd-logind sleep inhibitor as a child process, released by
+/// terminating the child: `systemd-inhibit --mode=<mode> ... sleep infinity`,
+/// exactly as the retired Python watchdog did for its one, unconditional
+/// `--mode=delay` inhibitor. Generalized (2026-09-22) so a second instance can hold
+/// `--mode=block` conditionally, while a job is active, instead of duplicating this
+/// spawn/acquire/release mechanic a second time.
+struct Inhibitor {
+    mode: &'static str,
+    who: &'static str,
+    why: &'static str,
     child: Option<Child>,
 }
 
-impl DelayInhibitor {
-    fn new() -> Self {
-        Self { child: None }
+impl Inhibitor {
+    fn new(mode: &'static str, who: &'static str, why: &'static str) -> Self {
+        Self { mode, who, why, child: None }
+    }
+
+    /// Whether the inhibitor is currently held (the child is alive).
+    fn held(&mut self) -> bool {
+        self.child.as_mut().is_some_and(|child| child.try_wait().ok().flatten().is_none())
     }
 
     async fn acquire(&mut self) -> Result<(), String> {
-        if let Some(child) = &mut self.child {
-            if child.try_wait().ok().flatten().is_none() {
-                return Ok(()); // already held
-            }
+        if self.held() {
+            return Ok(());
         }
+        let mode_flag = format!("--mode={}", self.mode);
+        let who_flag = format!("--who={}", self.who);
+        let why_flag = format!("--why={}", self.why);
         let mut child = Command::new("systemd-inhibit")
-            .args(["--what=sleep", "--mode=delay", "--who=Monolith-Event-Watchdog", "--why=RGB suspend handoff", "/usr/bin/sleep", "infinity"])
+            .args(["--what=sleep", &mode_flag, &who_flag, &why_flag, "/usr/bin/sleep", "infinity"])
             .stdin(Stdio::null())
             .stdout(Stdio::null())
             .stderr(Stdio::piped())
@@ -97,11 +109,15 @@ struct SharedState {
     suspended: bool,
     fault_active: bool,
     last_error: Option<String>,
+    /// Whether the block-mode sleep inhibitor is currently held because a job is
+    /// active. Reflects the inhibitor's actual state, not just "is a job running",
+    /// so a failure to acquire it is visible here rather than silently assumed ok.
+    jobs_blocking_sleep: bool,
 }
 
 impl Default for SharedState {
     fn default() -> Self {
-        Self { suspended: false, fault_active: false, last_error: None }
+        Self { suspended: false, fault_active: false, last_error: None, jobs_blocking_sleep: false }
     }
 }
 
@@ -121,7 +137,13 @@ fn write_heartbeat_to(path: &std::path::Path, state: &SharedState) {
         }
     }
     let updated_at = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_secs();
-    let body = json!({ "updated_at": updated_at, "suspended": state.suspended, "controller_fault_active": state.fault_active, "last_error": state.last_error });
+    let body = json!({
+        "updated_at": updated_at,
+        "suspended": state.suspended,
+        "controller_fault_active": state.fault_active,
+        "last_error": state.last_error,
+        "jobs_blocking_sleep": state.jobs_blocking_sleep,
+    });
     let temporary = directory.join(format!(".watchdog-status.{}.tmp", std::process::id()));
     let write = std::fs::write(&temporary, format!("{body}\n"))
         .and_then(|()| std::fs::set_permissions(&temporary, std::fs::Permissions::from_mode(0o600)))
@@ -145,16 +167,28 @@ async fn preempt_all_zones(prefix: &str) -> Result<(), String> {
     }
 }
 
+async fn fetch_controller_status() -> Result<Value, String> {
+    tokio::time::timeout(HEALTH_CHECK_TIMEOUT, controller::call(&json!({ "op": "status" })))
+        .await
+        .map_err(|_| "no answer within 3 s".to_owned())?
+}
+
 /// Bounded ping of the controller: reachable and answering `status` counts as healthy.
 async fn controller_healthy() -> Result<(), String> {
-    let reply = tokio::time::timeout(HEALTH_CHECK_TIMEOUT, controller::call(&json!({ "op": "status" })))
-        .await
-        .map_err(|_| "no answer within 3 s".to_owned())??;
+    let reply = fetch_controller_status().await?;
     if reply["ok"] == Value::Bool(true) {
         Ok(())
     } else {
         Err(reply["error"].as_str().unwrap_or("controller reported an error").to_owned())
     }
+}
+
+/// Whether a `status` reply reports any job at all (leased, queued, or holding at
+/// completion). Any job counts, not just a leased one: a queued job means more work
+/// is coming, and a completing job's cosmetic 15 s hold is a negligible extra delay
+/// against the cost of ever suspending mid-transfer.
+fn jobs_active_in(status: &Value) -> bool {
+    status["jobs"].as_array().is_some_and(|jobs| !jobs.is_empty())
 }
 
 async fn apply_controller_fault(state: &Mutex<SharedState>, reason: &str) {
@@ -186,21 +220,102 @@ async fn clear_controller_fault(state: &Mutex<SharedState>) {
     write_heartbeat(&guard);
 }
 
-async fn health_loop(state: Arc<Mutex<SharedState>>) {
+/// How long the block inhibitor may be held continuously before it is force-
+/// released regardless of job state. Nothing in allocator.rs expires a stuck
+/// Leased job (a dead external reporter never calls job.complete/job.fail), so
+/// without this cap the inhibitor could be held forever, making "the machine
+/// never sleeps" a silent steady state -- the opposite of the reliability this
+/// feature is for. Simpler and fails safer than trying to detect "is this job
+/// still actually making progress": worst case, a real job that legitimately runs
+/// longer than this gets suspended, exactly like today's behavior with no
+/// feature at all.
+const MAX_BLOCK_DURATION: Duration = Duration::from_secs(6 * 3600);
+
+/// Pure: whether a block held since `held_since` has exceeded `cap` as of `now`.
+/// Separated from JobBlock so the policy is testable without a real inhibitor.
+fn cap_exceeded(held_since: Instant, now: Instant, cap: Duration) -> bool {
+    now.saturating_duration_since(held_since) >= cap
+}
+
+/// The block-mode sleep inhibitor, held exactly while a job is active, capped at
+/// MAX_BLOCK_DURATION. `capped` latches once the cap fires: the very next tick
+/// (jobs_active still true, the same stuck job) must not just re-acquire and
+/// silently defeat the cap. It only resets when jobs_active goes false and true
+/// again -- a fresh job gets its own full window.
+struct JobBlock {
+    inhibitor: Inhibitor,
+    held_since: Option<Instant>,
+    capped: bool,
+}
+
+impl JobBlock {
+    fn new() -> Self {
+        Self { inhibitor: Inhibitor::new("block", "Monolith-Event-Watchdog", "a job is actively running"), held_since: None, capped: false }
+    }
+
+    async fn update(&mut self, jobs_active: bool) -> bool {
+        if !jobs_active {
+            if self.inhibitor.held() {
+                self.inhibitor.release().await;
+                eprintln!("monolithd watchdog: no jobs active; sleep is no longer blocked");
+            }
+            self.held_since = None;
+            self.capped = false;
+        } else if self.capped {
+            // Already gave up blocking for this unbroken stretch of activity.
+        } else if !self.inhibitor.held() {
+            match self.inhibitor.acquire().await {
+                Ok(()) => {
+                    eprintln!("monolithd watchdog: a job is active; blocking sleep");
+                    self.held_since = Some(Instant::now());
+                }
+                Err(error) => eprintln!("monolithd watchdog: could not block sleep for the active job: {error}"),
+            }
+        } else if self.held_since.is_some_and(|since| cap_exceeded(since, Instant::now(), MAX_BLOCK_DURATION)) {
+            self.inhibitor.release().await;
+            self.capped = true;
+            eprintln!(
+                "monolithd watchdog: a job has blocked sleep for over {} h; releasing so the machine can still sleep (the job may be stuck)",
+                MAX_BLOCK_DURATION.as_secs() / 3600
+            );
+        }
+        self.inhibitor.held()
+    }
+}
+
+/// Update the block inhibitor to match `jobs_active`, and record its actual
+/// resulting state (not the intent) in `SharedState`.
+async fn update_block_inhibitor(state: &Mutex<SharedState>, block: &Mutex<JobBlock>, jobs_active: bool) {
+    let held_now = block.lock().await.update(jobs_active).await;
+    let mut guard = state.lock().await;
+    if guard.jobs_blocking_sleep != held_now {
+        guard.jobs_blocking_sleep = held_now;
+        write_heartbeat(&guard);
+    }
+}
+
+async fn health_loop(state: Arc<Mutex<SharedState>>, block: Arc<Mutex<JobBlock>>) {
     let mut ticks = interval(HEALTH_INTERVAL);
     loop {
         ticks.tick().await;
         if state.lock().await.suspended {
             continue;
         }
-        match controller_healthy().await {
-            Ok(()) => clear_controller_fault(&state).await,
+        match fetch_controller_status().await {
+            Ok(reply) if reply["ok"] == Value::Bool(true) => {
+                clear_controller_fault(&state).await;
+                update_block_inhibitor(&state, &block, jobs_active_in(&reply)).await;
+            }
+            Ok(reply) => {
+                let error = reply["error"].as_str().unwrap_or("controller reported an error").to_owned();
+                apply_controller_fault(&state, &error).await;
+            }
             Err(error) => apply_controller_fault(&state, &error).await,
         }
     }
 }
 
-async fn prepare_sleep(state: &Mutex<SharedState>, delay: &Mutex<DelayInhibitor>) {
+async fn prepare_sleep(state: &Mutex<SharedState>, delay: &Mutex<Inhibitor>) {
     state.lock().await.suspended = true;
     // Hold the controller's own reconcile loop first: it ticks independently, roughly
     // once a second, and would otherwise see the quiet call below as a mismatch
@@ -258,7 +373,7 @@ where
 /// a moment after this function's own check had already confirmed the controller
 /// healthy. Only one check may be in flight during the grace window; see
 /// poll_until_healthy and its regression test below.
-async fn resume(state: &Mutex<SharedState>, delay: &Mutex<DelayInhibitor>) {
+async fn resume(state: &Mutex<SharedState>, delay: &Mutex<Inhibitor>) {
     if let Err(error) = delay.lock().await.acquire().await {
         eprintln!("monolithd watchdog: could not reacquire the sleep delay inhibitor: {error}");
     }
@@ -337,7 +452,7 @@ where
     }
 }
 
-async fn sleep_loop(state: Arc<Mutex<SharedState>>, delay: Arc<Mutex<DelayInhibitor>>) {
+async fn sleep_loop(state: Arc<Mutex<SharedState>>, delay: Arc<Mutex<Inhibitor>>) {
     if let Err(error) = delay.lock().await.acquire().await {
         eprintln!("monolithd watchdog: could not acquire the sleep delay inhibitor: {error}; sleep/wake handling is degraded");
     }
@@ -359,8 +474,9 @@ pub async fn run() -> Result<(), String> {
     let state = Arc::new(Mutex::new(SharedState::default()));
     write_heartbeat(&*state.lock().await);
     eprintln!("monolithd watchdog: watching controller health (every {} s) and sleep/wake", HEALTH_INTERVAL.as_secs());
-    let delay = Arc::new(Mutex::new(DelayInhibitor::new()));
-    tokio::join!(health_loop(state.clone()), sleep_loop(state, delay));
+    let delay = Arc::new(Mutex::new(Inhibitor::new("delay", "Monolith-Event-Watchdog", "RGB suspend handoff")));
+    let block = Arc::new(Mutex::new(JobBlock::new()));
+    tokio::join!(health_loop(state.clone(), block), sleep_loop(state, delay));
     Ok(())
 }
 
@@ -374,6 +490,49 @@ mod tests {
         assert_eq!(prepare_for_sleep_value(r#"/org...: org.freedesktop.login1.Manager.PrepareForSleep (false,)"#), Some(false));
         assert_eq!(prepare_for_sleep_value("some other signal entirely"), None);
         assert_eq!(prepare_for_sleep_value("PrepareForSleep with neither word present"), None);
+    }
+
+    #[test]
+    fn jobs_active_in_reads_the_jobs_array_regardless_of_state() {
+        assert!(!jobs_active_in(&json!({"ok": true, "jobs": []})));
+        assert!(!jobs_active_in(&json!({"ok": true})), "a missing jobs field is not active jobs");
+        assert!(jobs_active_in(&json!({"ok": true, "jobs": [{"id": "a", "state": "queued"}]})), "a queued job still counts");
+        assert!(jobs_active_in(&json!({"ok": true, "jobs": [{"id": "a", "state": "completing"}]})), "a completing job's hold still counts");
+    }
+
+    #[tokio::test]
+    async fn update_block_inhibitor_only_toggles_the_shared_state_on_an_actual_change() {
+        // held() requires a real systemd-inhibit child, so this exercises the
+        // no-job / already-released path (no acquire attempted) and confirms the
+        // heartbeat is not rewritten when nothing changed.
+        let state = Mutex::new(SharedState::default());
+        let block = Mutex::new(JobBlock::new());
+        update_block_inhibitor(&state, &block, false).await;
+        assert!(!state.lock().await.jobs_blocking_sleep);
+    }
+
+    #[test]
+    fn cap_exceeded_fires_at_the_cap_and_not_before() {
+        let held_since = Instant::now();
+        let cap = Duration::from_secs(60);
+        assert!(!cap_exceeded(held_since, held_since + Duration::from_secs(59), cap));
+        assert!(cap_exceeded(held_since, held_since + Duration::from_secs(60), cap));
+        assert!(cap_exceeded(held_since, held_since + Duration::from_secs(3600), cap), "a stuck job stays capped, not just briefly over");
+    }
+
+    #[tokio::test]
+    async fn a_stuck_job_is_capped_and_does_not_immediately_reacquire() {
+        // Without a real systemd-inhibit binary this can't exercise acquire()
+        // itself, but it proves the capped latch survives update() calls and does
+        // not reset just because jobs_active is still true -- the exact bug this
+        // cap exists to prevent (re-blocking the instant the cap releases).
+        let mut block = JobBlock::new();
+        block.capped = true;
+        block.held_since = Some(Instant::now() - Duration::from_secs(3600));
+        assert!(!block.update(true).await, "still capped, must not re-acquire while jobs_active stays true");
+        assert!(block.capped, "the latch is not cleared by jobs_active alone");
+        assert!(!block.update(false).await, "jobs_active going false clears it");
+        assert!(!block.capped, "a fresh job (jobs_active false then true) gets its own window");
     }
 
     #[tokio::test]
@@ -450,11 +609,14 @@ mod tests {
         let directory = std::env::temp_dir().join(format!("monolithd-watchdog-test-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&directory);
         let path = directory.join("watchdog-status.json");
-        let state = SharedState { suspended: true, fault_active: true, last_error: Some("boom".to_owned()) };
+        let state = SharedState { suspended: true, fault_active: true, last_error: Some("boom".to_owned()), jobs_blocking_sleep: true };
         write_heartbeat_to(&path, &state);
         assert_eq!(std::fs::metadata(&path).unwrap().permissions().mode() & 0o777, 0o600);
         let body: Value = serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
-        assert_eq!((body["suspended"].clone(), body["controller_fault_active"].clone(), body["last_error"].clone()), (json!(true), json!(true), json!("boom")));
+        assert_eq!(
+            (body["suspended"].clone(), body["controller_fault_active"].clone(), body["last_error"].clone(), body["jobs_blocking_sleep"].clone()),
+            (json!(true), json!(true), json!("boom"), json!(true))
+        );
         assert!(body["updated_at"].as_u64().unwrap() > 0);
         assert!(std::fs::read_dir(&directory).unwrap().filter_map(Result::ok).all(|entry| !entry.file_name().to_string_lossy().contains(".tmp")), "no leftover temp file");
 
