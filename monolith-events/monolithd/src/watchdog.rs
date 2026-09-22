@@ -9,6 +9,12 @@
 //! 2026-09-19): `systemd-inhibit --mode=delay` held as a child process while awake,
 //! and `gdbus monitor` on `org.freedesktop.login1`'s `PrepareForSleep` signal. Both
 //! are subprocesses, so this needs no D-Bus crate.
+//!
+//! One narrow exception to the single-actuator-path rule: `prepare_sleep`/`resume`
+//! also send the controller's own `pause`/`resume` control-socket ops (2026-09-22),
+//! so its independent ~1 s reconcile loop cannot race the pre-sleep quiet handoff.
+//! This does not start or restart the controller process -- it only holds the
+//! already-running controller's own loop for the length of the sleep transition.
 
 use crate::controller::zone_suffix;
 use crate::{controller, gateway};
@@ -196,6 +202,14 @@ async fn health_loop(state: Arc<Mutex<SharedState>>) {
 
 async fn prepare_sleep(state: &Mutex<SharedState>, delay: &Mutex<DelayInhibitor>) {
     state.lock().await.suspended = true;
+    // Hold the controller's own reconcile loop first: it ticks independently, roughly
+    // once a second, and would otherwise see the quiet call below as a mismatch
+    // against its own wants (an active job's eye indicator, a progress bar, ...) and
+    // immediately re-assert them in the race window before the machine actually
+    // suspends, undoing this handoff.
+    if let Err(error) = controller::call(&json!({ "op": "pause" })).await {
+        eprintln!("monolithd watchdog: could not pause the controller before sleep: {error}");
+    }
     match preempt_all_zones("quiet").await {
         Ok(()) => eprintln!("monolithd watchdog: quiet applied before sleep"),
         Err(error) => apply_controller_fault(state, &format!("pre-sleep handoff failed: {error}")).await,
@@ -249,6 +263,13 @@ async fn resume(state: &Mutex<SharedState>, delay: &Mutex<DelayInhibitor>) {
         eprintln!("monolithd watchdog: could not reacquire the sleep delay inhibitor: {error}");
     }
     let outcome = poll_until_healthy(RESUME_GRACE, controller_healthy).await;
+    // Release the controller's reconcile loop regardless of outcome: leaving it
+    // paused on a failed poll would mean nothing self-corrects again until a manual
+    // resume. controller_healthy() above only asked whether the process answers its
+    // socket at all, which it does even while paused, so this is safe either way.
+    if let Err(error) = controller::call(&json!({ "op": "resume" })).await {
+        eprintln!("monolithd watchdog: could not resume the controller after sleep: {error}");
+    }
     {
         let mut guard = state.lock().await;
         guard.suspended = false;
