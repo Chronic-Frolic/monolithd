@@ -101,6 +101,10 @@ pub enum Request {
     Stop { function: String },
     /// Return a zone to its ambient set member, in phase with the members still running.
     Rejoin { function: String },
+    /// Take over several zones at once: stop whatever owns each target zone and start
+    /// every new function together, in one QLC+ batch. Unlike start_set, a busy zone is
+    /// not refused — its owner is stopped as part of the same atomic change.
+    PreemptSet { functions: Vec<String> },
     Progress {
         zone: String,
         completed: u32,
@@ -313,6 +317,10 @@ impl<Q: Qlc> Gateway<Q> {
                 }
                 self.activate(registry, &target, true, Transition::default(), DEFAULT_OVERLAP, true).await
             }
+            Request::PreemptSet { functions } => {
+                let targets = functions.iter().map(|name| resolve_function(registry, name)).collect::<Result<Vec<_>, _>>()?;
+                self.preempt_set(registry, &targets).await
+            }
             Request::Status => unreachable!("status is handled before mutation"),
         }
     }
@@ -500,6 +508,74 @@ impl<Q: Qlc> Gateway<Q> {
         }
         let started: Vec<&str> = to_start.iter().map(|target| target.name.as_str()).collect();
         Ok(json!({ "ok": true, "changed": !to_start.is_empty(), "started": started }))
+    }
+
+    /// Take over several zones at once, unconditionally: whatever currently owns a
+    /// target zone is stopped (composable or not — unlike a single-target replace,
+    /// there is no graceful per-zone handoff to preserve here, since every target is
+    /// changing at once anyway) and every target that is not already correct is
+    /// started, all in one QLC+ batch write and one shared confirmation.
+    async fn preempt_set(&self, registry: &Registry, targets: &[Target]) -> Result<Value, Failure> {
+        if targets.is_empty() {
+            return fail("bad_request", "preempt_set needs at least one function");
+        }
+        let mut seen: BTreeMap<&str, &str> = BTreeMap::new();
+        for target in targets {
+            for zone in &target.zones {
+                if let Some(other) = seen.insert(zone.as_str(), target.name.as_str()) {
+                    return fail("overlapping_set", format!("{} and {} both drive zone {zone}", other, target.name));
+                }
+            }
+        }
+        let names: Vec<String> = targets.iter().flat_map(|target| target.zones.iter().cloned()).collect();
+        let mut held = self.lock_zones(&names).await?;
+        Self::check_free_of_uncertainty(&held)?;
+
+        let mut owners: Vec<Target> = Vec::new();
+        let mut to_apply: Vec<&Target> = Vec::new();
+        for target in targets {
+            let already = target.zones.iter().all(|zone| held[zone].owner.as_ref().is_some_and(|owner| owner.id == target.id));
+            if already {
+                continue;
+            }
+            if let Some(owner) = target.zones.iter().find_map(|zone| held[zone].owner.as_ref()) {
+                if !owners.iter().any(|known| known.id == owner.id) {
+                    owners.push(owner.clone());
+                }
+            }
+            to_apply.push(target);
+        }
+        if to_apply.is_empty() {
+            return Ok(json!({ "ok": true, "changed": false, "applied": Vec::<&str>::new(), "released": Vec::<&str>::new() }));
+        }
+
+        let stops: Vec<Command> = owners.iter().map(|owner| Command { id: owner.id, running: false }).collect();
+        let starts: Vec<Command> = to_apply.iter().map(|target| Command { id: target.id, running: true }).collect();
+        let all: Vec<Command> = stops.iter().copied().chain(starts.iter().copied()).collect();
+        let sent_at = Instant::now();
+        if let Err(error) = self.send_confirmed(&all).await {
+            let affected: Vec<String> = owners
+                .iter()
+                .flat_map(|owner| owner.zones.iter().cloned())
+                .chain(to_apply.iter().flat_map(|target| target.zones.iter().cloned()))
+                .collect();
+            self.mark_uncertain(registry, &mut held, &affected);
+            return fail("qlc_unconfirmed", format!("preempting the set: {error}"));
+        }
+        for owner in &owners {
+            self.note_stopped(registry, &owner.name);
+        }
+        for target in &to_apply {
+            for zone in &target.zones {
+                if let Some(entry) = held.get_mut(zone) {
+                    entry.owner = Some((*target).clone());
+                }
+            }
+            self.note_started(registry, &target.name, sent_at);
+        }
+        let applied: Vec<&str> = to_apply.iter().map(|target| target.name.as_str()).collect();
+        let released: Vec<&str> = owners.iter().map(|owner| owner.name.as_str()).collect();
+        Ok(json!({ "ok": true, "changed": true, "applied": applied, "released": released }))
     }
 
     async fn stop(&self, registry: &Registry, target: &Target) -> Result<Value, Failure> {
@@ -774,7 +850,7 @@ pub async fn spawn_for_stack(layout: &Layout, registry_path: &Path, calibration:
     tokio::spawn(run(gateway));
 }
 
-const USAGE: &str = "usage: monolithd scene <status | start NAME | start-set NAME... | stop NAME | rejoin NAME | replace NAME [FLAGS] | progress ZONE COMPLETED [FLAGS]>\n  FLAGS: --transition sequential|pipelined|overlap   --overlap-ms N";
+const USAGE: &str = "usage: monolithd scene <status | start NAME | start-set NAME... | stop NAME | rejoin NAME | preempt-set NAME... | replace NAME [FLAGS] | progress ZONE COMPLETED [FLAGS]>\n  FLAGS: --transition sequential|pipelined|overlap   --overlap-ms N";
 
 /// Build the JSON request for `monolithd scene ...` from its arguments.
 fn client_request(arguments: &[String]) -> Result<Value, String> {
@@ -797,6 +873,7 @@ fn client_request(arguments: &[String]) -> Result<Value, String> {
         ["start", name] => json!({ "op": "start", "function": name }),
         ["start-set", names @ ..] if !names.is_empty() => json!({ "op": "start_set", "functions": names }),
         ["stop", name] => json!({ "op": "stop", "function": name }),
+        ["preempt-set", names @ ..] if !names.is_empty() => json!({ "op": "preempt_set", "functions": names }),
         ["rejoin", name] => json!({ "op": "rejoin", "function": name }),
         ["replace", name] => json!({ "op": "replace", "function": name }),
         ["progress", zone, completed] => {
@@ -886,6 +963,13 @@ mod tests {
         children = [113, 114]
         zones = ["strip"]
         composable = true
+        [[functions]]
+        name = "reference_white_eye"
+        kind = "scene"
+        id = 116
+        children = []
+        zones = ["rog_eye"]
+        composable = true
         [[ambient_sets]]
         name = "deep_violet"
         functions = ["ambient_ram", "ambient_eye", "ambient_strip"]
@@ -963,6 +1047,7 @@ mod tests {
 
     fn start(function: &str) -> Request { Request::Start { function: function.to_owned() } }
     fn start_set(functions: &[&str]) -> Request { Request::StartSet { functions: functions.iter().map(|f| (*f).to_owned()).collect() } }
+    fn preempt_set(functions: &[&str]) -> Request { Request::PreemptSet { functions: functions.iter().map(|f| (*f).to_owned()).collect() } }
     fn replace(function: &str) -> Request { Request::Replace { function: function.to_owned(), transition: Transition::default(), overlap_ms: None } }
     fn stop(function: &str) -> Request { Request::Stop { function: function.to_owned() } }
     fn progress(zone: &str, completed: u32) -> Request { Request::Progress { zone: zone.to_owned(), completed, transition: Transition::default(), overlap_ms: None } }
@@ -1100,6 +1185,102 @@ mod tests {
         assert_eq!(code(&gateway.handle(progress("strip", 71)).await), "out_of_range");
         assert_eq!(code(&gateway.handle(progress("rog_eye", 1)).await), "unknown_zone");
         assert_eq!(code(&gateway.handle(start("nonsense")).await), "unknown_function");
+    }
+
+    #[tokio::test]
+    async fn preempt_set_stops_one_owner_that_spans_several_zones_and_starts_everyone_in_one_batch() {
+        let fake = Fake::default();
+        let gateway = gateway(&fake);
+        gateway.seed(106).await; // boot_proof owns all three zones at once
+        let reply = gateway.handle(preempt_set(&["ambient_ram", "ambient_eye", "ambient_strip"])).await;
+        assert_eq!(reply["ok"], true, "{reply}");
+        assert_eq!(reply["applied"], json!(["ambient_ram", "ambient_eye", "ambient_strip"]));
+        assert_eq!(reply["released"], json!(["boot_proof"]));
+        // boot_proof is stopped exactly once, not three times, and everything lands in
+        // one shared QLC batch: this is the whole point of the primitive.
+        assert_eq!(fake.batches(), vec![vec!["stop 106", "start 109", "start 112", "start 115"]]);
+        let status = gateway.handle(Request::Status).await;
+        for (zone, owner) in [("ram", "ambient_ram"), ("rog_eye", "ambient_eye"), ("strip", "ambient_strip")] {
+            assert_eq!(status["zones"][zone]["owner"], owner);
+        }
+    }
+
+    #[tokio::test]
+    async fn preempt_set_targeting_a_subset_of_a_multi_zone_owners_zones_leaves_the_others_stale() {
+        // KNOWN LIMITATION, not exercised in production: every real caller (the
+        // controller's state layer, its ambient bring-up, the watchdog) always
+        // targets the whole three-zone set, so this never fires today. It is pinned
+        // here so a future partial-set caller finds this test failing, not a live bug.
+        let fake = Fake::default();
+        let gateway = gateway(&fake);
+        gateway.seed(106).await; // boot_proof owns all three zones at once
+        let reply = gateway.handle(preempt_set(&["ambient_ram"])).await;
+        assert_eq!(reply["ok"], true, "{reply}");
+        assert_eq!(reply["released"], json!(["boot_proof"]));
+        let status = gateway.handle(Request::Status).await;
+        assert_eq!(status["zones"]["ram"]["owner"], "ambient_ram", "the target zone is correct");
+        // boot_proof was actually stopped (it drove ram too), but rog_eye and strip
+        // were never locked or touched by this call, so their ownership record is
+        // now stale: it still names boot_proof even though QLC reports it stopped.
+        // A plain stop() would have released every zone the owner drove in one step
+        // (explicit_stop_releases_every_zone_of_the_owner); preempt_set does not.
+        assert_eq!(status["zones"]["rog_eye"]["owner"], "boot_proof", "stale: never a preempt_set target");
+        assert_eq!(status["zones"]["rog_eye"]["qlc"], "Stopped", "QLC agrees boot_proof is not actually running");
+    }
+
+    #[tokio::test]
+    async fn preempt_set_stops_two_distinct_owners_on_different_zones_together() {
+        let fake = Fake::default();
+        let gateway = gateway(&fake);
+        gateway.handle(start("ambient_ram")).await;
+        gateway.handle(start("reference_white_eye")).await;
+        let reply = gateway.handle(preempt_set(&["ambient_eye", "ambient_strip"])).await;
+        assert_eq!(reply["ok"], true, "{reply}");
+        // ram is untouched (not a target); eye's owner (reference_white_eye) is stopped
+        // and strip, previously free, is simply started — both in the SAME batch.
+        assert_eq!(fake.batches().last().unwrap(), &vec!["stop 116", "start 112", "start 115"]);
+        let status = gateway.handle(Request::Status).await;
+        assert_eq!(status["zones"]["ram"]["owner"], "ambient_ram", "untouched");
+        assert_eq!(status["zones"]["rog_eye"]["owner"], "ambient_eye");
+        assert_eq!(status["zones"]["strip"]["owner"], "ambient_strip");
+    }
+
+    #[tokio::test]
+    async fn preempt_set_is_a_no_op_for_targets_already_correct_and_changed_only_if_something_moved() {
+        let fake = Fake::default();
+        let gateway = gateway(&fake);
+        gateway.handle(start("ambient_ram")).await;
+        let reply = gateway.handle(preempt_set(&["ambient_ram"])).await;
+        assert_eq!((reply["ok"].clone(), reply["changed"].clone()), (json!(true), json!(false)), "{reply}");
+        assert_eq!(fake.batches().len(), 1, "no new QLC traffic for an already-correct target");
+
+        let mixed = gateway.handle(preempt_set(&["ambient_ram", "ambient_eye"])).await;
+        assert_eq!((mixed["ok"].clone(), mixed["changed"].clone(), mixed["applied"].clone()), (json!(true), json!(true), json!(["ambient_eye"])), "{mixed}");
+        assert_eq!(fake.batches().last().unwrap(), &vec!["start 112"], "ram, already correct, generates no command");
+    }
+
+    #[tokio::test]
+    async fn preempt_set_rejects_an_empty_or_overlapping_set() {
+        let gateway = gateway(&Fake::default());
+        assert_eq!(code(&gateway.handle(preempt_set(&[])).await), "bad_request");
+        assert_eq!(code(&gateway.handle(preempt_set(&["boot_proof", "ambient_ram"])).await), "overlapping_set");
+    }
+
+    #[tokio::test]
+    async fn preempt_set_marks_every_affected_zone_uncertain_on_a_failed_confirm() {
+        let fake = Fake::default();
+        fake.stuck.lock().unwrap().insert(112);
+        let gateway = gateway(&fake);
+        gateway.handle(start("ambient_ram")).await;
+        let reply = gateway.handle(preempt_set(&["ambient_eye", "ambient_strip"])).await;
+        assert_eq!(code(&reply), "qlc_unconfirmed", "{reply}");
+        // Both affected zones are refused until status resyncs them (checked via a
+        // follow-up mutating call, not Request::Status, which would itself resync and
+        // could clear the flag once it can determine the true state).
+        assert_eq!(code(&gateway.handle(start("ambient_eye")).await), "zone_uncertain");
+        assert_eq!(code(&gateway.handle(start("ambient_strip")).await), "zone_uncertain");
+        // ram was never a target and is untouched throughout.
+        assert_eq!(gateway.handle(preempt_set(&["ambient_ram"])).await["changed"], false);
     }
 
     #[tokio::test]
