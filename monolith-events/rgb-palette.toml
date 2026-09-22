@@ -1,21 +1,13 @@
-# Semantic RGB palette for direct-SDK operational renders AND for the QLC+ Scene
-# generator (`monolithd generate-state-scenes`). Change values here, not in renderer
-# source or by hand-editing baked Scene colors in the .qxw -- run the generator after
-# any change here to re-bake the progress/warning/fault/controller-fault/working
-# Scenes to match. Colors are nominal: hardware correction lives only in
-# led-calibration.toml, applied at the output stage, never here.
+# Semantic RGB palette for direct-SDK operational renders.
+# Values are RGB triplets. Change values here, not in renderer source.
 
 [colors]
 off = [0, 0, 0]
-# Progress bar incomplete color: matches the ambient's deepest purple (#3200FF),
-# per owner request 2026-09-22.
-primary = [50, 0, 255]
-# Progress bar complete color, per owner request 2026-09-22.
-secondary = [150, 0, 255]
+primary = [255, 255, 255]
+secondary = [0, 255, 0]
 warning = [255, 176, 0]
 fault = [255, 0, 0]
 controller_failure = [255, 0, 255]
-working = [255, 255, 255]
 
 [fault_presentation]
 kind = "ambulance"
