@@ -1,0 +1,871 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE Workspace>
+<Workspace xmlns="http://www.qlcplus.org/Workspace" CurrentWindow="FIXANDFUNC">
+ <Creator>
+  <Name>Q Light Controller Plus</Name>
+  <Version>5.2.2</Version>
+  <Author>Sebastián Jiménez</Author>
+ </Creator>
+ <Engine>
+  <InputOutputMap>
+   <BeatGenerator BeatType="Internal" BPM="120"/>
+   <NetworkServer Type="Native" AutoStart="False" Name="QLC+_C0A8010F" Password=""/>
+   <Universe Name="Universe 1" ID="0">
+    <Output Plugin="E1.31" Name="127.0.0.1" UID="" Line="2">
+     <PluginParameters UniverseChannels="24" multicast="0" priority="100" transmitMode="Full" ucastIP="127.0.0.1" ucastPort="5568" universe="1"/>
+    </Output>
+   </Universe>
+   <Universe Name="Universe 2" ID="1">
+    <Output Plugin="E1.31" Name="127.0.0.1" UID="" Line="2">
+     <PluginParameters UniverseChannels="24" multicast="0" priority="100" transmitMode="Full" ucastIP="127.0.0.1" ucastPort="5568" universe="2"/>
+    </Output>
+   </Universe>
+   <Universe Name="Universe 3" ID="2">
+    <Output Plugin="E1.31" Name="127.0.0.1" UID="" Line="2">
+     <PluginParameters UniverseChannels="24" multicast="0" priority="100" transmitMode="Full" ucastIP="127.0.0.1" ucastPort="5568" universe="3"/>
+    </Output>
+   </Universe>
+   <Universe Name="Universe 4" ID="3">
+    <Output Plugin="E1.31" Name="127.0.0.1" UID="" Line="2">
+     <PluginParameters UniverseChannels="24" multicast="0" priority="100" transmitMode="Full" ucastIP="127.0.0.1" ucastPort="5568" universe="4"/>
+    </Output>
+   </Universe>
+   <Universe Name="Universe 5" ID="4">
+    <Output Plugin="E1.31" Name="127.0.0.1" UID="" Line="2">
+     <PluginParameters UniverseChannels="225" multicast="0" priority="100" transmitMode="Full" ucastIP="127.0.0.1" ucastPort="5568" universe="5"/>
+    </Output>
+   </Universe>
+  </InputOutputMap>
+  <Fixture>
+   <Manufacturer>Generic</Manufacturer>
+   <Model>RGBPanel</Model>
+   <Mode>RGB</Mode>
+   <Width>65</Width>
+   <Height>156</Height>
+   <ID>0</ID>
+   <Name>Generic RGB Panel [27] - Row 1</Name>
+   <Universe>0</Universe>
+   <Address>0</Address>
+   <Channels>3</Channels>
+  </Fixture>
+  <Fixture>
+   <Manufacturer>Generic</Manufacturer>
+   <Model>RGBPanel</Model>
+   <Mode>RGB</Mode>
+   <Width>65</Width>
+   <Height>156</Height>
+   <ID>1</ID>
+   <Name>Generic RGB Panel [27] - Row 2</Name>
+   <Universe>0</Universe>
+   <Address>3</Address>
+   <Channels>3</Channels>
+  </Fixture>
+  <Fixture>
+   <Manufacturer>Generic</Manufacturer>
+   <Model>RGBPanel</Model>
+   <Mode>RGB</Mode>
+   <Width>65</Width>
+   <Height>156</Height>
+   <ID>2</ID>
+   <Name>Generic RGB Panel [27] - Row 3</Name>
+   <Universe>0</Universe>
+   <Address>6</Address>
+   <Channels>3</Channels>
+  </Fixture>
+  <Fixture>
+   <Manufacturer>Generic</Manufacturer>
+   <Model>RGBPanel</Model>
+   <Mode>RGB</Mode>
+   <Width>65</Width>
+   <Height>156</Height>
+   <ID>3</ID>
+   <Name>Generic RGB Panel [27] - Row 4</Name>
+   <Universe>0</Universe>
+   <Address>9</Address>
+   <Channels>3</Channels>
+  </Fixture>
+  <Fixture>
+   <Manufacturer>Generic</Manufacturer>
+   <Model>RGBPanel</Model>
+   <Mode>RGB</Mode>
+   <Width>65</Width>
+   <Height>156</Height>
+   <ID>4</ID>
+   <Name>Generic RGB Panel [27] - Row 5</Name>
+   <Universe>0</Universe>
+   <Address>12</Address>
+   <Channels>3</Channels>
+  </Fixture>
+  <Fixture>
+   <Manufacturer>Generic</Manufacturer>
+   <Model>RGBPanel</Model>
+   <Mode>RGB</Mode>
+   <Width>65</Width>
+   <Height>156</Height>
+   <ID>5</ID>
+   <Name>Generic RGB Panel [27] - Row 6</Name>
+   <Universe>0</Universe>
+   <Address>15</Address>
+   <Channels>3</Channels>
+  </Fixture>
+  <Fixture>
+   <Manufacturer>Generic</Manufacturer>
+   <Model>RGBPanel</Model>
+   <Mode>RGB</Mode>
+   <Width>65</Width>
+   <Height>156</Height>
+   <ID>6</ID>
+   <Name>Generic RGB Panel [27] - Row 7</Name>
+   <Universe>0</Universe>
+   <Address>18</Address>
+   <Channels>3</Channels>
+  </Fixture>
+  <Fixture>
+   <Manufacturer>Generic</Manufacturer>
+   <Model>RGBPanel</Model>
+   <Mode>RGB</Mode>
+   <Width>65</Width>
+   <Height>156</Height>
+   <ID>7</ID>
+   <Name>Generic RGB Panel [27] - Row 8</Name>
+   <Universe>0</Universe>
+   <Address>21</Address>
+   <Channels>3</Channels>
+  </Fixture>
+  <Fixture>
+   <Manufacturer>Generic</Manufacturer>
+   <Model>RGBPanel</Model>
+   <Mode>RGB</Mode>
+   <Width>65</Width>
+   <Height>156</Height>
+   <ID>8</ID>
+   <Name>Generic RGB Panel [28] - Row 1</Name>
+   <Universe>1</Universe>
+   <Address>0</Address>
+   <Channels>3</Channels>
+  </Fixture>
+  <Fixture>
+   <Manufacturer>Generic</Manufacturer>
+   <Model>RGBPanel</Model>
+   <Mode>RGB</Mode>
+   <Width>65</Width>
+   <Height>156</Height>
+   <ID>9</ID>
+   <Name>Generic RGB Panel [28] - Row 2</Name>
+   <Universe>1</Universe>
+   <Address>3</Address>
+   <Channels>3</Channels>
+  </Fixture>
+  <Fixture>
+   <Manufacturer>Generic</Manufacturer>
+   <Model>RGBPanel</Model>
+   <Mode>RGB</Mode>
+   <Width>65</Width>
+   <Height>156</Height>
+   <ID>10</ID>
+   <Name>Generic RGB Panel [28] - Row 3</Name>
+   <Universe>1</Universe>
+   <Address>6</Address>
+   <Channels>3</Channels>
+  </Fixture>
+  <Fixture>
+   <Manufacturer>Generic</Manufacturer>
+   <Model>RGBPanel</Model>
+   <Mode>RGB</Mode>
+   <Width>65</Width>
+   <Height>156</Height>
+   <ID>11</ID>
+   <Name>Generic RGB Panel [28] - Row 4</Name>
+   <Universe>1</Universe>
+   <Address>9</Address>
+   <Channels>3</Channels>
+  </Fixture>
+  <Fixture>
+   <Manufacturer>Generic</Manufacturer>
+   <Model>RGBPanel</Model>
+   <Mode>RGB</Mode>
+   <Width>65</Width>
+   <Height>156</Height>
+   <ID>12</ID>
+   <Name>Generic RGB Panel [28] - Row 5</Name>
+   <Universe>1</Universe>
+   <Address>12</Address>
+   <Channels>3</Channels>
+  </Fixture>
+  <Fixture>
+   <Manufacturer>Generic</Manufacturer>
+   <Model>RGBPanel</Model>
+   <Mode>RGB</Mode>
+   <Width>65</Width>
+   <Height>156</Height>
+   <ID>13</ID>
+   <Name>Generic RGB Panel [28] - Row 6</Name>
+   <Universe>1</Universe>
+   <Address>15</Address>
+   <Channels>3</Channels>
+  </Fixture>
+  <Fixture>
+   <Manufacturer>Generic</Manufacturer>
+   <Model>RGBPanel</Model>
+   <Mode>RGB</Mode>
+   <Width>65</Width>
+   <Height>156</Height>
+   <ID>14</ID>
+   <Name>Generic RGB Panel [28] - Row 7</Name>
+   <Universe>1</Universe>
+   <Address>18</Address>
+   <Channels>3</Channels>
+  </Fixture>
+  <Fixture>
+   <Manufacturer>Generic</Manufacturer>
+   <Model>RGBPanel</Model>
+   <Mode>RGB</Mode>
+   <Width>65</Width>
+   <Height>156</Height>
+   <ID>15</ID>
+   <Name>Generic RGB Panel [28] - Row 8</Name>
+   <Universe>1</Universe>
+   <Address>21</Address>
+   <Channels>3</Channels>
+  </Fixture>
+  <Fixture>
+   <Manufacturer>Generic</Manufacturer>
+   <Model>RGBPanel</Model>
+   <Mode>RGB</Mode>
+   <Width>65</Width>
+   <Height>156</Height>
+   <ID>16</ID>
+   <Name>Generic RGB Panel [29] - Row 1</Name>
+   <Universe>2</Universe>
+   <Address>0</Address>
+   <Channels>3</Channels>
+  </Fixture>
+  <Fixture>
+   <Manufacturer>Generic</Manufacturer>
+   <Model>RGBPanel</Model>
+   <Mode>RGB</Mode>
+   <Width>65</Width>
+   <Height>156</Height>
+   <ID>17</ID>
+   <Name>Generic RGB Panel [29] - Row 2</Name>
+   <Universe>2</Universe>
+   <Address>3</Address>
+   <Channels>3</Channels>
+  </Fixture>
+  <Fixture>
+   <Manufacturer>Generic</Manufacturer>
+   <Model>RGBPanel</Model>
+   <Mode>RGB</Mode>
+   <Width>65</Width>
+   <Height>156</Height>
+   <ID>18</ID>
+   <Name>Generic RGB Panel [29] - Row 3</Name>
+   <Universe>2</Universe>
+   <Address>6</Address>
+   <Channels>3</Channels>
+  </Fixture>
+  <Fixture>
+   <Manufacturer>Generic</Manufacturer>
+   <Model>RGBPanel</Model>
+   <Mode>RGB</Mode>
+   <Width>65</Width>
+   <Height>156</Height>
+   <ID>19</ID>
+   <Name>Generic RGB Panel [29] - Row 4</Name>
+   <Universe>2</Universe>
+   <Address>9</Address>
+   <Channels>3</Channels>
+  </Fixture>
+  <Fixture>
+   <Manufacturer>Generic</Manufacturer>
+   <Model>RGBPanel</Model>
+   <Mode>RGB</Mode>
+   <Width>65</Width>
+   <Height>156</Height>
+   <ID>20</ID>
+   <Name>Generic RGB Panel [29] - Row 5</Name>
+   <Universe>2</Universe>
+   <Address>12</Address>
+   <Channels>3</Channels>
+  </Fixture>
+  <Fixture>
+   <Manufacturer>Generic</Manufacturer>
+   <Model>RGBPanel</Model>
+   <Mode>RGB</Mode>
+   <Width>65</Width>
+   <Height>156</Height>
+   <ID>21</ID>
+   <Name>Generic RGB Panel [29] - Row 6</Name>
+   <Universe>2</Universe>
+   <Address>15</Address>
+   <Channels>3</Channels>
+  </Fixture>
+  <Fixture>
+   <Manufacturer>Generic</Manufacturer>
+   <Model>RGBPanel</Model>
+   <Mode>RGB</Mode>
+   <Width>65</Width>
+   <Height>156</Height>
+   <ID>22</ID>
+   <Name>Generic RGB Panel [29] - Row 7</Name>
+   <Universe>2</Universe>
+   <Address>18</Address>
+   <Channels>3</Channels>
+  </Fixture>
+  <Fixture>
+   <Manufacturer>Generic</Manufacturer>
+   <Model>RGBPanel</Model>
+   <Mode>RGB</Mode>
+   <Width>65</Width>
+   <Height>156</Height>
+   <ID>23</ID>
+   <Name>Generic RGB Panel [29] - Row 8</Name>
+   <Universe>2</Universe>
+   <Address>21</Address>
+   <Channels>3</Channels>
+  </Fixture>
+  <Fixture>
+   <Manufacturer>Generic</Manufacturer>
+   <Model>RGBPanel</Model>
+   <Mode>RGB</Mode>
+   <Width>65</Width>
+   <Height>156</Height>
+   <ID>24</ID>
+   <Name>Generic RGB Panel [30] - Row 1</Name>
+   <Universe>3</Universe>
+   <Address>0</Address>
+   <Channels>3</Channels>
+  </Fixture>
+  <Fixture>
+   <Manufacturer>Generic</Manufacturer>
+   <Model>RGBPanel</Model>
+   <Mode>RGB</Mode>
+   <Width>65</Width>
+   <Height>156</Height>
+   <ID>25</ID>
+   <Name>Generic RGB Panel [30] - Row 2</Name>
+   <Universe>3</Universe>
+   <Address>3</Address>
+   <Channels>3</Channels>
+  </Fixture>
+  <Fixture>
+   <Manufacturer>Generic</Manufacturer>
+   <Model>RGBPanel</Model>
+   <Mode>RGB</Mode>
+   <Width>65</Width>
+   <Height>156</Height>
+   <ID>26</ID>
+   <Name>Generic RGB Panel [30] - Row 3</Name>
+   <Universe>3</Universe>
+   <Address>6</Address>
+   <Channels>3</Channels>
+  </Fixture>
+  <Fixture>
+   <Manufacturer>Generic</Manufacturer>
+   <Model>RGBPanel</Model>
+   <Mode>RGB</Mode>
+   <Width>65</Width>
+   <Height>156</Height>
+   <ID>27</ID>
+   <Name>Generic RGB Panel [30] - Row 4</Name>
+   <Universe>3</Universe>
+   <Address>9</Address>
+   <Channels>3</Channels>
+  </Fixture>
+  <Fixture>
+   <Manufacturer>Generic</Manufacturer>
+   <Model>RGBPanel</Model>
+   <Mode>RGB</Mode>
+   <Width>65</Width>
+   <Height>156</Height>
+   <ID>28</ID>
+   <Name>Generic RGB Panel [30] - Row 5</Name>
+   <Universe>3</Universe>
+   <Address>12</Address>
+   <Channels>3</Channels>
+  </Fixture>
+  <Fixture>
+   <Manufacturer>Generic</Manufacturer>
+   <Model>RGBPanel</Model>
+   <Mode>RGB</Mode>
+   <Width>65</Width>
+   <Height>156</Height>
+   <ID>29</ID>
+   <Name>Generic RGB Panel [30] - Row 6</Name>
+   <Universe>3</Universe>
+   <Address>15</Address>
+   <Channels>3</Channels>
+  </Fixture>
+  <Fixture>
+   <Manufacturer>Generic</Manufacturer>
+   <Model>RGBPanel</Model>
+   <Mode>RGB</Mode>
+   <Width>65</Width>
+   <Height>156</Height>
+   <ID>30</ID>
+   <Name>Generic RGB Panel [30] - Row 7</Name>
+   <Universe>3</Universe>
+   <Address>18</Address>
+   <Channels>3</Channels>
+  </Fixture>
+  <Fixture>
+   <Manufacturer>Generic</Manufacturer>
+   <Model>RGBPanel</Model>
+   <Mode>RGB</Mode>
+   <Width>65</Width>
+   <Height>156</Height>
+   <ID>31</ID>
+   <Name>Generic RGB Panel [30] - Row 8</Name>
+   <Universe>3</Universe>
+   <Address>21</Address>
+   <Channels>3</Channels>
+  </Fixture>
+  <Fixture>
+   <Manufacturer>Generic</Manufacturer>
+   <Model>RGBPanel</Model>
+   <Mode>RGB</Mode>
+   <Width>400</Width>
+   <Height>250</Height>
+   <ID>40</ID>
+   <Name>Generic RGB Panel [36] - Row 1</Name>
+   <Universe>4</Universe>
+   <Address>0</Address>
+   <Channels>9</Channels>
+  </Fixture>
+  <Fixture>
+   <Manufacturer>Generic</Manufacturer>
+   <Model>RGBPanel</Model>
+   <Mode>RGB</Mode>
+   <Width>10000</Width>
+   <Height>55</Height>
+   <ID>41</ID>
+   <Name>Strip - Row 1</Name>
+   <Universe>4</Universe>
+   <Address>15</Address>
+   <Channels>210</Channels>
+  </Fixture>
+  <FixtureGroup ID="0">
+   <Name>Generic RGB Panel</Name>
+   <Size X="1" Y="8"/>
+  </FixtureGroup>
+  <FixtureGroup ID="1">
+   <Name>Generic RGB Panel [1]</Name>
+   <Size X="1" Y="8"/>
+  </FixtureGroup>
+  <FixtureGroup ID="2">
+   <Name>Generic RGB Panel [2]</Name>
+   <Size X="1" Y="8"/>
+  </FixtureGroup>
+  <FixtureGroup ID="3">
+   <Name>Generic RGB Panel [3]</Name>
+   <Size X="1" Y="8"/>
+  </FixtureGroup>
+  <FixtureGroup ID="4">
+   <Name>Generic RGB Panel [4]</Name>
+   <Size X="1" Y="8"/>
+  </FixtureGroup>
+  <FixtureGroup ID="5">
+   <Name>Generic RGB Panel [5]</Name>
+   <Size X="1" Y="8"/>
+  </FixtureGroup>
+  <FixtureGroup ID="6">
+   <Name>Generic RGB Panel [6]</Name>
+   <Size X="1" Y="8"/>
+  </FixtureGroup>
+  <FixtureGroup ID="7">
+   <Name>Generic RGB Panel [7]</Name>
+   <Size X="1" Y="8"/>
+  </FixtureGroup>
+  <FixtureGroup ID="8">
+   <Name>Generic RGB Panel [8]</Name>
+   <Size X="1" Y="8"/>
+  </FixtureGroup>
+  <FixtureGroup ID="9">
+   <Name>Generic RGB Panel [9]</Name>
+   <Size X="1" Y="8"/>
+  </FixtureGroup>
+  <FixtureGroup ID="10">
+   <Name>Generic RGB Panel [10]</Name>
+   <Size X="1" Y="8"/>
+  </FixtureGroup>
+  <FixtureGroup ID="11">
+   <Name>Generic RGB Panel [11]</Name>
+   <Size X="1" Y="8"/>
+  </FixtureGroup>
+  <FixtureGroup ID="12">
+   <Name>Generic RGB Panel [12]</Name>
+   <Size X="1" Y="8"/>
+   <Head X="0" Y="0" Fixture="4294967295">0</Head>
+  </FixtureGroup>
+  <FixtureGroup ID="13">
+   <Name>Generic RGB Panel [13]</Name>
+   <Size X="1" Y="8"/>
+   <Head X="0" Y="0" Fixture="4294967295">0</Head>
+  </FixtureGroup>
+  <FixtureGroup ID="14">
+   <Name>Generic RGB Panel [14]</Name>
+   <Size X="1" Y="8"/>
+  </FixtureGroup>
+  <FixtureGroup ID="15">
+   <Name>Generic RGB Panel [15]</Name>
+   <Size X="1" Y="8"/>
+  </FixtureGroup>
+  <FixtureGroup ID="16">
+   <Name>Generic RGB Panel [16]</Name>
+   <Size X="1" Y="8"/>
+  </FixtureGroup>
+  <FixtureGroup ID="17">
+   <Name>Generic RGB Panel [17]</Name>
+   <Size X="1" Y="8"/>
+  </FixtureGroup>
+  <FixtureGroup ID="18">
+   <Name>Generic RGB Panel [18]</Name>
+   <Size X="1" Y="8"/>
+  </FixtureGroup>
+  <FixtureGroup ID="19">
+   <Name>Generic RGB Panel [19]</Name>
+   <Size X="1" Y="8"/>
+  </FixtureGroup>
+  <FixtureGroup ID="20">
+   <Name>Generic RGB Panel [20]</Name>
+   <Size X="1" Y="8"/>
+  </FixtureGroup>
+  <FixtureGroup ID="21">
+   <Name>Generic RGB Panel [21]</Name>
+   <Size X="1" Y="8"/>
+  </FixtureGroup>
+  <FixtureGroup ID="22">
+   <Name>Generic RGB Panel [22]</Name>
+   <Size X="1" Y="8"/>
+  </FixtureGroup>
+  <FixtureGroup ID="23">
+   <Name>Generic RGB Panel [23]</Name>
+   <Size X="1" Y="8"/>
+  </FixtureGroup>
+  <FixtureGroup ID="24">
+   <Name>Generic RGB Panel [24]</Name>
+   <Size X="1" Y="8"/>
+  </FixtureGroup>
+  <FixtureGroup ID="25">
+   <Name>Generic RGB Panel [25]</Name>
+   <Size X="1" Y="8"/>
+  </FixtureGroup>
+  <FixtureGroup ID="26">
+   <Name>Generic RGB Panel [26]</Name>
+   <Size X="1" Y="8"/>
+  </FixtureGroup>
+  <FixtureGroup ID="27">
+   <Name>RAM 3</Name>
+   <Size X="1" Y="8"/>
+   <Head X="0" Y="0" Fixture="0">0</Head>
+   <Head X="0" Y="1" Fixture="1">0</Head>
+   <Head X="0" Y="2" Fixture="2">0</Head>
+   <Head X="0" Y="3" Fixture="3">0</Head>
+   <Head X="0" Y="4" Fixture="4">0</Head>
+   <Head X="0" Y="5" Fixture="5">0</Head>
+   <Head X="0" Y="6" Fixture="6">0</Head>
+   <Head X="0" Y="7" Fixture="7">0</Head>
+  </FixtureGroup>
+  <FixtureGroup ID="28">
+   <Name>RAM 1</Name>
+   <Size X="1" Y="8"/>
+   <Head X="0" Y="0" Fixture="8">0</Head>
+   <Head X="0" Y="1" Fixture="9">0</Head>
+   <Head X="0" Y="2" Fixture="10">0</Head>
+   <Head X="0" Y="3" Fixture="11">0</Head>
+   <Head X="0" Y="4" Fixture="12">0</Head>
+   <Head X="0" Y="5" Fixture="13">0</Head>
+   <Head X="0" Y="6" Fixture="14">0</Head>
+   <Head X="0" Y="7" Fixture="15">0</Head>
+  </FixtureGroup>
+  <FixtureGroup ID="29">
+   <Name>RAM 4</Name>
+   <Size X="1" Y="8"/>
+   <Head X="0" Y="0" Fixture="16">0</Head>
+   <Head X="0" Y="1" Fixture="17">0</Head>
+   <Head X="0" Y="2" Fixture="18">0</Head>
+   <Head X="0" Y="3" Fixture="19">0</Head>
+   <Head X="0" Y="4" Fixture="20">0</Head>
+   <Head X="0" Y="5" Fixture="21">0</Head>
+   <Head X="0" Y="6" Fixture="22">0</Head>
+   <Head X="0" Y="7" Fixture="23">0</Head>
+  </FixtureGroup>
+  <FixtureGroup ID="30">
+   <Name>RAM 2</Name>
+   <Size X="1" Y="8"/>
+   <Head X="0" Y="0" Fixture="24">0</Head>
+   <Head X="0" Y="1" Fixture="25">0</Head>
+   <Head X="0" Y="2" Fixture="26">0</Head>
+   <Head X="0" Y="3" Fixture="27">0</Head>
+   <Head X="0" Y="4" Fixture="28">0</Head>
+   <Head X="0" Y="5" Fixture="29">0</Head>
+   <Head X="0" Y="6" Fixture="30">0</Head>
+   <Head X="0" Y="7" Fixture="31">0</Head>
+  </FixtureGroup>
+  <FixtureGroup ID="31">
+   <Name>Generic RGB Panel [31]</Name>
+   <Size X="3" Y="1"/>
+  </FixtureGroup>
+  <FixtureGroup ID="32">
+   <Name>Generic RGB Panel [32]</Name>
+   <Size X="3" Y="1"/>
+  </FixtureGroup>
+  <FixtureGroup ID="33">
+   <Name>Generic RGB Panel [33]</Name>
+   <Size X="3" Y="1"/>
+  </FixtureGroup>
+  <FixtureGroup ID="34">
+   <Name>Generic RGB Panel [34]</Name>
+   <Size X="1" Y="3"/>
+  </FixtureGroup>
+  <FixtureGroup ID="35">
+   <Name>Generic RGB Panel [35]</Name>
+   <Size X="3" Y="1"/>
+  </FixtureGroup>
+  <FixtureGroup ID="36">
+   <Name>ROG Eye</Name>
+   <Size X="3" Y="1"/>
+   <Head X="0" Y="0" Fixture="40">0</Head>
+   <Head X="1" Y="0" Fixture="40">1</Head>
+   <Head X="2" Y="0" Fixture="40">2</Head>
+  </FixtureGroup>
+  <FixtureGroup ID="37">
+   <Name>Strip</Name>
+   <Size X="70" Y="1"/>
+   <Head X="0" Y="0" Fixture="41">0</Head>
+   <Head X="1" Y="0" Fixture="41">1</Head>
+   <Head X="2" Y="0" Fixture="41">2</Head>
+   <Head X="3" Y="0" Fixture="41">3</Head>
+   <Head X="4" Y="0" Fixture="41">4</Head>
+   <Head X="5" Y="0" Fixture="41">5</Head>
+   <Head X="6" Y="0" Fixture="41">6</Head>
+   <Head X="7" Y="0" Fixture="41">7</Head>
+   <Head X="8" Y="0" Fixture="41">8</Head>
+   <Head X="9" Y="0" Fixture="41">9</Head>
+   <Head X="10" Y="0" Fixture="41">10</Head>
+   <Head X="11" Y="0" Fixture="41">11</Head>
+   <Head X="12" Y="0" Fixture="41">12</Head>
+   <Head X="13" Y="0" Fixture="41">13</Head>
+   <Head X="14" Y="0" Fixture="41">14</Head>
+   <Head X="15" Y="0" Fixture="41">15</Head>
+   <Head X="16" Y="0" Fixture="41">16</Head>
+   <Head X="17" Y="0" Fixture="41">17</Head>
+   <Head X="18" Y="0" Fixture="41">18</Head>
+   <Head X="19" Y="0" Fixture="41">19</Head>
+   <Head X="20" Y="0" Fixture="41">20</Head>
+   <Head X="21" Y="0" Fixture="41">21</Head>
+   <Head X="22" Y="0" Fixture="41">22</Head>
+   <Head X="23" Y="0" Fixture="41">23</Head>
+   <Head X="24" Y="0" Fixture="41">24</Head>
+   <Head X="25" Y="0" Fixture="41">25</Head>
+   <Head X="26" Y="0" Fixture="41">26</Head>
+   <Head X="27" Y="0" Fixture="41">27</Head>
+   <Head X="28" Y="0" Fixture="41">28</Head>
+   <Head X="29" Y="0" Fixture="41">29</Head>
+   <Head X="30" Y="0" Fixture="41">30</Head>
+   <Head X="31" Y="0" Fixture="41">31</Head>
+   <Head X="32" Y="0" Fixture="41">32</Head>
+   <Head X="33" Y="0" Fixture="41">33</Head>
+   <Head X="34" Y="0" Fixture="41">34</Head>
+   <Head X="35" Y="0" Fixture="41">35</Head>
+   <Head X="36" Y="0" Fixture="41">36</Head>
+   <Head X="37" Y="0" Fixture="41">37</Head>
+   <Head X="38" Y="0" Fixture="41">38</Head>
+   <Head X="39" Y="0" Fixture="41">39</Head>
+   <Head X="40" Y="0" Fixture="41">40</Head>
+   <Head X="41" Y="0" Fixture="41">41</Head>
+   <Head X="42" Y="0" Fixture="41">42</Head>
+   <Head X="43" Y="0" Fixture="41">43</Head>
+   <Head X="44" Y="0" Fixture="41">44</Head>
+   <Head X="45" Y="0" Fixture="41">45</Head>
+   <Head X="46" Y="0" Fixture="41">46</Head>
+   <Head X="47" Y="0" Fixture="41">47</Head>
+   <Head X="48" Y="0" Fixture="41">48</Head>
+   <Head X="49" Y="0" Fixture="41">49</Head>
+   <Head X="50" Y="0" Fixture="41">50</Head>
+   <Head X="51" Y="0" Fixture="41">51</Head>
+   <Head X="52" Y="0" Fixture="41">52</Head>
+   <Head X="53" Y="0" Fixture="41">53</Head>
+   <Head X="54" Y="0" Fixture="41">54</Head>
+   <Head X="55" Y="0" Fixture="41">55</Head>
+   <Head X="56" Y="0" Fixture="41">56</Head>
+   <Head X="57" Y="0" Fixture="41">57</Head>
+   <Head X="58" Y="0" Fixture="41">58</Head>
+   <Head X="59" Y="0" Fixture="41">59</Head>
+   <Head X="60" Y="0" Fixture="41">60</Head>
+   <Head X="61" Y="0" Fixture="41">61</Head>
+   <Head X="62" Y="0" Fixture="41">62</Head>
+   <Head X="63" Y="0" Fixture="41">63</Head>
+   <Head X="64" Y="0" Fixture="41">64</Head>
+   <Head X="65" Y="0" Fixture="41">65</Head>
+   <Head X="66" Y="0" Fixture="41">66</Head>
+   <Head X="67" Y="0" Fixture="41">67</Head>
+   <Head X="68" Y="0" Fixture="41">68</Head>
+   <Head X="69" Y="0" Fixture="41">69</Head>
+  </FixtureGroup>
+  <Function ID="1" Type="Scene" Name="Base Ambient — Low">
+   <Speed FadeIn="0" FadeOut="0" Duration="0"/>
+   <FixtureVal ID="0">0,50,1,0,2,255</FixtureVal>
+   <FixtureVal ID="1">0,50,1,0,2,255</FixtureVal>
+   <FixtureVal ID="2">0,50,1,0,2,255</FixtureVal>
+   <FixtureVal ID="3">0,50,1,0,2,255</FixtureVal>
+   <FixtureVal ID="4">0,50,1,0,2,255</FixtureVal>
+   <FixtureVal ID="5">0,50,1,0,2,255</FixtureVal>
+   <FixtureVal ID="6">0,50,1,0,2,255</FixtureVal>
+   <FixtureVal ID="7">0,50,1,0,2,255</FixtureVal>
+   <FixtureVal ID="8">0,50,1,0,2,255</FixtureVal>
+   <FixtureVal ID="9">0,50,1,0,2,255</FixtureVal>
+   <FixtureVal ID="10">0,50,1,0,2,255</FixtureVal>
+   <FixtureVal ID="11">0,50,1,0,2,255</FixtureVal>
+   <FixtureVal ID="12">0,50,1,0,2,255</FixtureVal>
+   <FixtureVal ID="13">0,50,1,0,2,255</FixtureVal>
+   <FixtureVal ID="14">0,50,1,0,2,255</FixtureVal>
+   <FixtureVal ID="15">0,50,1,0,2,255</FixtureVal>
+   <FixtureVal ID="16">0,50,1,0,2,255</FixtureVal>
+   <FixtureVal ID="17">0,50,1,0,2,255</FixtureVal>
+   <FixtureVal ID="18">0,50,1,0,2,255</FixtureVal>
+   <FixtureVal ID="19">0,50,1,0,2,255</FixtureVal>
+   <FixtureVal ID="20">0,50,1,0,2,255</FixtureVal>
+   <FixtureVal ID="21">0,50,1,0,2,255</FixtureVal>
+   <FixtureVal ID="22">0,50,1,0,2,255</FixtureVal>
+   <FixtureVal ID="23">0,50,1,0,2,255</FixtureVal>
+   <FixtureVal ID="24">0,50,1,0,2,255</FixtureVal>
+   <FixtureVal ID="25">0,50,1,0,2,255</FixtureVal>
+   <FixtureVal ID="26">0,50,1,0,2,255</FixtureVal>
+   <FixtureVal ID="27">0,50,1,0,2,255</FixtureVal>
+   <FixtureVal ID="28">0,50,1,0,2,255</FixtureVal>
+   <FixtureVal ID="29">0,50,1,0,2,255</FixtureVal>
+   <FixtureVal ID="30">0,50,1,0,2,255</FixtureVal>
+   <FixtureVal ID="31">0,50,1,0,2,255</FixtureVal>
+   <FixtureVal ID="40">0,50,1,0,2,255,3,50,4,0,5,255,6,50,7,0,8,255</FixtureVal>
+   <FixtureVal ID="41">0,50,1,0,2,255,3,50,4,0,5,255,6,50,7,0,8,255,9,50,10,0,11,255,12,50,13,0,14,255,15,50,16,0,17,255,18,50,19,0,20,255,21,50,22,0,23,255,24,50,25,0,26,255,27,50,28,0,29,255,30,50,31,0,32,255,33,50,34,0,35,255,36,50,37,0,38,255,39,50,40,0,41,255,42,50,43,0,44,255,45,50,46,0,47,255,48,50,49,0,50,255,51,50,52,0,53,255,54,50,55,0,56,255,57,50,58,0,59,255,60,50,61,0,62,255,63,50,64,0,65,255,66,50,67,0,68,255,69,50,70,0,71,255,72,50,73,0,74,255,75,50,76,0,77,255,78,50,79,0,80,255,81,50,82,0,83,255,84,50,85,0,86,255,87,50,88,0,89,255,90,50,91,0,92,255,93,50,94,0,95,255,96,50,97,0,98,255,99,50,100,0,101,255,102,50,103,0,104,255,105,50,106,0,107,255,108,50,109,0,110,255,111,50,112,0,113,255,114,50,115,0,116,255,117,50,118,0,119,255,120,50,121,0,122,255,123,50,124,0,125,255,126,50,127,0,128,255,129,50,130,0,131,255,132,50,133,0,134,255,135,50,136,0,137,255,138,50,139,0,140,255,141,50,142,0,143,255,144,50,145,0,146,255,147,50,148,0,149,255,150,50,151,0,152,255,153,50,154,0,155,255,156,50,157,0,158,255,159,50,160,0,161,255,162,50,163,0,164,255,165,50,166,0,167,255,168,50,169,0,170,255,171,50,172,0,173,255,174,50,175,0,176,255,177,50,178,0,179,255,180,50,181,0,182,255,183,50,184,0,185,255,186,50,187,0,188,255,189,50,190,0,191,255,192,50,193,0,194,255,195,50,196,0,197,255,198,50,199,0,200,255,201,50,202,0,203,255,204,50,205,0,206,255,207,50,208,0,209,255</FixtureVal>
+  </Function>
+  <Function ID="2" Type="Scene" Name="Base Ambient — High">
+   <Speed FadeIn="0" FadeOut="0" Duration="0"/>
+   <FixtureVal ID="0">0,67,1,0,2,255</FixtureVal>
+   <FixtureVal ID="1">0,67,1,0,2,255</FixtureVal>
+   <FixtureVal ID="2">0,67,1,0,2,255</FixtureVal>
+   <FixtureVal ID="3">0,67,1,0,2,255</FixtureVal>
+   <FixtureVal ID="4">0,67,1,0,2,255</FixtureVal>
+   <FixtureVal ID="5">0,67,1,0,2,255</FixtureVal>
+   <FixtureVal ID="6">0,67,1,0,2,255</FixtureVal>
+   <FixtureVal ID="7">0,67,1,0,2,255</FixtureVal>
+   <FixtureVal ID="8">0,67,1,0,2,255</FixtureVal>
+   <FixtureVal ID="9">0,67,1,0,2,255</FixtureVal>
+   <FixtureVal ID="10">0,67,1,0,2,255</FixtureVal>
+   <FixtureVal ID="11">0,67,1,0,2,255</FixtureVal>
+   <FixtureVal ID="12">0,67,1,0,2,255</FixtureVal>
+   <FixtureVal ID="13">0,67,1,0,2,255</FixtureVal>
+   <FixtureVal ID="14">0,67,1,0,2,255</FixtureVal>
+   <FixtureVal ID="15">0,67,1,0,2,255</FixtureVal>
+   <FixtureVal ID="16">0,67,1,0,2,255</FixtureVal>
+   <FixtureVal ID="17">0,67,1,0,2,255</FixtureVal>
+   <FixtureVal ID="18">0,67,1,0,2,255</FixtureVal>
+   <FixtureVal ID="19">0,67,1,0,2,255</FixtureVal>
+   <FixtureVal ID="20">0,67,1,0,2,255</FixtureVal>
+   <FixtureVal ID="21">0,67,1,0,2,255</FixtureVal>
+   <FixtureVal ID="22">0,67,1,0,2,255</FixtureVal>
+   <FixtureVal ID="23">0,67,1,0,2,255</FixtureVal>
+   <FixtureVal ID="24">0,67,1,0,2,255</FixtureVal>
+   <FixtureVal ID="25">0,67,1,0,2,255</FixtureVal>
+   <FixtureVal ID="26">0,67,1,0,2,255</FixtureVal>
+   <FixtureVal ID="27">0,67,1,0,2,255</FixtureVal>
+   <FixtureVal ID="28">0,67,1,0,2,255</FixtureVal>
+   <FixtureVal ID="29">0,67,1,0,2,255</FixtureVal>
+   <FixtureVal ID="30">0,67,1,0,2,255</FixtureVal>
+   <FixtureVal ID="31">0,67,1,0,2,255</FixtureVal>
+   <FixtureVal ID="40">0,67,1,0,2,255,3,67,4,0,5,255,6,67,7,0,8,255</FixtureVal>
+   <FixtureVal ID="41">0,67,1,0,2,255,3,67,4,0,5,255,6,67,7,0,8,255,9,67,10,0,11,255,12,67,13,0,14,255,15,67,16,0,17,255,18,67,19,0,20,255,21,67,22,0,23,255,24,67,25,0,26,255,27,67,28,0,29,255,30,67,31,0,32,255,33,67,34,0,35,255,36,67,37,0,38,255,39,67,40,0,41,255,42,67,43,0,44,255,45,67,46,0,47,255,48,67,49,0,50,255,51,67,52,0,53,255,54,67,55,0,56,255,57,67,58,0,59,255,60,67,61,0,62,255,63,67,64,0,65,255,66,67,67,0,68,255,69,67,70,0,71,255,72,67,73,0,74,255,75,67,76,0,77,255,78,67,79,0,80,255,81,67,82,0,83,255,84,67,85,0,86,255,87,67,88,0,89,255,90,67,91,0,92,255,93,67,94,0,95,255,96,67,97,0,98,255,99,67,100,0,101,255,102,67,103,0,104,255,105,67,106,0,107,255,108,67,109,0,110,255,111,67,112,0,113,255,114,67,115,0,116,255,117,67,118,0,119,255,120,67,121,0,122,255,123,67,124,0,125,255,126,67,127,0,128,255,129,67,130,0,131,255,132,67,133,0,134,255,135,67,136,0,137,255,138,67,139,0,140,255,141,67,142,0,143,255,144,67,145,0,146,255,147,67,148,0,149,255,150,67,151,0,152,255,153,67,154,0,155,255,156,67,157,0,158,255,159,67,160,0,161,255,162,67,163,0,164,255,165,67,166,0,167,255,168,67,169,0,170,255,171,67,172,0,173,255,174,67,175,0,176,255,177,67,178,0,179,255,180,67,181,0,182,255,183,67,184,0,185,255,186,67,187,0,188,255,189,67,190,0,191,255,192,67,193,0,194,255,195,67,196,0,197,255,198,67,199,0,200,255,201,67,202,0,203,255,204,67,205,0,206,255,207,67,208,0,209,255</FixtureVal>
+  </Function>
+  <Function ID="3" Type="Chaser" Name="Base Ambient">
+   <Speed FadeIn="1200" FadeOut="1200" Duration="1800"/>
+   <Direction>Forward</Direction>
+   <RunOrder>Loop</RunOrder>
+   <Step Number="0">1</Step>
+   <Step Number="1">2</Step>
+  </Function>
+  <Function ID="4" Type="Scene" Name="State — Fault">
+   <Speed FadeIn="0" FadeOut="0" Duration="0"/>
+   <FixtureVal ID="0">0,255,1,0,2,0</FixtureVal>
+   <FixtureVal ID="1">0,255,1,0,2,0</FixtureVal>
+   <FixtureVal ID="2">0,255,1,0,2,0</FixtureVal>
+   <FixtureVal ID="3">0,255,1,0,2,0</FixtureVal>
+   <FixtureVal ID="4">0,255,1,0,2,0</FixtureVal>
+   <FixtureVal ID="5">0,255,1,0,2,0</FixtureVal>
+   <FixtureVal ID="6">0,255,1,0,2,0</FixtureVal>
+   <FixtureVal ID="7">0,255,1,0,2,0</FixtureVal>
+   <FixtureVal ID="8">0,255,1,0,2,0</FixtureVal>
+   <FixtureVal ID="9">0,255,1,0,2,0</FixtureVal>
+   <FixtureVal ID="10">0,255,1,0,2,0</FixtureVal>
+   <FixtureVal ID="11">0,255,1,0,2,0</FixtureVal>
+   <FixtureVal ID="12">0,255,1,0,2,0</FixtureVal>
+   <FixtureVal ID="13">0,255,1,0,2,0</FixtureVal>
+   <FixtureVal ID="14">0,255,1,0,2,0</FixtureVal>
+   <FixtureVal ID="15">0,255,1,0,2,0</FixtureVal>
+   <FixtureVal ID="16">0,255,1,0,2,0</FixtureVal>
+   <FixtureVal ID="17">0,255,1,0,2,0</FixtureVal>
+   <FixtureVal ID="18">0,255,1,0,2,0</FixtureVal>
+   <FixtureVal ID="19">0,255,1,0,2,0</FixtureVal>
+   <FixtureVal ID="20">0,255,1,0,2,0</FixtureVal>
+   <FixtureVal ID="21">0,255,1,0,2,0</FixtureVal>
+   <FixtureVal ID="22">0,255,1,0,2,0</FixtureVal>
+   <FixtureVal ID="23">0,255,1,0,2,0</FixtureVal>
+   <FixtureVal ID="24">0,255,1,0,2,0</FixtureVal>
+   <FixtureVal ID="25">0,255,1,0,2,0</FixtureVal>
+   <FixtureVal ID="26">0,255,1,0,2,0</FixtureVal>
+   <FixtureVal ID="27">0,255,1,0,2,0</FixtureVal>
+   <FixtureVal ID="28">0,255,1,0,2,0</FixtureVal>
+   <FixtureVal ID="29">0,255,1,0,2,0</FixtureVal>
+   <FixtureVal ID="30">0,255,1,0,2,0</FixtureVal>
+   <FixtureVal ID="31">0,255,1,0,2,0</FixtureVal>
+   <FixtureVal ID="40">0,255,1,0,2,0,3,255,4,0,5,0,6,255,7,0,8,0</FixtureVal>
+   <FixtureVal ID="41">0,255,1,0,2,0,3,255,4,0,5,0,6,255,7,0,8,0,9,255,10,0,11,0,12,255,13,0,14,0,15,255,16,0,17,0,18,255,19,0,20,0,21,255,22,0,23,0,24,255,25,0,26,0,27,255,28,0,29,0,30,255,31,0,32,0,33,255,34,0,35,0,36,255,37,0,38,0,39,255,40,0,41,0,42,255,43,0,44,0,45,255,46,0,47,0,48,255,49,0,50,0,51,255,52,0,53,0,54,255,55,0,56,0,57,255,58,0,59,0,60,255,61,0,62,0,63,255,64,0,65,0,66,255,67,0,68,0,69,255,70,0,71,0,72,255,73,0,74,0,75,255,76,0,77,0,78,255,79,0,80,0,81,255,82,0,83,0,84,255,85,0,86,0,87,255,88,0,89,0,90,255,91,0,92,0,93,255,94,0,95,0,96,255,97,0,98,0,99,255,100,0,101,0,102,255,103,0,104,0,105,255,106,0,107,0,108,255,109,0,110,0,111,255,112,0,113,0,114,255,115,0,116,0,117,255,118,0,119,0,120,255,121,0,122,0,123,255,124,0,125,0,126,255,127,0,128,0,129,255,130,0,131,0,132,255,133,0,134,0,135,255,136,0,137,0,138,255,139,0,140,0,141,255,142,0,143,0,144,255,145,0,146,0,147,255,148,0,149,0,150,255,151,0,152,0,153,255,154,0,155,0,156,255,157,0,158,0,159,255,160,0,161,0,162,255,163,0,164,0,165,255,166,0,167,0,168,255,169,0,170,0,171,255,172,0,173,0,174,255,175,0,176,0,177,255,178,0,179,0,180,255,181,0,182,0,183,255,184,0,185,0,186,255,187,0,188,0,189,255,190,0,191,0,192,255,193,0,194,0,195,255,196,0,197,0,198,255,199,0,200,0,201,255,202,0,203,0,204,255,205,0,206,0,207,255,208,0,209,0</FixtureVal>
+  </Function>
+  <Function ID="5" Type="Scene" Name="State — Warning">
+   <Speed FadeIn="0" FadeOut="0" Duration="0"/>
+   <FixtureVal ID="40">0,255,1,176,2,0,3,255,4,176,5,0,6,255,7,176,8,0</FixtureVal>
+  </Function>
+  <Function ID="6" Type="Scene" Name="State — Working">
+   <Speed FadeIn="0" FadeOut="0" Duration="0"/>
+   <FixtureVal ID="40">0,255,1,255,2,255,3,255,4,255,5,255,6,255,7,255,8,255</FixtureVal>
+  </Function>
+  <Function ID="7" Type="Scene" Name="State — Controller Fault">
+   <Speed FadeIn="0" FadeOut="0" Duration="0"/>
+   <FixtureVal ID="0">0,255,1,0,2,255</FixtureVal>
+   <FixtureVal ID="1">0,255,1,0,2,255</FixtureVal>
+   <FixtureVal ID="2">0,255,1,0,2,255</FixtureVal>
+   <FixtureVal ID="3">0,255,1,0,2,255</FixtureVal>
+   <FixtureVal ID="4">0,255,1,0,2,255</FixtureVal>
+   <FixtureVal ID="5">0,255,1,0,2,255</FixtureVal>
+   <FixtureVal ID="6">0,255,1,0,2,255</FixtureVal>
+   <FixtureVal ID="7">0,255,1,0,2,255</FixtureVal>
+   <FixtureVal ID="8">0,255,1,0,2,255</FixtureVal>
+   <FixtureVal ID="9">0,255,1,0,2,255</FixtureVal>
+   <FixtureVal ID="10">0,255,1,0,2,255</FixtureVal>
+   <FixtureVal ID="11">0,255,1,0,2,255</FixtureVal>
+   <FixtureVal ID="12">0,255,1,0,2,255</FixtureVal>
+   <FixtureVal ID="13">0,255,1,0,2,255</FixtureVal>
+   <FixtureVal ID="14">0,255,1,0,2,255</FixtureVal>
+   <FixtureVal ID="15">0,255,1,0,2,255</FixtureVal>
+   <FixtureVal ID="16">0,255,1,0,2,255</FixtureVal>
+   <FixtureVal ID="17">0,255,1,0,2,255</FixtureVal>
+   <FixtureVal ID="18">0,255,1,0,2,255</FixtureVal>
+   <FixtureVal ID="19">0,255,1,0,2,255</FixtureVal>
+   <FixtureVal ID="20">0,255,1,0,2,255</FixtureVal>
+   <FixtureVal ID="21">0,255,1,0,2,255</FixtureVal>
+   <FixtureVal ID="22">0,255,1,0,2,255</FixtureVal>
+   <FixtureVal ID="23">0,255,1,0,2,255</FixtureVal>
+   <FixtureVal ID="24">0,255,1,0,2,255</FixtureVal>
+   <FixtureVal ID="25">0,255,1,0,2,255</FixtureVal>
+   <FixtureVal ID="26">0,255,1,0,2,255</FixtureVal>
+   <FixtureVal ID="27">0,255,1,0,2,255</FixtureVal>
+   <FixtureVal ID="28">0,255,1,0,2,255</FixtureVal>
+   <FixtureVal ID="29">0,255,1,0,2,255</FixtureVal>
+   <FixtureVal ID="30">0,255,1,0,2,255</FixtureVal>
+   <FixtureVal ID="31">0,255,1,0,2,255</FixtureVal>
+   <FixtureVal ID="40">0,255,1,0,2,255,3,255,4,0,5,255,6,255,7,0,8,255</FixtureVal>
+   <FixtureVal ID="41">0,255,1,0,2,255,3,255,4,0,5,255,6,255,7,0,8,255,9,255,10,0,11,255,12,255,13,0,14,255,15,255,16,0,17,255,18,255,19,0,20,255,21,255,22,0,23,255,24,255,25,0,26,255,27,255,28,0,29,255,30,255,31,0,32,255,33,255,34,0,35,255,36,255,37,0,38,255,39,255,40,0,41,255,42,255,43,0,44,255,45,255,46,0,47,255,48,255,49,0,50,255,51,255,52,0,53,255,54,255,55,0,56,255,57,255,58,0,59,255,60,255,61,0,62,255,63,255,64,0,65,255,66,255,67,0,68,255,69,255,70,0,71,255,72,255,73,0,74,255,75,255,76,0,77,255,78,255,79,0,80,255,81,255,82,0,83,255,84,255,85,0,86,255,87,255,88,0,89,255,90,255,91,0,92,255,93,255,94,0,95,255,96,255,97,0,98,255,99,255,100,0,101,255,102,255,103,0,104,255,105,255,106,0,107,255,108,255,109,0,110,255,111,255,112,0,113,255,114,255,115,0,116,255,117,255,118,0,119,255,120,255,121,0,122,255,123,255,124,0,125,255,126,255,127,0,128,255,129,255,130,0,131,255,132,255,133,0,134,255,135,255,136,0,137,255,138,255,139,0,140,255,141,255,142,0,143,255,144,255,145,0,146,255,147,255,148,0,149,255,150,255,151,0,152,255,153,255,154,0,155,255,156,255,157,0,158,255,159,255,160,0,161,255,162,255,163,0,164,255,165,255,166,0,167,255,168,255,169,0,170,255,171,255,172,0,173,255,174,255,175,0,176,255,177,255,178,0,179,255,180,255,181,0,182,255,183,255,184,0,185,255,186,255,187,0,188,255,189,255,190,0,191,255,192,255,193,0,194,255,195,255,196,0,197,255,198,255,199,0,200,255,201,255,202,0,203,255,204,255,205,0,206,255,207,255,208,0,209,255</FixtureVal>
+  </Function>
+
+ </Engine>
+</Workspace>

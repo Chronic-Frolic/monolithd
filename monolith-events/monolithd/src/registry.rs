@@ -147,7 +147,7 @@ impl Registry {
         self.zones.get(zone).map(|geometry| geometry.regions.iter().map(|r| r.channels / 3).sum())
     }
 
-    fn zone_of(&self, universe: u32, address: u32) -> Option<&str> {
+    pub(crate) fn zone_of(&self, universe: u32, address: u32) -> Option<&str> {
         self.zones.iter().find_map(|(name, geometry)| {
             geometry
                 .regions
