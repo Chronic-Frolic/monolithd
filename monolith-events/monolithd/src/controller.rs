@@ -147,11 +147,13 @@ impl Want {
 #[derive(Debug, Clone, PartialEq)]
 enum Action {
     Stop(String),
-    /// Preempt whatever owns the function's zone(s) at once: used only for the
-    /// fault/warning/quiet layer, which is never a member of an ambient set and so
-    /// cannot wait for a phase-aligned rejoin.
-    Replace(String),
-    StartSet(Vec<String>),
+    /// Take over several zones together in one gateway call, whatever currently owns
+    /// them: used for the fault/warning/quiet layer (never an ambient-set member, so it
+    /// cannot wait for a phase-aligned rejoin) and for bringing a whole ambient set up
+    /// from nothing running (no existing phase to align to, so individually rejoining
+    /// each zone would stagger the bring-up by a full cycle per zone — found live
+    /// 2026-09-22, both directions: raising a multi-zone fault/quiet and clearing one).
+    PreemptSet(Vec<String>),
     Rejoin(String),
     Progress { zone: String, step: u32 },
 }
@@ -160,8 +162,7 @@ impl Action {
     fn request(&self) -> Value {
         match self {
             Self::Stop(function) => json!({ "op": "stop", "function": function }),
-            Self::Replace(function) => json!({ "op": "replace", "function": function }),
-            Self::StartSet(functions) => json!({ "op": "start_set", "functions": functions }),
+            Self::PreemptSet(functions) => json!({ "op": "preempt_set", "functions": functions }),
             Self::Rejoin(function) => json!({ "op": "rejoin", "function": function }),
             Self::Progress { zone, step } => json!({ "op": "progress", "zone": zone, "completed": step }),
         }
@@ -170,8 +171,7 @@ impl Action {
     fn describe(&self) -> String {
         match self {
             Self::Stop(function) => format!("stop {function}"),
-            Self::Replace(function) => format!("replace with {function}"),
-            Self::StartSet(functions) => format!("start set [{}]", functions.join(", ")),
+            Self::PreemptSet(functions) => format!("preempt set [{}]", functions.join(", ")),
             Self::Rejoin(function) => format!("rejoin {function}"),
             Self::Progress { zone, step } => format!("progress {zone} {step}"),
         }
@@ -259,28 +259,47 @@ fn plan(view: &GatewayView, wants: &BTreeMap<String, Want>, state: &BTreeMap<Str
     }
 
     // The preemption layer always goes first: it must never wait behind an ambient batch.
-    // A non-composable current owner (only the retired boot_proof, in practice) must be
-    // stopped explicitly first, exactly like the base loop's stop_foreign: a fault must
-    // never fail silently and be retried forever because the gateway refused a bare replace.
+    // One preempt_set call takes over every zone it claims at once, whatever currently
+    // owns them (composable or not) — a fault can never fail silently and retry forever
+    // because a lone replace was refused, and several zones changing together (a
+    // multi-zone fault, or clearing one) land in one QLC+ write instead of staggering.
     let mut actions: Vec<Action> = Vec::new();
-    for (zone, function) in state {
-        let owner = view.zones[zone].owner.as_deref();
-        if owner == Some(function.as_str()) {
-            continue;
-        }
-        if let Some(owner) = owner {
-            if !registry.function(owner).is_some_and(|entry| entry.composable) {
-                actions.push(Action::Stop(owner.to_owned()));
-            }
-        }
-        actions.push(Action::Replace(function.clone()));
+    // No dedup needed here: each zone's fault/warning/quiet asset is that zone's own
+    // suffixed function (fault_ram, fault_eye, ...), never shared across zones, so
+    // `state` can never contribute the same function twice and trip preempt_set's
+    // overlapping_set guard.
+    let preempting: Vec<String> = state
+        .iter()
+        .filter(|(zone, function)| view.zones[zone.as_str()].owner.as_deref() != Some(function.as_str()))
+        .map(|(_, function)| function.clone())
+        .collect();
+    if !preempting.is_empty() {
+        actions.push(Action::PreemptSet(preempting));
     }
+
+    // Whether any zone already correctly shows its ambient want: a real, pre-existing
+    // phase reference for an individual rejoin to align to. Computed once, up front, not
+    // accumulated zone-by-zone inside the loop below: deciding a zone's routing before
+    // every zone has been looked at would let an early zone (in BTreeMap order) be routed
+    // as though the whole set were down even when a later zone is already running it.
+    let ambient_running = wants.iter().any(|(zone, want)| {
+        matches!(want, Want::Ambient { .. }) && !state.contains_key(zone) && view.zones[zone].owner.as_deref() == Some(want.owner_name().as_str())
+    });
 
     let mut stops: Vec<String> = Vec::new();
     let mut free_for_ambient: Vec<String> = Vec::new();
     let mut rejoins: Vec<String> = Vec::new();
     let mut progress: Vec<Action> = Vec::new();
-    let mut ambient_running = false;
+
+    // A non-composable owner (the bench scene, say) has to be stopped explicitly before
+    // an individual replace/rejoin can take over its zone. A fresh, whole-set bring-up
+    // needs no such call here: preempt_set below stops any current owner itself,
+    // composable or not.
+    let stop_foreign = |name: &str, stops: &mut Vec<String>| {
+        if !registry.function(name).is_some_and(|entry| entry.composable) && !stops.iter().any(|known| known == name) {
+            stops.push(name.to_owned());
+        }
+    };
 
     for (zone, want) in wants {
         if state.contains_key(zone) {
@@ -288,25 +307,31 @@ fn plan(view: &GatewayView, wants: &BTreeMap<String, Want>, state: &BTreeMap<Str
         }
         let owner = view.zones[zone].owner.as_ref();
         if owner.is_some_and(|name| *name == want.owner_name()) {
-            ambient_running |= matches!(want, Want::Ambient { .. });
             continue;
         }
-        // A non-composable owner (the bench scene, say) has to be stopped before anything replaces it.
-        let stop_foreign = |name: &str, stops: &mut Vec<String>| -> bool {
-            let composable = registry.function(name).is_some_and(|entry| entry.composable);
-            if !composable && !stops.iter().any(|known| known == name) {
-                stops.push(name.to_owned());
-            }
-            !composable
-        };
         match (want, classify(owner, registry)) {
-            (Want::Ambient { function }, Owner::Free) => free_for_ambient.push(function.clone()),
+            (Want::Ambient { function }, Owner::Free) => {
+                if ambient_running {
+                    rejoins.push(function.clone());
+                } else {
+                    free_for_ambient.push(function.clone());
+                }
+            }
             (Want::Ambient { function }, Owner::Ambient | Owner::Progress) => rejoins.push(function.clone()),
             (Want::Ambient { function }, Owner::Foreign(name)) => {
-                if stop_foreign(name, &mut stops) {
-                    free_for_ambient.push(function.clone());
-                } else {
+                if ambient_running {
+                    // A stable phase reference already runs elsewhere in the set: align
+                    // to it individually. replace's own logic stops a composable owner
+                    // as part of the switch; only a non-composable one needs a prior stop.
+                    stop_foreign(name, &mut stops);
                     rejoins.push(function.clone());
+                } else {
+                    // Nothing in the set is running: batch this zone into the fresh start
+                    // below (preempt_set), which stops its owner itself, instead of an
+                    // individual rejoin that would align to whatever zone happened to
+                    // start first and stagger the bring-up by a full cycle per zone
+                    // (found live, 2026-09-22, returning from quiet).
+                    free_for_ambient.push(function.clone());
                 }
             }
             (Want::Progress { zone, step, .. }, foreign_or_other) => {
@@ -320,11 +345,7 @@ fn plan(view: &GatewayView, wants: &BTreeMap<String, Want>, state: &BTreeMap<Str
 
     actions.extend(stops.into_iter().map(Action::Stop));
     if !free_for_ambient.is_empty() {
-        if ambient_running {
-            actions.extend(free_for_ambient.into_iter().map(Action::Rejoin));
-        } else {
-            actions.push(Action::StartSet(free_for_ambient));
-        }
+        actions.push(Action::PreemptSet(free_for_ambient));
     }
     actions.extend(rejoins.into_iter().map(Action::Rejoin));
     actions.extend(progress);
@@ -1037,20 +1058,52 @@ mod tests {
         let controller = controller_with(&FakeLink::default());
         let plan = plan_for(&healthy([Some("boot_proof"); 3]), &controller);
         assert_eq!(plan.blocked, None);
-        assert_eq!(plan.actions, vec![Action::Stop("boot_proof".to_owned()), Action::StartSet(vec!["ambient_ram".to_owned(), "ambient_eye".to_owned(), "ambient_strip".to_owned()])]);
+        // boot_proof, non-composable, is stopped as part of the same preempt_set call
+        // that starts the whole set — no separate Stop action is needed up front.
+        assert_eq!(plan.actions, vec![Action::PreemptSet(vec!["ambient_ram".to_owned(), "ambient_eye".to_owned(), "ambient_strip".to_owned()])]);
     }
 
     #[test]
     fn a_dark_machine_gets_the_set_in_one_batch() {
         let controller = controller_with(&FakeLink::default());
         let plan = plan_for(&healthy([None; 3]), &controller);
-        assert_eq!(plan.actions, vec![Action::StartSet(vec!["ambient_ram".to_owned(), "ambient_eye".to_owned(), "ambient_strip".to_owned()])]);
+        assert_eq!(plan.actions, vec![Action::PreemptSet(vec!["ambient_ram".to_owned(), "ambient_eye".to_owned(), "ambient_strip".to_owned()])]);
     }
 
     #[test]
     fn nothing_to_do_when_the_plant_already_matches() {
         let controller = controller_with(&FakeLink::default());
         assert_eq!(plan_for(&healthy(AMBIENT), &controller).actions, vec![]);
+    }
+
+    #[test]
+    fn multiple_zones_returning_to_a_fully_stopped_set_start_together() {
+        // Reproduces the bug found live 2026-09-22: resuming from quiet, all three zones
+        // were owned by composable-but-foreign functions with nothing in the set running.
+        let controller = controller_with(&FakeLink::default());
+        let plan = plan_for(&healthy([Some("quiet_ram"), Some("quiet_eye"), Some("quiet_strip")]), &controller);
+        assert_eq!(
+            plan.actions,
+            vec![Action::PreemptSet(vec!["ambient_ram".to_owned(), "ambient_eye".to_owned(), "ambient_strip".to_owned()])],
+            "the whole set must come up together in one call, not three staggered stops plus a start"
+        );
+    }
+
+    #[test]
+    fn a_mix_of_free_and_foreign_owned_zones_still_batches_into_one_preempt_set() {
+        let controller = controller_with(&FakeLink::default());
+        let plan = plan_for(&healthy([None, Some("quiet_eye"), Some("fault_strip")]), &controller);
+        assert_eq!(plan.actions, vec![Action::PreemptSet(vec!["ambient_ram".to_owned(), "ambient_eye".to_owned(), "ambient_strip".to_owned()])]);
+    }
+
+    #[test]
+    fn a_single_zone_returning_while_its_set_still_has_a_running_member_uses_an_aligned_rejoin() {
+        // eye and strip are already running ambient; only ram needs to come back (say, a
+        // cleared fault). This must stay an individual, phase-aligned rejoin — batching
+        // would needlessly restart eye and strip, which were never disturbed.
+        let controller = controller_with(&FakeLink::default());
+        let plan = plan_for(&healthy([Some("fault_ram"), Some("ambient_eye"), Some("ambient_strip")]), &controller);
+        assert_eq!(plan.actions, vec![Action::Rejoin("ambient_ram".to_owned())]);
     }
 
     #[test]
@@ -1088,9 +1141,12 @@ mod tests {
         let mut controller = controller_with(&FakeLink::default());
         controller.handle(ControllerRequest::JobStart { id: "a".into(), label: "x".into(), total: 4, priority: 0 }, Instant::now());
         let plan = plan_for(&healthy([Some("boot_proof"); 3]), &controller);
+        // ram's progress transition needs boot_proof (non-composable) stopped explicitly
+        // first; that incidentally frees eye and strip too, but they still go through
+        // their own preempt_set call, same as any other fresh whole-zone bring-up.
         assert_eq!(
             plan.actions,
-            vec![Action::Stop("boot_proof".to_owned()), Action::StartSet(vec!["ambient_eye".to_owned(), "ambient_strip".to_owned()]), Action::Progress { zone: "ram".to_owned(), step: 0 }]
+            vec![Action::Stop("boot_proof".to_owned()), Action::PreemptSet(vec!["ambient_eye".to_owned(), "ambient_strip".to_owned()]), Action::Progress { zone: "ram".to_owned(), step: 0 }]
         );
     }
 
@@ -1130,10 +1186,7 @@ mod tests {
         *link.status.lock().unwrap() = healthy([Some("boot_proof"); 3]);
         let mut controller = controller_with(&link);
         controller.reconcile(Instant::now()).await;
-        assert_eq!(
-            ops(&link),
-            vec![r#"{"function":"boot_proof","op":"stop"}"#, r#"{"functions":["ambient_ram","ambient_eye","ambient_strip"],"op":"start_set"}"#]
-        );
+        assert_eq!(ops(&link), vec![r#"{"functions":["ambient_ram","ambient_eye","ambient_strip"],"op":"preempt_set"}"#]);
     }
 
     #[tokio::test]
@@ -1173,7 +1226,7 @@ mod tests {
         controller.reconcile(Instant::now()).await;
         assert_eq!(
             ops(&link),
-            vec![r#"{"functions":["ambient_eye","ambient_strip"],"op":"start_set"}"#, r#"{"completed":16,"op":"progress","zone":"ram"}"#]
+            vec![r#"{"functions":["ambient_eye","ambient_strip"],"op":"preempt_set"}"#, r#"{"completed":16,"op":"progress","zone":"ram"}"#]
         );
     }
 
@@ -1192,16 +1245,20 @@ mod tests {
 
     #[tokio::test]
     async fn a_refused_action_stops_the_batch_and_is_retried_next_time() {
+        // A job is leasing ram, so the boot-scene plan still has three actions:
+        // Stop(boot_proof), PreemptSet([eye, strip]), Progress{ram}. Refusing the
+        // first must stop the planner from attempting the other two this pass.
         let link = FakeLink::default();
         *link.status.lock().unwrap() = healthy([Some("boot_proof"); 3]);
         *link.refuse.lock().unwrap() = Some("stop".to_owned());
         let mut controller = controller_with(&link);
+        controller.handle(ControllerRequest::JobStart { id: "a".into(), label: "x".into(), total: 4, priority: 0 }, Instant::now());
         controller.reconcile(Instant::now()).await;
-        assert_eq!(ops(&link).len(), 1, "the start_set must not be attempted after a refused stop");
+        assert_eq!(ops(&link).len(), 1, "the preempt_set and progress must not be attempted after a refused stop");
         assert!(controller.report.recent.back().unwrap().contains("refused"));
         *link.refuse.lock().unwrap() = None;
         controller.reconcile(Instant::now()).await;
-        assert_eq!(ops(&link).len(), 3, "the retry sends the stop and the start_set");
+        assert_eq!(ops(&link).len(), 4, "the refused attempt plus the retry's stop, preempt_set, and progress");
     }
 
     #[tokio::test]
@@ -1444,7 +1501,7 @@ mod tests {
         *link.status.lock().unwrap() = healthy([Some("progress_ram:16"), Some("ambient_eye"), Some("ambient_strip")]);
         controller.handle(fault_raise("psu", "fault", Some(&["ram"]), "PSU over temperature"), start);
         controller.reconcile(start).await;
-        assert_eq!(ops(&link).last().unwrap(), r#"{"function":"fault_ram","op":"replace"}"#, "replace, not a rejoin: fault_ram is not an ambient-set member");
+        assert_eq!(ops(&link).last().unwrap(), r#"{"functions":["fault_ram"],"op":"preempt_set"}"#, "preempted, not a rejoin: fault_ram is not an ambient-set member");
         assert!(!controller.planner.jobs().is_empty(), "the lease is untouched; only the display was preempted");
 
         // Clear it: the zone must go straight back to the progress bar, unharmed.
@@ -1461,18 +1518,22 @@ mod tests {
         let mut controller = controller_with(&link);
         controller.handle(ControllerRequest::QuietSet { reason: "recording".into() }, Instant::now());
         controller.reconcile(Instant::now()).await;
-        let mut sent = ops(&link);
-        sent.sort();
-        assert_eq!(sent, vec![r#"{"function":"quiet_eye","op":"replace"}"#, r#"{"function":"quiet_ram","op":"replace"}"#, r#"{"function":"quiet_strip","op":"replace"}"#]);
+        // All three zones go dark together in one preempt_set call, not three
+        // individually confirmed replaces (found live 2026-09-22: those showed a
+        // visible zone-to-zone gap, the same staggering bug as the resume direction).
+        let sent = ops(&link);
+        assert_eq!(sent, vec![r#"{"functions":["quiet_ram","quiet_eye","quiet_strip"],"op":"preempt_set"}"#]);
 
         let after_first_reconcile = ops(&link).len();
         *link.status.lock().unwrap() = healthy([Some("quiet_ram"), Some("quiet_eye"), Some("quiet_strip")]);
         controller.handle(ControllerRequest::QuietClear, Instant::now());
         controller.reconcile(Instant::now()).await;
-        // Back to ambient: every zone was a Foreign, composable owner, so this is a phase-aligned rejoin, not a raw replace.
-        let mut sent = ops(&link)[after_first_reconcile..].to_vec();
-        sent.sort();
-        assert_eq!(sent, vec![r#"{"function":"ambient_eye","op":"rejoin"}"#, r#"{"function":"ambient_ram","op":"rejoin"}"#, r#"{"function":"ambient_strip","op":"rejoin"}"#]);
+        // Back to ambient: nothing in the set was running, so the whole set is stopped
+        // and started together in one preempt_set call (not three individually
+        // phase-aligned rejoins, which would each align to the last and stagger the
+        // bring-up by a full cycle per zone).
+        let sent = ops(&link)[after_first_reconcile..].to_vec();
+        assert_eq!(sent, vec![r#"{"functions":["ambient_ram","ambient_eye","ambient_strip"],"op":"preempt_set"}"#]);
     }
 
     #[tokio::test]
