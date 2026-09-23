@@ -66,6 +66,7 @@ pub struct AmbientSet {
 #[derive(Debug, Default)]
 pub struct Workspace {
     pub fixtures: BTreeMap<u32, Fixture>,
+    pub fixture_groups: BTreeMap<u32, BTreeSet<u32>>,
     pub functions: BTreeMap<u32, Function>,
 }
 
@@ -86,6 +87,8 @@ pub struct Function {
     pub steps: Vec<u32>,
     /// The Function's `Speed Duration` attribute, in milliseconds.
     pub duration_ms: Option<u32>,
+    /// Fixture group driven by an RGB Matrix.
+    pub fixture_group: Option<u32>,
 }
 
 pub fn load(path: &Path) -> Result<Registry, String> {
@@ -190,6 +193,25 @@ impl Registry {
                     zones.extend(self.resolved_zones(workspace, *child, visiting)?);
                 }
                 visiting.pop();
+            }
+            "RGBMatrix" => {
+                let group_id = function.fixture_group.ok_or_else(|| format!("function {id} has no fixture group"))?;
+                let fixture_ids = workspace.fixture_groups.get(&group_id)
+                    .ok_or_else(|| format!("function {id} references unknown fixture group {group_id}"))?;
+                if fixture_ids.is_empty() {
+                    return Err(format!("function {id} references empty fixture group {group_id}"));
+                }
+                for fixture_id in fixture_ids {
+                    let fixture = workspace.fixtures.get(fixture_id)
+                        .ok_or_else(|| format!("function {id} fixture group {group_id} references unknown fixture {fixture_id}"))?;
+                    for channel in 0..fixture.channels {
+                        let address = fixture.address + channel;
+                        let zone = self.zone_of(fixture.universe, address).ok_or_else(|| {
+                            format!("function {id} fixture group {group_id} includes universe {} address {address} outside registered zones", fixture.universe)
+                        })?;
+                        zones.insert(zone.to_owned());
+                    }
+                }
             }
             other => return Err(format!("function {id} has unsupported type {other}")),
         }
@@ -380,6 +402,7 @@ struct Reading {
     steps: Vec<(u32, u32)>,
     step_number: Option<u32>,
     writing_fixture: Option<u32>,
+    fixture_group: Option<(u32, BTreeSet<u32>)>,
 }
 
 fn attribute(element: &BytesStart, key: &str) -> Result<Option<String>, String> {
@@ -415,6 +438,14 @@ impl Reading {
             self.steps.clear();
         } else if at(path, &["Workspace", "Engine"]) && name == "Fixture" {
             self.fixture = PendingFixture::default();
+        } else if at(path, &["Workspace", "Engine"]) && name == "FixtureGroup" {
+            let id = number(&attribute(element, "ID")?.ok_or("FixtureGroup without ID")?, "FixtureGroup ID")?;
+            self.fixture_group = Some((id, BTreeSet::new()));
+        } else if at(path, &["Workspace", "Engine", "FixtureGroup"]) && name == "Head" {
+            let fixture_id = number(&attribute(element, "Fixture")?.ok_or("Head without Fixture")?, "Head Fixture")?;
+            if let Some((_, fixtures)) = self.fixture_group.as_mut() {
+                fixtures.insert(fixture_id);
+            }
         } else if at(path, &["Workspace", "Engine", "Function"]) && name == "FixtureVal" {
             self.writing_fixture = Some(number(&attribute(element, "ID")?.ok_or("FixtureVal without ID")?, "FixtureVal ID")?);
         } else if at(path, &["Workspace", "Engine", "Function"]) && name == "Step" {
@@ -451,6 +482,10 @@ impl Reading {
             let child = number(text, "Step function ID")?;
             let position = self.step_number.unwrap_or(self.steps.len() as u32);
             self.steps.push((position, child));
+        } else if at(path, &["Workspace", "Engine", "Function", "FixtureGroup"]) {
+            if let Some((_, function)) = self.function.as_mut() {
+                function.fixture_group = Some(number(text, "Function FixtureGroup")?);
+            }
         }
         Ok(())
     }
@@ -471,6 +506,12 @@ impl Reading {
                 function.steps = self.steps.drain(..).map(|(_, child)| child).collect();
                 if self.workspace.functions.insert(id, function).is_some() {
                     return Err(format!("duplicate function ID {id}"));
+                }
+            }
+        } else if at(path, &["Workspace", "Engine", "FixtureGroup"]) {
+            if let Some((id, fixtures)) = self.fixture_group.take() {
+                if self.workspace.fixture_groups.insert(id, fixtures).is_some() {
+                    return Err(format!("duplicate fixture group ID {id}"));
                 }
             }
         } else if at(path, &["Workspace", "Engine", "Function", "FixtureVal"]) {

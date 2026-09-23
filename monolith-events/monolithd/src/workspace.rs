@@ -2,22 +2,23 @@
 //! owner authors directly in QLC+'s own GUI -- one cohesive Function per state, every
 //! zone together, exactly the way the owner wants to author it. This module never
 //! decides a color or a timing value: everything in its output is the owner's own
-//! FixtureVal/Speed data from the intake file, filtered by zone. See "Named-function
+//! FixtureVal/Speed data from the intake file, filtered by zone. RGB Matrices are
+//! copied as independent per-zone assets with their authored parameters. See "Named-function
 //! intake contract" in the handoff note for why (QLC+'s API can only start/stop a
 //! Function that already exists by ID in the loaded workspace -- it cannot create or
 //! partially start one -- so independent per-zone control requires the per-zone
 //! pieces to physically exist before the stack boots, and *something* has to produce
 //! them from the owner's one combined Function).
 //!
-//! The owner-facing contract: an intake file may contain exactly the Functions named
-//! in `CONTRACT` below, each written however the owner likes in QLC+'s GUI (color,
-//! per-pixel art, chaser timing), but never renamed and never made to write fixtures
-//! outside the zones that contract entry is allowed to touch. Everything else in the
-//! intake file (reference scenes, works in progress, anything not in `CONTRACT`) is
-//! ignored.
+//! The owner-facing contract: the Functions named in `CONTRACT` below are the
+//! required whole-machine state and ambient inputs. They may be edited in QLC+'s
+//! GUI, but not renamed or made to write outside their registered zones. Any
+//! additional RGB Matrix is imported as an independent named asset when its fixture
+//! group exactly matches production and belongs to one zone. Other extra Functions
+//! (reference Scenes, works in progress, etc.) are ignored.
 
 use crate::registry::{self, Registry};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
 /// One contract entry: an owner-authored whole-machine Function name in the intake
@@ -92,6 +93,157 @@ fn function_kind(block: &str) -> Result<String, String> {
     let at = block.find(marker).ok_or("Function block has no Type attribute")? + marker.len();
     let end = block[at..].find('"').ok_or("malformed Type attribute")? + at;
     Ok(block[at..end].to_owned())
+}
+
+const MATRIX_BEGIN: &str = "# BEGIN MONOLITHD RGB MATRIX ASSETS";
+const MATRIX_END: &str = "# END MONOLITHD RGB MATRIX ASSETS";
+
+#[derive(serde::Deserialize)]
+struct ManagedMatrices {
+    functions: Vec<registry::FunctionEntry>,
+}
+
+fn managed_matrix_section(registry_toml: &str) -> Result<(String, Vec<registry::FunctionEntry>), String> {
+    match (registry_toml.find(MATRIX_BEGIN), registry_toml.find(MATRIX_END)) {
+        (None, None) => Ok((registry_toml.to_owned(), Vec::new())),
+        (Some(start), Some(end)) if start < end => {
+            let after = end + MATRIX_END.len();
+            let section = &registry_toml[start + MATRIX_BEGIN.len()..end];
+            let entries: ManagedMatrices = toml::from_str(section).map_err(|e| format!("parse managed RGB Matrix registry section: {e}"))?;
+            if entries.functions.iter().any(|entry| !entry.kind.eq_ignore_ascii_case("rgbmatrix") || !entry.name.starts_with("matrix:")) {
+                return Err("managed RGB Matrix registry section contains a non-matrix asset".to_owned());
+            }
+            let mut base = registry_toml[..start].to_owned();
+            base.push_str(&registry_toml[after..]);
+            Ok((base.trim_end().to_owned() + "\n", entries.functions))
+        }
+        _ => Err("malformed managed RGB Matrix registry section markers".to_owned()),
+    }
+}
+
+fn fixture_group_block_by_id<'a>(xml: &'a str, id: u32) -> Result<&'a str, String> {
+    let open = format!("<FixtureGroup ID=\"{id}\">");
+    let start = xml.find(&open).ok_or_else(|| format!("fixture group {id} not found"))?;
+    let end = xml[start..].find("</FixtureGroup>").ok_or_else(|| format!("fixture group {id} has no closing tag"))? + start + "</FixtureGroup>".len();
+    Ok(&xml[start..end])
+}
+
+fn matrix_zone(group_id: u32, workspace: &registry::Workspace, registry: &Registry) -> Result<String, String> {
+    let members = workspace.fixture_groups.get(&group_id).ok_or_else(|| format!("RGB Matrix references unknown fixture group {group_id}"))?;
+    if members.is_empty() {
+        return Err(format!("RGB Matrix fixture group {group_id} is empty"));
+    }
+    let mut zones = BTreeSet::new();
+    for fixture_id in members {
+        let fixture = workspace.fixtures.get(fixture_id).ok_or_else(|| format!("RGB Matrix fixture group {group_id} references unknown fixture {fixture_id}"))?;
+        if fixture.channels != 3 {
+            return Err(format!("RGB Matrix fixture group {group_id} contains fixture {fixture_id} with {} channels; expected one RGB LED per fixture", fixture.channels));
+        }
+        for channel in 0..fixture.channels {
+            let zone = registry.zone_of(fixture.universe, fixture.address + channel).ok_or_else(|| format!("RGB Matrix fixture {fixture_id} writes outside registered zones"))?;
+            zones.insert(zone.to_owned());
+        }
+    }
+    if zones.len() != 1 {
+        return Err(format!("RGB Matrix fixture group {group_id} spans zones {zones:?}; import one zone per Matrix"));
+    }
+    Ok(zones.into_iter().next().unwrap())
+}
+
+/// Copy each named RGB Matrix from the intake workspace as an independently selectable
+/// asset. Its fixture group must be identical in both workspaces so QLC's spatial
+/// algorithm renders the same pixels. Generated IDs and registry entries remain stable
+/// across repeated selects; removing a Matrix from intake removes its managed asset.
+fn import_matrices(
+    production: String,
+    intake_xml: &str,
+    intake_workspace: &registry::Workspace,
+    registry: &Registry,
+    registry_toml: &str,
+) -> Result<(String, String, Vec<String>), String> {
+    let (base, old_managed) = managed_matrix_section(registry_toml)?;
+    let production_workspace = registry::parse_workspace(&production)?;
+    let mut old_by_name = BTreeMap::new();
+    let mut result = production;
+    for entry in old_managed {
+        if registry.function(&entry.name).map(|current| current.id) != Some(entry.id) {
+            return Err(format!("managed RGB Matrix {} no longer matches the live registry", entry.name));
+        }
+        let old_block = function_block_by_id(&result, entry.id)?.to_owned();
+        if !function_kind(&old_block)?.eq_ignore_ascii_case("RGBMatrix") {
+            return Err(format!("managed asset {} is no longer an RGB Matrix", entry.name));
+        }
+        let line = format!("  {old_block}\n");
+        if !result.contains(&line) {
+            return Err(format!("managed RGB Matrix {} has unexpected XML layout", entry.name));
+        }
+        result = result.replacen(&line, "", 1);
+        old_by_name.insert(entry.name, entry.id);
+    }
+
+    let mut used_ids: BTreeSet<u32> = production_workspace.functions.keys().copied().collect();
+    let mut entries = Vec::new();
+    let mut labels = Vec::new();
+    let mut names = BTreeSet::new();
+    for (&intake_id, function) in &intake_workspace.functions {
+        if !function.kind.eq_ignore_ascii_case("RGBMatrix") {
+            continue;
+        }
+        if function.name.trim().is_empty() {
+            return Err(format!("RGB Matrix Function {intake_id} has no name"));
+        }
+        let name = format!("matrix:{}", function.name);
+        if !names.insert(name.clone()) {
+            return Err(format!("duplicate RGB Matrix name {:?} in intake", function.name));
+        }
+        if registry.function(&name).is_some() && !old_by_name.contains_key(&name) {
+            return Err(format!("RGB Matrix asset {name:?} conflicts with an existing registered Function"));
+        }
+        let group_id = function.fixture_group.ok_or_else(|| format!("RGB Matrix {:?} has no fixture group", function.name))?;
+        let intake_group = fixture_group_block_by_id(intake_xml, group_id)?;
+        let production_group = fixture_group_block_by_id(&result, group_id)?;
+        if intake_group != production_group {
+            return Err(format!("RGB Matrix {:?}: fixture group {group_id} differs from production; preserve its pixel layout", function.name));
+        }
+        let zone = matrix_zone(group_id, intake_workspace, registry)?;
+        let id = if let Some(&old_id) = old_by_name.get(&name) {
+            old_id
+        } else {
+            let next = used_ids.iter().next_back().copied().unwrap_or(0).checked_add(1).ok_or("no free Function ID for RGB Matrix")?;
+            next
+        };
+        if !used_ids.insert(id) && !old_by_name.values().any(|old_id| *old_id == id) {
+            return Err(format!("RGB Matrix {name:?} Function ID {id} collides with production"));
+        }
+        let source = function_block_by_id(intake_xml, intake_id)?;
+        let old_open = format!("<Function ID=\"{intake_id}\"");
+        let new_open = format!("<Function ID=\"{id}\"");
+        let imported = source.replacen(&old_open, &new_open, 1);
+        let engine_end = result.rfind(" </Engine>").ok_or("production workspace has no Engine closing tag")?;
+        result.insert_str(engine_end, &format!("  {imported}\n"));
+        labels.push(format!("  {} -> Function {id} ({zone})", function.name));
+        entries.push((name, id, zone));
+    }
+
+    let mut registry_out = base.trim_end().to_owned();
+    registry_out.push('\n');
+    if !entries.is_empty() {
+        registry_out.push_str("\n");
+        registry_out.push_str(MATRIX_BEGIN);
+        registry_out.push('\n');
+        for (name, id, zone) in entries {
+            registry_out.push_str("[[functions]]\n");
+            registry_out.push_str(&format!("name = {}\n", toml::Value::String(name).to_string()));
+            registry_out.push_str("kind = \"rgbmatrix\"\n");
+            registry_out.push_str(&format!("id = {id}\n"));
+            registry_out.push_str("children = []\n");
+            registry_out.push_str(&format!("zones = [{}]\n", toml::Value::String(zone).to_string()));
+            registry_out.push_str("composable = true\n\n");
+        }
+        registry_out.push_str(MATRIX_END);
+        registry_out.push('\n');
+    }
+    Ok((result, registry_out, labels))
 }
 
 fn chaser_steps(block: &str) -> Vec<u32> {
@@ -388,6 +540,7 @@ pub fn run(arguments: Vec<String>) -> Result<(), String> {
     let name = remaining.iter().find(|a| a.as_str() != "--check").ok_or(usage)?;
 
     let registry_path = root.join("qlc-functions.toml");
+    let registry_original = std::fs::read_to_string(&registry_path).map_err(|error| format!("read {}: {error}", registry_path.display()))?;
     let registry = registry::load(&registry_path)?;
     let production_path = registry.workspace_path(&registry_path);
 
@@ -413,7 +566,18 @@ pub fn run(arguments: Vec<String>) -> Result<(), String> {
         touched.push(format!("  {} -> Functions {}-{} <- {empty_name:?} / {full_name:?}", context, progress.first_id, progress.first_id + progress.total));
     }
 
-    if production == original {
+    let (candidate, registry_candidate, matrices) = import_matrices(production, &intake_xml, &intake_workspace, &registry, &registry_original)?;
+    production = candidate;
+    touched.extend(matrices);
+    let mut candidate_registry: Registry = toml::from_str(&registry_candidate).map_err(|error| format!("candidate registry TOML: {error}"))?;
+    let candidate_workspace = registry::parse_workspace(&production)?;
+    candidate_registry.attach_periods(&candidate_workspace);
+    let problems = candidate_registry.validate(&candidate_workspace);
+    if !problems.is_empty() {
+        return Err(format!("candidate workspace/registry failed validation:\n{}", problems.join("\n")));
+    }
+
+    if production == original && registry_candidate == registry_original {
         println!("no change: the production workspace already matches {name:?}");
         return Ok(());
     }
@@ -434,8 +598,21 @@ pub fn run(arguments: Vec<String>) -> Result<(), String> {
     std::fs::write(&backup_path, &original).map_err(|error| format!("write backup {}: {error}", backup_path.display()))?;
     println!("backup: {}", backup_path.display());
 
+    if registry_candidate != registry_original {
+        let registry_backup = backup_dir.join(format!("qlc-functions.toml.{stamp}.before-workspace-select-{name}"));
+        std::fs::write(&registry_backup, &registry_original).map_err(|error| format!("write backup {}: {error}", registry_backup.display()))?;
+        println!("backup: {}", registry_backup.display());
+    }
+
     std::fs::write(&production_path, &production).map_err(|error| format!("write {}: {error}", production_path.display()))?;
     println!("wrote {}", production_path.display());
+    if registry_candidate != registry_original {
+        if let Err(error) = std::fs::write(&registry_path, &registry_candidate) {
+            std::fs::write(&production_path, &original).map_err(|rollback| format!("write registry failed: {error}; production rollback failed: {rollback}"))?;
+            return Err(format!("write {}: {error}; production workspace restored", registry_path.display()));
+        }
+        println!("wrote {}", registry_path.display());
+    }
     println!("next: `monolithd validate-registry`, then restart monolith-lighting-stack.service for QLC+ to reload it.");
     Ok(())
 }
@@ -484,7 +661,7 @@ mod tests {
         let mut fixtures = std::collections::BTreeMap::new();
         fixtures.insert(0, registry::Fixture { universe: 0, address: 0, channels: 3 });
         fixtures.insert(1, registry::Fixture { universe: 0, address: 3, channels: 3 });
-        let workspace = registry::Workspace { fixtures, functions: Default::default() };
+        let workspace = registry::Workspace { fixtures, fixture_groups: Default::default(), functions: Default::default() };
 
         (intake, registry, workspace)
     }
@@ -611,5 +788,77 @@ mod tests {
     fn progress_keyframe_names_uses_the_registrys_zone_labels() {
         assert_eq!(progress_keyframe_names("ram"), ("Progress RAM — Empty".to_owned(), "Progress RAM — Full".to_owned()));
         assert_eq!(progress_keyframe_names("strip"), ("Progress Strip — Empty".to_owned(), "Progress Strip — Full".to_owned()));
+    }
+
+    #[test]
+    fn imports_rgb_matrix_as_stable_registered_zone_asset() {
+        let header = concat!(
+            "<Workspace><Engine>\n",
+            "  <Fixture><ID>43</ID><Universe>4</Universe><Address>15</Address><Channels>3</Channels></Fixture>\n",
+            "  <FixtureGroup ID=\"37\"><Name>Strip</Name><Size X=\"1\" Y=\"1\"/><Head X=\"0\" Y=\"0\" Fixture=\"43\">0</Head></FixtureGroup>\n",
+        );
+        let production = format!(
+            "{header}  <Function ID=\"10\" Type=\"Scene\" Name=\"Existing\"><FixtureVal ID=\"43\">0,1,1,2,2,3</FixtureVal></Function>\n </Engine>\n</Workspace>\n"
+        );
+        let intake = format!(
+            "{header}  <Function ID=\"9\" Type=\"RGBMatrix\" Name=\"Strip Gradient\"><Speed FadeIn=\"0\" FadeOut=\"0\" Duration=\"200\"/><FixtureGroup>37</FixtureGroup><Color Index=\"0\">4294901760</Color></Function>\n </Engine>\n</Workspace>\n"
+        );
+        let registry_text = "version = 1\nworkspace = \"prod.qxw\"\n[zones.strip]\nregions = [{ universe = 4, address = 15, channels = 3 }]\n";
+        let registry: Registry = toml::from_str(registry_text).unwrap();
+        let intake_workspace = registry::parse_workspace(&intake).unwrap();
+        let (result, registry_result, labels) = import_matrices(production.clone(), &intake, &intake_workspace, &registry, registry_text).unwrap();
+        assert_eq!(labels, vec!["  Strip Gradient -> Function 11 (strip)"]);
+        assert!(result.contains("<Function ID=\"11\" Type=\"RGBMatrix\" Name=\"Strip Gradient\">"));
+        assert!(result.contains("<Color Index=\"0\">4294901760</Color>"));
+        assert!(registry_result.contains("name = \"matrix:Strip Gradient\""));
+        let mut parsed: Registry = toml::from_str(&registry_result).unwrap();
+        let result_workspace = registry::parse_workspace(&result).unwrap();
+        parsed.attach_periods(&result_workspace);
+        assert!(parsed.validate(&result_workspace).is_empty());
+        let (again, registry_again, _) = import_matrices(result.clone(), &intake, &intake_workspace, &parsed, &registry_result).unwrap();
+        assert_eq!(again, result);
+        assert_eq!(registry_again, registry_result);
+        let original_intake_workspace = registry::parse_workspace(&production).unwrap();
+        let (removed, registry_removed, _) = import_matrices(result, &production, &original_intake_workspace, &parsed, &registry_result).unwrap();
+        assert_eq!(removed, production);
+        assert_eq!(registry_removed, registry_text);
+    }
+
+    #[test]
+    fn rejects_rgb_matrix_whose_group_layout_differs_from_production() {
+        let production = "<Workspace><Engine>\n  <FixtureGroup ID=\"37\"><Name>Strip</Name></FixtureGroup>\n </Engine></Workspace>\n".to_owned();
+        let intake = "<Workspace><Engine>\n  <FixtureGroup ID=\"37\"><Name>Reordered Strip</Name></FixtureGroup>\n  <Function ID=\"9\" Type=\"RGBMatrix\" Name=\"Gradient\"><FixtureGroup>37</FixtureGroup></Function>\n </Engine></Workspace>\n";
+        let registry_text = "version = 1\nworkspace = \"prod.qxw\"\n[zones.strip]\nregions = [{ universe = 4, address = 15, channels = 3 }]\n";
+        let registry: Registry = toml::from_str(registry_text).unwrap();
+        let intake_workspace = registry::parse_workspace(intake).unwrap();
+        assert!(import_matrices(production, intake, &intake_workspace, &registry, registry_text).unwrap_err().contains("differs from production"));
+    }
+
+    #[test]
+    fn real_strip_group_accepts_an_animated_matrix_without_changing_existing_assets() {
+        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).parent().unwrap().to_path_buf();
+        let production = std::fs::read_to_string(root.join("../qlcplus/monolith-lighting.qxw")).unwrap();
+        let intake = std::fs::read_to_string(root.join("../qlcplus/intake/Monolithd Intake Template.qxw")).unwrap();
+        let registry_text = std::fs::read_to_string(root.join("qlc-functions.toml")).unwrap();
+        let registry: Registry = toml::from_str(&registry_text).unwrap();
+        let matrix = concat!(
+            "  <Function ID=\"900\" Type=\"RGBMatrix\" Name=\"Gradient Test\">\n",
+            "   <Speed FadeIn=\"0\" FadeOut=\"0\" Duration=\"200\"/>\n",
+            "   <Direction>Forward</Direction><RunOrder>Loop</RunOrder>\n",
+            "   <Color Index=\"0\">4294901760</Color>\n",
+            "   <FixtureGroup>37</FixtureGroup>\n",
+            "  </Function>\n",
+        );
+        let intake = intake.replacen(" </Engine>", &format!("{matrix} </Engine>"), 1);
+        let intake_workspace = registry::parse_workspace(&intake).unwrap();
+        let (candidate, registry_candidate, labels) = import_matrices(production.clone(), &intake, &intake_workspace, &registry, &registry_text).unwrap();
+        assert!(labels[0].contains("(strip)"));
+        assert!(candidate.contains("Name=\"Gradient Test\""));
+        assert!(candidate.contains("<FixtureGroup>37</FixtureGroup>"));
+        let candidate_workspace = registry::parse_workspace(&candidate).unwrap();
+        let mut candidate_registry: Registry = toml::from_str(&registry_candidate).unwrap();
+        candidate_registry.attach_periods(&candidate_workspace);
+        assert!(candidate_registry.validate(&candidate_workspace).is_empty());
+        assert_eq!(candidate_workspace.functions.len(), registry::parse_workspace(&production).unwrap().functions.len() + 1);
     }
 }
