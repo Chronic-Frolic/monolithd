@@ -206,6 +206,121 @@ fn source_triples_for_zone(source_block: &str, zone: &str, zones: &BTreeMap<u32,
 
 /// Apply one contract entry (Scene or Chaser) from the intake workspace into the
 /// production workspace, per zone.
+/// Naming convention for progress-zone keyframes in the intake file: one
+/// owner-authored "Empty"/"Full" pair per zone, shared by every progress family
+/// registered for that zone (e.g. progress_ram and progress_ram_interleaved both
+/// reuse "Progress RAM — Empty"/"Progress RAM — Full" -- they differ only in fill
+/// order, which is measured from production, never authored twice).
+fn progress_keyframe_names(zone: &str) -> (String, String) {
+    let label = match zone {
+        "ram" => "RAM",
+        "rog_eye" => "Eye",
+        "strip" => "Strip",
+        other => other,
+    };
+    (format!("Progress {label} — Empty"), format!("Progress {label} — Full"))
+}
+
+/// A single fill position: which FixtureVal (by fixture ID) and which triple within
+/// it. Positions are ordered by the step at which they first turn "complete".
+type Position = (u32, usize);
+
+/// Derive a progress family's fill order by diffing each of its already-authored
+/// production steps against the previous step -- measured, never hand-encoded, so a
+/// change to the physical fill geometry never needs a matching code change here.
+/// Exactly one position must newly differ per step, since "Progress X of N" is
+/// authored as N discrete single-position increments; anything else means this
+/// family isn't shaped the way this function assumes, and it refuses rather than
+/// guessing.
+fn derive_fill_order(xml: &str, first_id: u32, total: u32) -> Result<Vec<Position>, String> {
+    let mut previous = parse_fixture_vals(function_block_by_id(xml, first_id)?)?;
+    let mut order = Vec::new();
+    for step in 1..=total {
+        let current = parse_fixture_vals(function_block_by_id(xml, first_id + step)?)?;
+        if current.len() != previous.len() {
+            return Err(format!("step {step}: fixture count changed ({} vs {})", current.len(), previous.len()));
+        }
+        let mut changed = Vec::new();
+        for (prev_fv, cur_fv) in previous.iter().zip(current.iter()) {
+            if prev_fv.fixture_id != cur_fv.fixture_id {
+                return Err(format!("step {step}: fixture order changed"));
+            }
+            for (index, (prev_triple, cur_triple)) in prev_fv.triples.iter().zip(cur_fv.triples.iter()).enumerate() {
+                if prev_triple != cur_triple {
+                    changed.push((prev_fv.fixture_id, index));
+                }
+            }
+        }
+        if changed.len() != 1 {
+            return Err(format!("step {step}: {} positions changed, expected exactly 1 -- this family isn't a simple one-position-per-step fill", changed.len()));
+        }
+        order.push(changed[0]);
+        previous = current;
+    }
+    if order.len() != total as usize {
+        return Err(format!("derived {} fill positions, expected {total}", order.len()));
+    }
+    Ok(order)
+}
+
+/// Rewrite a progress family's steps from two owner-authored keyframe Scenes --
+/// full per-pixel content, not flat colors -- swapping each position from its
+/// "Empty" to "Full" keyframe color at the position's own measured fill step. No
+/// interpolation: a discrete fill, matching the physical bar-fill look already in
+/// production (per the owner's choice, 2026-09-22), just recolored from
+/// QLC+-authored endpoints instead of a hand-picked flat color.
+fn apply_progress_family(xml: &str, first_id: u32, total: u32, empty_block: &str, full_block: &str, context: &str) -> Result<String, String> {
+    let order = derive_fill_order(xml, first_id, total)?;
+    let empty = parse_fixture_vals(empty_block)?;
+    let full = parse_fixture_vals(full_block)?;
+    if empty.len() != full.len() {
+        return Err(format!("{context}: Empty/Full keyframes have different fixture counts"));
+    }
+
+    let mut per_position_colors: Vec<(u32, Vec<(u8, u8, u8)>, Vec<(u8, u8, u8)>)> = Vec::with_capacity(empty.len());
+    for (e, f) in empty.iter().zip(full.iter()) {
+        if e.fixture_id != f.fixture_id {
+            return Err(format!("{context}: keyframe fixture order mismatch ({} vs {})", e.fixture_id, f.fixture_id));
+        }
+        if e.triples.len() != f.triples.len() {
+            return Err(format!("{context}: fixture {}: Empty/Full keyframe LED counts differ", e.fixture_id));
+        }
+        per_position_colors.push((e.fixture_id, e.triples.clone(), f.triples.clone()));
+    }
+
+    let mut result = xml.to_owned();
+    for step in 0..=total {
+        let complete_positions: std::collections::HashSet<Position> = order[..step as usize].iter().copied().collect();
+        let mut per_fixture: Vec<(u32, Vec<(u8, u8, u8)>)> = Vec::with_capacity(per_position_colors.len());
+        for (fixture_id, empty_triples, full_triples) in &per_position_colors {
+            let triples = (0..empty_triples.len())
+                .map(|index| if complete_positions.contains(&(*fixture_id, index)) { full_triples[index] } else { empty_triples[index] })
+                .collect();
+            per_fixture.push((*fixture_id, triples));
+        }
+
+        let id = first_id + step;
+        let block = function_block_by_id(&result, id)?.to_owned();
+        let current = parse_fixture_vals(&block)?;
+        let mut new_block = block.clone();
+        for (fv, (fixture_id, triples)) in current.iter().zip(per_fixture.iter()) {
+            if fv.fixture_id != *fixture_id {
+                return Err(format!("{context}: step {step}: fixture order drifted mid-rewrite"));
+            }
+            let new_tag = render_fixture_val(*fixture_id, triples);
+            if new_block.matches(fv.original.as_str()).count() != 1 {
+                return Err(format!("{context}: step {step}: FixtureVal {fixture_id} is not uniquely located; refusing to guess"));
+            }
+            new_block = new_block.replacen(fv.original.as_str(), &new_tag, 1);
+        }
+        if result.matches(block.as_str()).count() != 1 {
+            return Err(format!("{context}: step {step} (Function {id}): block is not uniquely located"));
+        }
+        result = result.replacen(block.as_str(), &new_block, 1);
+    }
+    Ok(result)
+}
+
 fn apply_entry(mut production: String, entry: &ContractEntry, intake_xml: &str, intake_workspace: &registry::Workspace, registry: &Registry) -> Result<String, String> {
     let zones = zones_by_fixture(intake_workspace, registry);
     let source_block = function_block_by_name(intake_xml, entry.intake_name)?;
@@ -282,8 +397,20 @@ pub fn run(arguments: Vec<String>) -> Result<(), String> {
 
     let original = std::fs::read_to_string(&production_path).map_err(|error| format!("read {}: {error}", production_path.display()))?;
     let mut production = original.clone();
+    let mut touched: Vec<String> = Vec::new();
     for entry in CONTRACT {
         production = apply_entry(production, entry, &intake_xml, &intake_workspace, &registry)?;
+        touched.push(format!("  {} -> {}", entry.intake_name, entry.targets.iter().map(|(_, t)| *t).collect::<Vec<_>>().join(", ")));
+    }
+    for progress in &registry.progress {
+        let (empty_name, full_name) = progress_keyframe_names(&progress.zone);
+        let context = format!("{} (zone {})", progress.name, progress.zone);
+        let empty_block = function_block_by_name(&intake_xml, &empty_name)
+            .map_err(|_| format!("{context}: intake is missing {empty_name:?} -- every progress zone needs an Empty/Full keyframe pair"))?;
+        let full_block = function_block_by_name(&intake_xml, &full_name)
+            .map_err(|_| format!("{context}: intake is missing {full_name:?} -- every progress zone needs an Empty/Full keyframe pair"))?;
+        production = apply_progress_family(&production, progress.first_id, progress.total, empty_block, full_block, &context)?;
+        touched.push(format!("  {} -> Functions {}-{} <- {empty_name:?} / {full_name:?}", context, progress.first_id, progress.first_id + progress.total));
     }
 
     if production == original {
@@ -292,8 +419,8 @@ pub fn run(arguments: Vec<String>) -> Result<(), String> {
     }
 
     println!("{} from {name:?}:", if check_only { "would update" } else { "updating" });
-    for entry in CONTRACT {
-        println!("  {} -> {}", entry.intake_name, entry.targets.iter().map(|(_, t)| *t).collect::<Vec<_>>().join(", "));
+    for line in &touched {
+        println!("{line}");
     }
 
     if check_only {
@@ -400,5 +527,89 @@ mod tests {
         let entry = ContractEntry { intake_name: "Base Ambient", targets: &[("a", "target_ambient_a")] };
         let production = "  <Function ID=\"104\" Type=\"Chaser\" Name=\"target_ambient_a\">\n   <Speed FadeIn=\"0\" FadeOut=\"0\" Duration=\"0\"/>\n  </Function>\n".to_owned();
         assert!(apply_entry(production, &entry, &intake, &workspace, &registry).is_err());
+    }
+
+    // ------------------------------------------------------------ progress keyframes
+
+    /// A 3-position "Progress Test 00..03 of 3" family, filled in fixture order
+    /// 0, 1, 2, matching the shape real production progress families use.
+    fn sample_progress_family(fill_color: (u8, u8, u8)) -> String {
+        let mut xml = String::new();
+        for step in 0..=3u32 {
+            let complete_upto = step as usize;
+            let mut fixtures = String::new();
+            for fixture in 0..3u32 {
+                let (r, g, b) = if (fixture as usize) < complete_upto { fill_color } else { (255, 255, 255) };
+                fixtures += &format!("   <FixtureVal ID=\"{fixture}\">0,{r},1,{g},2,{b}</FixtureVal>\n");
+            }
+            xml += &format!("  <Function ID=\"{step}\" Type=\"Scene\" Name=\"Progress Test {step:02} of 3\">\n   <Speed FadeIn=\"0\" FadeOut=\"0\" Duration=\"0\"/>\n{fixtures}  </Function>\n");
+        }
+        xml
+    }
+
+    #[test]
+    fn derives_the_fill_order_from_real_production_data() {
+        let xml = sample_progress_family((0, 255, 0));
+        let order = derive_fill_order(&xml, 0, 3).unwrap();
+        assert_eq!(order, vec![(0, 0), (1, 0), (2, 0)]);
+    }
+
+    #[test]
+    fn a_family_that_is_not_a_simple_one_position_per_step_fill_is_refused() {
+        // Two positions change between steps 0 and 1 -- not a shape this function
+        // understands, so it must refuse rather than guess an order.
+        let mut xml = String::new();
+        xml += "  <Function ID=\"0\" Type=\"Scene\" Name=\"Bad 00\">\n   <Speed FadeIn=\"0\" FadeOut=\"0\" Duration=\"0\"/>\n   <FixtureVal ID=\"0\">0,255,1,255,2,255</FixtureVal>\n   <FixtureVal ID=\"1\">0,255,1,255,2,255</FixtureVal>\n  </Function>\n";
+        xml += "  <Function ID=\"1\" Type=\"Scene\" Name=\"Bad 01\">\n   <Speed FadeIn=\"0\" FadeOut=\"0\" Duration=\"0\"/>\n   <FixtureVal ID=\"0\">0,0,1,255,2,0</FixtureVal>\n   <FixtureVal ID=\"1\">0,0,1,255,2,0</FixtureVal>\n  </Function>\n";
+        assert!(derive_fill_order(&xml, 0, 1).is_err());
+    }
+
+    #[test]
+    fn applies_owner_authored_keyframes_preserving_the_measured_fill_order() {
+        let xml = sample_progress_family((0, 255, 0)); // production fill order: 0, 1, 2
+        let empty = concat!(
+            "  <Function ID=\"90\" Type=\"Scene\" Name=\"Progress Test — Empty\">\n",
+            "   <Speed FadeIn=\"0\" FadeOut=\"0\" Duration=\"0\"/>\n",
+            "   <FixtureVal ID=\"0\">0,50,1,0,2,255</FixtureVal>\n",
+            "   <FixtureVal ID=\"1\">0,50,1,0,2,255</FixtureVal>\n",
+            "   <FixtureVal ID=\"2\">0,50,1,0,2,255</FixtureVal>\n",
+            "  </Function>\n"
+        );
+        let full = concat!(
+            "  <Function ID=\"91\" Type=\"Scene\" Name=\"Progress Test — Full\">\n",
+            "   <Speed FadeIn=\"0\" FadeOut=\"0\" Duration=\"0\"/>\n",
+            "   <FixtureVal ID=\"0\">0,150,1,0,2,255</FixtureVal>\n",
+            "   <FixtureVal ID=\"1\">0,150,1,0,2,255</FixtureVal>\n",
+            "   <FixtureVal ID=\"2\">0,150,1,0,2,255</FixtureVal>\n",
+            "  </Function>\n"
+        );
+        let result = apply_progress_family(&xml, 0, 3, empty, full, "test").unwrap();
+        // Step 0: every position still the Empty keyframe's own color.
+        let step0 = function_block_by_id(&result, 0).unwrap();
+        assert!(step0.contains("<FixtureVal ID=\"0\">0,50,1,0,2,255</FixtureVal>"));
+        assert!(step0.contains("<FixtureVal ID=\"2\">0,50,1,0,2,255</FixtureVal>"));
+        // Step 2: positions 0 and 1 (measured fill order) are Full's color, 2 still Empty's.
+        let step2 = function_block_by_id(&result, 2).unwrap();
+        assert!(step2.contains("<FixtureVal ID=\"0\">0,150,1,0,2,255</FixtureVal>"));
+        assert!(step2.contains("<FixtureVal ID=\"1\">0,150,1,0,2,255</FixtureVal>"));
+        assert!(step2.contains("<FixtureVal ID=\"2\">0,50,1,0,2,255</FixtureVal>"));
+        // Step 3: fully complete.
+        let step3 = function_block_by_id(&result, 3).unwrap();
+        assert!(step3.contains("<FixtureVal ID=\"2\">0,150,1,0,2,255</FixtureVal>"));
+    }
+
+    #[test]
+    fn reapplying_keyframes_matching_current_production_is_idempotent() {
+        let xml = sample_progress_family((0, 255, 0));
+        let empty = "  <Function ID=\"90\" Type=\"Scene\" Name=\"X\">\n   <Speed FadeIn=\"0\" FadeOut=\"0\" Duration=\"0\"/>\n   <FixtureVal ID=\"0\">0,255,1,255,2,255</FixtureVal>\n   <FixtureVal ID=\"1\">0,255,1,255,2,255</FixtureVal>\n   <FixtureVal ID=\"2\">0,255,1,255,2,255</FixtureVal>\n  </Function>\n";
+        let full = "  <Function ID=\"91\" Type=\"Scene\" Name=\"Y\">\n   <Speed FadeIn=\"0\" FadeOut=\"0\" Duration=\"0\"/>\n   <FixtureVal ID=\"0\">0,0,1,255,2,0</FixtureVal>\n   <FixtureVal ID=\"1\">0,0,1,255,2,0</FixtureVal>\n   <FixtureVal ID=\"2\">0,0,1,255,2,0</FixtureVal>\n  </Function>\n";
+        let result = apply_progress_family(&xml, 0, 3, empty, full, "test").unwrap();
+        assert_eq!(result, xml, "re-encoding the same colors already in production must reproduce byte-identical XML");
+    }
+
+    #[test]
+    fn progress_keyframe_names_uses_the_registrys_zone_labels() {
+        assert_eq!(progress_keyframe_names("ram"), ("Progress RAM — Empty".to_owned(), "Progress RAM — Full".to_owned()));
+        assert_eq!(progress_keyframe_names("strip"), ("Progress Strip — Empty".to_owned(), "Progress Strip — Full".to_owned()));
     }
 }

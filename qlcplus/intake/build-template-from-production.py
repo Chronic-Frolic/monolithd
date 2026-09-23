@@ -95,12 +95,31 @@ def merged_chaser(name: str, low_ids: list[int], high_ids: list[int], speed_from
     return "\n".join([low, high, chaser])
 
 
+def progress_keyframe(source_id: int, name: str) -> str:
+    """Rename an existing progress-family step Scene into a named keyframe pair
+    member, verbatim -- no color decided, just relabeled with a fresh ID."""
+    block = function_block(source_id)
+    new_fid = fresh_id()
+    block = re.sub(r'<Function ID="\d+"', f'<Function ID="{new_fid}"', block, count=1)
+    block = re.sub(r'Name="[^"]*"', f'Name="{name}"', block, count=1)
+    return block
+
+
 functions = [
     merged_chaser("Base Ambient", low_ids=[107, 110, 113], high_ids=[108, 111, 114], speed_from_id=109),
     merged_scene(fresh_id(), "State — Fault", [118, 119, 126]),
     merged_scene(fresh_id(), "State — Warning", [200, 117, 201]),
     merged_scene(fresh_id(), "State — Working", [202, 127, 203]),
     merged_scene(fresh_id(), "State — Controller Fault", [123, 124, 125]),
+    # Progress keyframes: step 0 (all-empty) and the final step (all-full) of each
+    # existing progress family, relabeled -- the same real flat white/green content
+    # already in production today, not a new decision. progress_ram_interleaved
+    # shares the RAM pair (see workspace.rs's progress_keyframe_names): it differs
+    # only in fill order, which is measured, not authored per-family.
+    progress_keyframe(0, "Progress RAM — Empty"),
+    progress_keyframe(32, "Progress RAM — Full"),
+    progress_keyframe(33, "Progress Strip — Empty"),
+    progress_keyframe(103, "Progress Strip — Full"),
 ]
 
 header = text[: text.index('  <Function ID="0"')]  # Creator + Engine open + InputOutputMap + all Fixtures
