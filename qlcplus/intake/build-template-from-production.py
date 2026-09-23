@@ -48,8 +48,7 @@ def triples_of(block: str) -> dict[int, tuple[int, int, int]]:
     for fid, pairs in fixture_vals(block):
         vals = [v for _, v in sorted(pairs)]
         assert len(vals) % 3 == 0
-        # A per-fixture FixtureVal may itself hold several LEDs (eye: 3, strip: 70).
-        # Represent as one flat list of (r,g,b) triples under this fixture id.
+        # Keep every RGB triple under its fixture ID; current fixtures each have one LED.
         out[fid] = [tuple(vals[i:i+3]) for i in range(0, len(vals), 3)]
     return out
 
