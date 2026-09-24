@@ -51,6 +51,16 @@ pub trait Qlc: Send + Sync {
     /// Deliver every command together, in order.
     fn send(&self, commands: &[Command]) -> impl Future<Output = Result<(), String>> + Send;
     fn status(&self, id: u32) -> impl Future<Output = Result<FunctionStatus, String>> + Send;
+    /// Several statuses in one round trip where the implementation can; in order.
+    fn statuses(&self, ids: &[u32]) -> impl Future<Output = Result<Vec<FunctionStatus>, String>> + Send {
+        async move {
+            let mut statuses = Vec::with_capacity(ids.len());
+            for &id in ids {
+                statuses.push(self.status(id).await?);
+            }
+            Ok(statuses)
+        }
+    }
 }
 
 impl Qlc for qlc::Client {
@@ -59,6 +69,7 @@ impl Qlc for qlc::Client {
         self.send_batch(&commands).await
     }
     async fn status(&self, id: u32) -> Result<FunctionStatus, String> { qlc::Client::status(self, id).await }
+    async fn statuses(&self, ids: &[u32]) -> Result<Vec<FunctionStatus>, String> { qlc::Client::statuses(self, ids).await }
 }
 
 /// How an owner is replaced by its successor on the same zone.
@@ -651,19 +662,22 @@ impl<Q: Qlc> Gateway<Q> {
             }
         }
         let mut reachable = true;
+        // Every owner's status in one round trip (the controller asks for this once a second).
+        let owned: Vec<u32> = held.values().filter_map(|zone| zone.owner.as_ref().map(|owner| owner.id)).collect();
+        let mut reports: Vec<String> = match self.qlc.statuses(&owned).await {
+            Ok(statuses) => statuses.iter().map(|status| status.as_str().to_owned()).collect(),
+            Err(error) => {
+                reachable = false;
+                vec![format!("unreachable: {error}"); owned.len()]
+            }
+        }
+        .into_iter()
+        .rev()
+        .collect();
         let mut zones = Map::new();
         for (name, zone) in &held {
             let (owner, id, qlc) = match &zone.owner {
-                Some(owner) => {
-                    let report = match self.qlc.status(owner.id).await {
-                        Ok(status) => status.as_str().to_owned(),
-                        Err(error) => {
-                            reachable = false;
-                            format!("unreachable: {error}")
-                        }
-                    };
-                    (Value::from(owner.name.clone()), Value::from(owner.id), Value::from(report))
-                }
+                Some(owner) => (Value::from(owner.name.clone()), Value::from(owner.id), Value::from(reports.pop().unwrap_or_default())),
                 None => (Value::Null, Value::Null, Value::Null),
             };
             zones.insert(name.clone(), json!({ "owner": owner, "function_id": id, "qlc": qlc, "uncertain": zone.uncertain }));

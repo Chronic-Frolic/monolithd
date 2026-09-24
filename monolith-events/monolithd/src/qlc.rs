@@ -1,6 +1,8 @@
 use std::net::SocketAddr;
+use std::sync::Arc;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
+use tokio::sync::Mutex;
 use tokio::time::{timeout, Duration};
 
 const HANDSHAKE_KEY: &str = "dGhlIHNhbXBsZSBub25jZQ==";
@@ -26,18 +28,48 @@ impl FunctionStatus {
     }
 }
 
-/// Single-attempt client for QLC+'s local WebSocket API.
+/// Client for QLC+'s local WebSocket API.
 ///
 /// The production lighting stack places QLC+ and this client in the same
 /// private network namespace.  The listener must therefore remain loopback.
+///
+/// Status queries share one kept-open WebSocket (2026-09-24). Opening one per
+/// query made headless QLC+ log `QObject::disconnect: wildcard call disconnects
+/// from destroyed signal of QTcpSocket` on every close: about 3 lines/s from the
+/// controller's 1 s reconcile, which flushed the 50 MB journal within hours. The
+/// link is dropped on any error, so a late reply can never answer a later query.
+/// Start/stop batches still use their own short connection; they are rare.
 #[derive(Clone, Debug)]
 pub struct Client {
     listener: String,
+    link: Arc<Mutex<Option<Link>>>,
+}
+
+#[derive(Debug)]
+struct Link {
+    stream: TcpStream,
+    /// Bytes received but not yet parsed into frames.
+    buffer: Vec<u8>,
+}
+
+/// Why a status query failed. Only a connection that broke is worth retrying
+/// on a fresh one; a QLC+ that stopped answering would just time out again.
+enum Failure {
+    Broken(String),
+    TimedOut(String),
+}
+
+impl Failure {
+    fn message(self) -> String {
+        match self {
+            Self::Broken(message) | Self::TimedOut(message) => message,
+        }
+    }
 }
 
 impl Client {
     pub fn new(listener: &str) -> Self {
-        Self { listener: listener.to_owned() }
+        Self { listener: listener.to_owned(), link: Arc::new(Mutex::new(None)) }
     }
 
     /// Send several start/stop commands in one write over one connection, so
@@ -47,7 +79,33 @@ impl Client {
     }
 
     pub async fn status(&self, function_id: u32) -> Result<FunctionStatus, String> {
-        status_once(parse_listener(&self.listener)?, function_id).await
+        Ok(self.statuses(&[function_id]).await?.remove(0))
+    }
+
+    /// Ask for several Functions in one write and read the replies in order;
+    /// QLC+ answers each `getFunctionStatus` on a connection in the order sent.
+    pub async fn statuses(&self, function_ids: &[u32]) -> Result<Vec<FunctionStatus>, String> {
+        if function_ids.is_empty() {
+            return Ok(Vec::new());
+        }
+        let address = parse_listener(&self.listener)?;
+        let mut kept = self.link.lock().await;
+        if let Some(mut link) = kept.take() {
+            match query(&mut link, function_ids).await {
+                Ok(statuses) => {
+                    *kept = Some(link);
+                    return Ok(statuses);
+                }
+                Err(Failure::TimedOut(message)) => return Err(message),
+                // Most often QLC+ restarted and closed the old link: reconnect once.
+                Err(Failure::Broken(_)) => {}
+            }
+        }
+        let (stream, buffer) = open(address).await?;
+        let mut link = Link { stream, buffer };
+        let statuses = query(&mut link, function_ids).await.map_err(Failure::message)?;
+        *kept = Some(link);
+        Ok(statuses)
     }
 }
 
@@ -122,41 +180,51 @@ async fn set_running_batch_once(address: SocketAddr, commands: &[(u32, bool)]) -
     Ok(())
 }
 
-async fn status_once(address: SocketAddr, function_id: u32) -> Result<FunctionStatus, String> {
-    let (mut stream, mut buffer) = open(address).await?;
-    let command = format!("QLC+API|getFunctionStatus|{function_id}");
-    stream
-        .write_all(&masked_text_frame(command.as_bytes()))
+async fn query(link: &mut Link, function_ids: &[u32]) -> Result<Vec<FunctionStatus>, Failure> {
+    let mut frames = Vec::new();
+    for function_id in function_ids {
+        frames.extend_from_slice(&masked_text_frame(format!("QLC+API|getFunctionStatus|{function_id}").as_bytes()));
+    }
+    link.stream
+        .write_all(&frames)
         .await
-        .map_err(|error| format!("send QLC+ status query for Function {function_id}: {error}"))?;
+        .map_err(|error| Failure::Broken(format!("send QLC+ status query for Functions {function_ids:?}: {error}")))?;
 
-    let read_reply = async {
+    let read_replies = async {
+        let mut statuses = Vec::with_capacity(function_ids.len());
         let mut chunk = [0u8; 1024];
         loop {
-            while let Some((opcode, payload, used)) = parse_server_frame(&buffer)? {
-                buffer.drain(..used);
-                if opcode == 0x1 {
-                    if let Some(status) = parse_status_text(&String::from_utf8_lossy(&payload)) {
-                        return Ok(status);
+            while let Some((opcode, payload, used)) = parse_server_frame(&link.buffer).map_err(Failure::Broken)? {
+                link.buffer.drain(..used);
+                match opcode {
+                    0x1 => {
+                        if let Some(status) = parse_status_text(&String::from_utf8_lossy(&payload)) {
+                            statuses.push(status);
+                            if statuses.len() == function_ids.len() {
+                                return Ok(statuses);
+                            }
+                        }
                     }
+                    0x8 => return Err(Failure::Broken("QLC+ closed the WebSocket".to_owned())),
+                    _ => {}
                 }
             }
-            let count = stream
+            let count = link.stream
                 .read(&mut chunk)
                 .await
-                .map_err(|error| format!("read QLC+ status reply: {error}"))?;
+                .map_err(|error| Failure::Broken(format!("read QLC+ status reply: {error}")))?;
             if count == 0 {
-                return Err("QLC+ closed the connection before replying".to_owned());
+                return Err(Failure::Broken("QLC+ closed the connection before replying".to_owned()));
             }
-            buffer.extend_from_slice(&chunk[..count]);
-            if buffer.len() > MAX_REPLY_BYTES {
-                return Err("QLC+ status reply exceeded 64 KiB".to_owned());
+            link.buffer.extend_from_slice(&chunk[..count]);
+            if link.buffer.len() > MAX_REPLY_BYTES {
+                return Err(Failure::Broken("QLC+ status reply exceeded 64 KiB".to_owned()));
             }
         }
     };
-    timeout(REPLY_TIMEOUT, read_reply)
+    timeout(REPLY_TIMEOUT, read_replies)
         .await
-        .map_err(|_| format!("QLC+ did not answer the status query for Function {function_id}"))?
+        .map_err(|_| Failure::TimedOut(format!("QLC+ did not answer the status query for Functions {function_ids:?}")))?
 }
 
 /// `QLC+API|getFunctionStatus|Running` and its siblings; anything else is not our reply.
@@ -230,6 +298,7 @@ fn masked_text_frame(payload: &[u8]) -> Vec<u8> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::atomic::{AtomicUsize, Ordering};
     use tokio::net::TcpListener;
 
     #[test]
@@ -338,8 +407,144 @@ mod tests {
     #[tokio::test]
     async fn reads_a_status_reply() {
         let (address, server) = fake_qlc(Some("QLC+API|getFunctionStatus|Running")).await;
-        assert_eq!(status_once(address, 109).await.unwrap(), FunctionStatus::Running);
+        assert_eq!(Client::new(&address.to_string()).status(109).await.unwrap(), FunctionStatus::Running);
         assert_eq!(server.await.unwrap(), "QLC+API|getFunctionStatus|109");
+    }
+
+    /// A fake QLC+ that answers each status query with the Function's parity
+    /// (even `Running`, odd `Stopped`) after an unrelated broadcast frame, and
+    /// closes each connection after `per_connection` answers. Counts connections.
+    async fn fake_qlc_server(per_connection: usize) -> (String, Arc<AtomicUsize>) {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap().to_string();
+        let connections = Arc::new(AtomicUsize::new(0));
+        let counter = connections.clone();
+        tokio::spawn(async move {
+            loop {
+                let (mut stream, _) = listener.accept().await.unwrap();
+                counter.fetch_add(1, Ordering::SeqCst);
+                tokio::spawn(async move {
+                    let mut buffer = Vec::new();
+                    let mut chunk = [0u8; 1024];
+                    while !buffer.windows(4).any(|window| window == b"\r\n\r\n") {
+                        let count = stream.read(&mut chunk).await.unwrap();
+                        if count == 0 { return; }
+                        buffer.extend_from_slice(&chunk[..count]);
+                    }
+                    buffer.clear();
+                    stream.write_all(b"HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\n\r\n").await.unwrap();
+                    let mut answered = 0;
+                    while answered < per_connection {
+                        while let Some((_, payload, used)) = parse_server_frame(&buffer).unwrap() {
+                            buffer.drain(..used);
+                            let id: u32 = String::from_utf8(payload).unwrap().rsplit('|').next().unwrap().parse().unwrap();
+                            let state = if id % 2 == 0 { "Running" } else { "Stopped" };
+                            for text in ["FUNCTION|broadcast".to_owned(), format!("QLC+API|getFunctionStatus|{state}")] {
+                                let mut out = vec![0x81, text.len() as u8];
+                                out.extend_from_slice(text.as_bytes());
+                                stream.write_all(&out).await.unwrap();
+                            }
+                            answered += 1;
+                        }
+                        let count = stream.read(&mut chunk).await.unwrap_or(0);
+                        if count == 0 { return; }
+                        buffer.extend_from_slice(&chunk[..count]);
+                    }
+                });
+            }
+        });
+        (address, connections)
+    }
+
+    #[tokio::test]
+    async fn status_queries_share_one_kept_connection() {
+        let (address, connections) = fake_qlc_server(usize::MAX).await;
+        let client = Client::new(&address);
+        for _ in 0..5 {
+            assert_eq!(client.status(110).await.unwrap(), FunctionStatus::Running);
+        }
+        // A clone (as the gateway holds) shares the same link.
+        assert_eq!(client.clone().status(111).await.unwrap(), FunctionStatus::Stopped);
+        assert_eq!(connections.load(Ordering::SeqCst), 1);
+    }
+
+    #[tokio::test]
+    async fn a_batch_of_status_queries_is_answered_in_order() {
+        let (address, connections) = fake_qlc_server(usize::MAX).await;
+        let statuses = Client::new(&address).statuses(&[109, 112, 115, 116]).await.unwrap();
+        assert_eq!(statuses, vec![FunctionStatus::Stopped, FunctionStatus::Running, FunctionStatus::Stopped, FunctionStatus::Running]);
+        assert_eq!(connections.load(Ordering::SeqCst), 1);
+    }
+
+    #[tokio::test]
+    async fn a_closed_link_is_replaced_without_failing_the_query() {
+        // QLC+ restarting looks like this: the kept link closes between queries.
+        let (address, connections) = fake_qlc_server(1).await;
+        let client = Client::new(&address);
+        assert_eq!(client.status(110).await.unwrap(), FunctionStatus::Running);
+        assert_eq!(client.status(110).await.unwrap(), FunctionStatus::Running);
+        assert_eq!(connections.load(Ordering::SeqCst), 2);
+    }
+
+    #[tokio::test]
+    async fn a_silent_qlc_times_out_and_the_link_is_dropped() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap().to_string();
+        tokio::spawn(async move {
+            let (mut stream, _) = listener.accept().await.unwrap();
+            let mut chunk = [0u8; 1024];
+            let _ = stream.read(&mut chunk).await;
+            stream.write_all(b"HTTP/1.1 101 Switching Protocols\r\n\r\n").await.unwrap();
+            // Never answer; hold the connection open.
+            loop { if stream.read(&mut chunk).await.unwrap_or(0) == 0 { return; } }
+        });
+        let client = Client::new(&address);
+        assert!(client.status(110).await.unwrap_err().contains("did not answer"));
+        assert!(client.link.lock().await.is_none(), "a timed-out link must not be reused");
+    }
+
+    /// Against a real QLC+ only: `MONOLITH_QLC_LISTENER=127.0.0.1:9999 <test binary> --ignored live_qlc --test-threads=1`.
+    /// It starts and stops Function 109, so point it only at a scratch instance, never production. Both live
+    /// tests toggle 109, so run them one at a time.
+    #[tokio::test]
+    #[ignore]
+    async fn live_qlc_answers_batches_in_order_over_a_kept_link() {
+        let Ok(listener) = std::env::var("MONOLITH_QLC_LISTENER") else { return };
+        let client = Client::new(&listener);
+        client.send_batch(&[(109, true)]).await.unwrap();
+        tokio::time::sleep(Duration::from_millis(500)).await;
+        let expected = vec![FunctionStatus::Running, FunctionStatus::Stopped, FunctionStatus::Running, FunctionStatus::Stopped];
+        for (round, pause) in [1, 75, 1, 0].into_iter().enumerate() {
+            assert_eq!(client.statuses(&[109, 112, 109, 115]).await.unwrap(), expected, "round {round}");
+            eprintln!("live QLC round {round} ok; pausing {pause} s");
+            tokio::time::sleep(Duration::from_secs(pause)).await;
+        }
+        client.send_batch(&[(109, false)]).await.unwrap();
+    }
+
+    /// Against a scratch QLC+ only (see above): how long a commanded state takes to show in
+    /// status on the kept link, polled the way the gateway confirms (every 5 ms, 400 polls).
+    #[tokio::test]
+    #[ignore]
+    async fn live_qlc_confirmation_latency_on_a_kept_link() {
+        let Ok(listener) = std::env::var("MONOLITH_QLC_LISTENER") else { return };
+        let client = Client::new(&listener);
+        let mut worst = (0, Duration::ZERO);
+        for cycle in 0..100 {
+            let running = cycle % 2 == 0;
+            let want = if running { FunctionStatus::Running } else { FunctionStatus::Stopped };
+            let started = tokio::time::Instant::now();
+            client.send_batch(&[(109, running)]).await.unwrap();
+            let mut polls = 0;
+            while client.status(109).await.unwrap() != want {
+                polls += 1;
+                assert!(polls < 400, "cycle {cycle}: not confirmed within the gateway's 400 polls");
+                tokio::time::sleep(Duration::from_millis(5)).await;
+            }
+            worst = worst.max((polls, started.elapsed()));
+        }
+        eprintln!("live QLC confirmation: worst {} extra polls, {:?} from send to confirmed", worst.0, worst.1);
+        client.send_batch(&[(109, false)]).await.unwrap();
     }
 
     #[tokio::test]
