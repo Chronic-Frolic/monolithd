@@ -1,0 +1,18 @@
+[Unit]
+Description=Monolith Steam Reporter (running Steam updates as controller jobs)
+After=monolith-controller.service
+
+# Follows ~/.local/share/Steam/logs/content_log.txt and reports running updates as
+# steam:<appid> jobs. A leased job blocks suspend, so this changes when the machine
+# can sleep. Not installed or enabled yet: enable it after a live test with the owner.
+
+[Service]
+Type=simple
+ExecStart=/home/chronic_frolic/server-config/monolith-events/monolithd/target/release/monolithd steam-reporter
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=yes
+UMask=0077
+
+[Install]
+WantedBy=default.target

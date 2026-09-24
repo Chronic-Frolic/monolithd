@@ -8,12 +8,13 @@ mod qlc;
 mod registry;
 mod remote;
 mod renderer;
+mod steam;
 mod supervisor;
 mod watchdog;
 mod workspace;
 
 fn usage() -> ! {
-    eprintln!("usage: monolithd <describe|render-idle|render-working CPU GPU MEMORY TASK|render-progress COMPLETED|render-warning|render-fault PHASE|render-quiet|render-controller-fault|e131-receiver|validate-registry [PATH]|workspace <list|select NAME [--check]>|scene <status|start NAME|start-set NAME...|replace NAME|stop NAME|progress ZONE N>|calibrate <--show|ZONE R G B>|event <status|ambient SET|job-start ID LABEL TOTAL [PRIORITY]|job-progress ID N [TOTAL]|job-complete ID|job-fail ID REASON|pause|resume>|remote [PORT]|probe-header <sweep [FROM TO [DWELL_MS]]|at N [SECONDS]>|controller|watchdog>");
+    eprintln!("usage: monolithd <describe|render-idle|render-working CPU GPU MEMORY TASK|render-progress COMPLETED|render-warning|render-fault PHASE|render-quiet|render-controller-fault|e131-receiver|validate-registry [PATH]|workspace <list|select NAME [--check]>|scene <status|start NAME|start-set NAME...|replace NAME|stop NAME|progress ZONE N>|calibrate <--show|ZONE R G B>|event <status|ambient SET|job-start ID LABEL TOTAL [PRIORITY]|job-progress ID N [TOTAL]|job-complete ID|job-fail ID REASON|pause|resume>|remote [PORT]|steam-reporter [--dry-run] [--steam-root PATH]|probe-header <sweep [FROM TO [DWELL_MS]]|at N [SECONDS]>|controller|watchdog>");
     std::process::exit(2);
 }
 
@@ -87,6 +88,7 @@ async fn main() {
         Some("controller") => controller::run().await,
         Some("event") => controller::client(arguments.collect()).await,
         Some("remote") => remote::run(arguments.next()).await,
+        Some("steam-reporter") => steam::run(arguments.collect()).await,
         Some("watchdog") => watchdog::run().await,
         _ => usage(),
     };
