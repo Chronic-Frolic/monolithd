@@ -121,10 +121,21 @@ functions = [
     progress_keyframe(103, "Progress Strip — Full"),
 ]
 
-header = text[: text.index('  <Function ID="0"')]  # Creator + Engine open + InputOutputMap + all Fixtures
-footer = "\n </Engine>\n</Workspace>\n"
+header = text[: text.index('  <Function ID="0"')]  # Creator + Engine open + InputOutputMap + Fixtures + early FixtureGroups
+# The header stops at the first Function, but production also keeps content after it that the
+# intake files must carry: fixture groups saved later (e.g. "RAM", ID 38) and the 2D <Monitor>
+# layout. Dropping them leaves QLC's Fixtures & Functions 2D view with no saved positions and
+# breaks RGB Matrix intake (the importer compares group blocks to production verbatim).
+later_groups = "".join(
+    m.group(0)
+    for m in re.finditer(r'[ \t]*<FixtureGroup ID="(\d+)">.*?</FixtureGroup>\n', text[len(header):], re.S)
+)
+monitor = re.search(r'[ \t]*<Monitor [^>]*>.*?</Monitor>\n', text, re.S)
+assert monitor, "production has no <Monitor> layout to carry over"
 
-out = header + "\n".join(functions) + "\n" + footer
+footer = "\n" + monitor.group(0) + " </Engine>\n</Workspace>\n"
+
+out = header + later_groups + "\n".join(functions) + "\n" + footer
 
 import os
 os.makedirs("qlcplus/intake", exist_ok=True)
