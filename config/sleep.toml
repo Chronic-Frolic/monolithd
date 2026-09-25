@@ -1,0 +1,11 @@
+# Automatic suspend policy. Phase 2 (2026-09-25): observe only; nothing is suspended.
+# Read by monolithd sleep-policy, which re-reads this file every minute.
+version = 1
+
+# Suspend after this many minutes with no activity. The clock restarts whenever any
+# activity ends: a job, keyboard/mouse/gamepad input, music, a remote desktop or
+# streaming session, or a wake.
+quiet_minutes = 120
+
+# How long the pre-sleep cue shows before suspending (phase 3).
+cue_minutes = 5

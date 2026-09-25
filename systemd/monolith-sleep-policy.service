@@ -1,0 +1,20 @@
+[Unit]
+Description=Monolith sleep policy (observe only: logs when the machine would suspend)
+After=monolith-controller.service
+
+# Phase 2 (2026-09-25): reads jobs, input idle, gamepads, music, remote desktop and
+# streaming sessions, and sleep inhibitors, and reports "would suspend at ..." in the
+# journal and $XDG_RUNTIME_DIR/monolith-events/sleep-policy.json. It never suspends and
+# never changes the LEDs.
+
+[Service]
+Type=simple
+Environment=MONOLITHD_CONFIG_DIR=/home/chronic_frolic/monolithd/config
+ExecStart=/home/chronic_frolic/monolithd/target/release/monolithd sleep-policy
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=yes
+UMask=0077
+
+[Install]
+WantedBy=default.target
