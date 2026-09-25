@@ -10,12 +10,13 @@ mod remote;
 mod openrgb;
 mod paths;
 mod steam;
+mod ws;
 mod supervisor;
 mod watchdog;
 mod workspace;
 
 fn usage() -> ! {
-    eprintln!("usage: monolithd <e131-receiver|validate-registry [PATH]|workspace <list|select NAME [--check]>|scene <status|start NAME|start-set NAME...|replace NAME|stop NAME|progress ZONE N>|calibrate <--show|ZONE R G B>|event <status|ambient SET|job-start ID LABEL TOTAL [PRIORITY]|job-progress ID N [TOTAL]|job-complete ID|job-fail ID REASON|pause|resume>|remote [PORT]|steam-reporter [--dry-run] [--steam-root PATH]|probe-header <sweep [FROM TO [DWELL_MS]]|at N [SECONDS]>|controller|watchdog>");
+    eprintln!("usage: monolithd <e131-receiver|validate-registry [PATH]|workspace <list|select NAME [--check]>|scene <status|start NAME|start-set NAME...|replace NAME|stop NAME|progress ZONE N>|calibrate <--show|ZONE R G B>|event <status|ambient SET|job-start ID LABEL TOTAL [PRIORITY]|job-progress ID N [TOTAL]|job-complete ID|job-fail ID REASON|pause|resume>|remote [PORT]|steam-reporter [--dry-run]|probe-header <sweep [FROM TO [DWELL_MS]]|at N [SECONDS]>|controller|watchdog>");
     std::process::exit(2);
 }
 

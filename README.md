@@ -50,7 +50,7 @@ Build inside the `monolith-rust` toolbox with `cargo build --release`; run from
     monolithd event pause | resume           stop or resume the controller acting on the plant
     monolithd calibrate --show               list the gains and what full white becomes
     monolithd calibrate ZONE R G B           set a zone gain (0.0 to 1.0), applied within a second
-    monolithd steam-reporter                 report running Steam updates as controller jobs
+    monolithd steam-reporter [--dry-run]     report the Steam download in progress as a controller job (needs Decky's DevTools port)
     monolithd probe-header ...               header LED mapping test (see tools/probe-header.sh)
 
 ## Monolith Remote

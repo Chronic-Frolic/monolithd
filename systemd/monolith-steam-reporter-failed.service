@@ -1,0 +1,9 @@
+[Unit]
+Description=Raise a Fault because the Monolith Steam Reporter keeps failing
+
+# Started by the OnFailure= of monolith-steam-reporter.service once systemd gives up on it.
+# The reporter clears this fault itself the next time it starts.
+
+[Service]
+Type=oneshot
+ExecStart=/home/chronic_frolic/monolithd/target/release/monolithd event fault-raise steam-reporter:down fault the Steam reporter keeps failing and systemd stopped restarting it
