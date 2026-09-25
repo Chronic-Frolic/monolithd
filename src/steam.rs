@@ -603,6 +603,11 @@ pub async fn run(arguments: Vec<String>) -> Result<(), String> {
         [flag] if flag == "--dry-run" => true,
         _ => return Err(USAGE.to_owned()),
     };
+    follow_downloads(dry_run).await
+}
+
+/// Follow Steam's downloads until the process ends; used by `monolithd reporters`.
+pub async fn follow_downloads(dry_run: bool) -> Result<(), String> {
     let mut reporter = Reporter { executor: Executor::new("steam-reporter", dry_run), core: Core::default() };
     reporter.recover().await;
     eprintln!("monolithd steam-reporter: following Steam's download API on {DEVTOOLS}{}", if dry_run { " (dry run)" } else { "" });

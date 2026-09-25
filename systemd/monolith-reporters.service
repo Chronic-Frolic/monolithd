@@ -1,0 +1,24 @@
+[Unit]
+Description=Monolith reporters (Steam downloads, storage health, copy-job sweep)
+After=monolith-controller.service
+# Five failures within five minutes and systemd stops restarting it; OnFailure then
+# raises fault reporters:down. Without the explicit limit RestartSec=5 never reaches the
+# default (5 starts in 10 s), so the unit would never count as failed.
+StartLimitIntervalSec=300
+StartLimitBurst=5
+OnFailure=monolith-reporters-failed.service
+
+# The Steam reporter needs the DevTools port Decky Loader enables (127.0.0.1:8080). A
+# leased job blocks suspend, so this changes when the machine can sleep.
+
+[Service]
+Type=simple
+Environment=MONOLITHD_CONFIG_DIR=/home/chronic_frolic/monolithd/config
+ExecStart=/home/chronic_frolic/monolithd/target/release/monolithd reporters
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=yes
+UMask=0077
+
+[Install]
+WantedBy=default.target

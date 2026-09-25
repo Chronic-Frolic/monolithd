@@ -8,8 +8,10 @@
 //! restarted and the job must be announced again; an ending that cannot be delivered is kept
 //! and retried, never dropped.
 
-use crate::controller;
+use crate::{controller, paths};
+use serde::Deserialize;
 use serde_json::{json, Value};
+use std::collections::BTreeMap;
 use std::fmt::Display;
 
 pub enum Sent {
@@ -140,5 +142,73 @@ impl Executor {
     pub async fn clear(&mut self, id: &str) {
         self.send(json!({ "op": "fault.clear", "id": id })).await;
         self.log(format!("cleared {id}"));
+    }
+}
+
+// ---------------------------------------------------------------- config/reporters.toml
+
+/// One aggregate bar per service, or one bar per item (owner decision 2026-09-25: per
+/// service by default, switchable per service). Read at start; restart to change.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum BarMode {
+    PerService,
+    PerItem,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Bars {
+    pub default: BarMode,
+    #[serde(default)]
+    pub services: BTreeMap<String, BarMode>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct StorageConfig {
+    /// btrfs mounts to watch; empty until filesystem day, because a missing mount is a Fault.
+    pub mounts: Vec<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ReportersConfig {
+    pub version: u32,
+    pub bars: Bars,
+    pub storage: StorageConfig,
+}
+
+pub fn parse_config(text: &str) -> Result<ReportersConfig, String> {
+    let config: ReportersConfig = toml::from_str(text).map_err(|error| error.to_string())?;
+    if config.version != 1 {
+        return Err(format!("unsupported version {}", config.version));
+    }
+    Ok(config)
+}
+
+pub fn load_config() -> Result<ReportersConfig, String> {
+    let path = paths::config_dir().join("reporters.toml");
+    let text = std::fs::read_to_string(&path).map_err(|error| format!("read {}: {error}", path.display()))?;
+    parse_config(&text).map_err(|error| format!("{}: {error}", path.display()))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_shipped_reporters_config_is_valid_and_watches_nothing_yet() {
+        let config = load_config().unwrap();
+        assert_eq!((config.bars.default, config.bars.services.len(), config.storage.mounts.len()), (BarMode::PerService, 0, 0));
+    }
+
+    #[test]
+    fn per_service_overrides_parse_and_mistakes_are_rejected() {
+        let config = parse_config("version = 1\n[bars]\ndefault = \"per_service\"\n[bars.services]\nqbittorrent = \"per_item\"\n[storage]\nmounts = [\"/storage/protected\"]\n").unwrap();
+        assert_eq!(config.bars.services["qbittorrent"], BarMode::PerItem);
+        assert!(parse_config("version = 1\n[bars]\ndefault = \"per_torrent\"\n[storage]\nmounts = []\n").is_err());
+        assert!(parse_config("version = 1\n[bars]\ndefault = \"per_item\"\n[storage]\nmounts = []\ntypo = 1\n").is_err());
+        assert!(parse_config("version = 2\n[bars]\ndefault = \"per_item\"\n[storage]\nmounts = []\n").is_err());
     }
 }

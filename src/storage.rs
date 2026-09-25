@@ -13,8 +13,11 @@
 //! problems (device error counters above zero, corrected scrub errors). The counters persist
 //! until reset (`sudo btrfs device stats -z`), so a warning stays until someone looks.
 
+use crate::reporter::{Ending, Executor};
 use std::collections::BTreeMap;
 use std::path::Path;
+use std::time::{Duration, Instant};
+use tokio::time::{interval, MissedTickBehavior};
 
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct Scrub {
@@ -158,6 +161,89 @@ pub async fn observe(mount: &str) -> Observed {
     let devices = filesystem_dir(&source).map(|dir| devices(&dir)).unwrap_or_default();
     let scrub = tokio::process::Command::new("btrfs").args(["scrub", "status", mount]).output().await.map(|output| parse_scrub(&String::from_utf8_lossy(&output.stdout))).unwrap_or_default();
     Observed { mounted_btrfs: true, fstype: Some(fstype), devices, scrub }
+}
+
+const POLL: Duration = Duration::from_secs(10);
+const REASSERT: Duration = Duration::from_secs(30);
+const FAULT_PREFIX: &str = "storage:";
+const SCRUB_PREFIX: &str = "scrub:";
+
+/// Watch `mounts` for as long as the reporters service runs: raise and clear storage faults
+/// and warnings, and show a running scrub as a job (btrfs's own percentage).
+pub async fn follow(mounts: Vec<String>, dry_run: bool) -> Result<(), String> {
+    let mut executor = Executor::new("storage-reporter", dry_run);
+    // Findings currently raised: id -> (is a Fault, reason). Adopted from the controller on
+    // start, so a finding that has gone away while the service was down is cleared.
+    let mut raised: BTreeMap<String, (bool, String)> = BTreeMap::new();
+    let mut scrubs: BTreeMap<String, bool> = BTreeMap::new();
+    if let Some(status) = executor.status().await {
+        for fault in status["active_faults"].as_array().into_iter().flatten() {
+            if let Some(id) = fault["id"].as_str().filter(|id| id.starts_with(FAULT_PREFIX)) {
+                raised.insert(id.to_owned(), (fault["severity"] == "fault", fault["reason"].as_str().unwrap_or("").to_owned()));
+            }
+        }
+        for job in status["jobs"].as_array().into_iter().flatten() {
+            if let Some(mount) = job["id"].as_str().and_then(|id| id.strip_prefix(SCRUB_PREFIX)) {
+                scrubs.insert(mount.to_owned(), true);
+            }
+        }
+    }
+    executor.log(if mounts.is_empty() { "no storage mounts to watch yet (config/reporters.toml [storage] mounts)".to_owned() } else { format!("watching {}", mounts.join(", ")) });
+    let mut tick = interval(POLL);
+    tick.set_missed_tick_behavior(MissedTickBehavior::Skip);
+    let mut last_reassert = Instant::now();
+    loop {
+        tick.tick().await;
+        executor.retry().await;
+        let mut want: BTreeMap<String, (bool, String)> = BTreeMap::new();
+        for mount in &mounts {
+            let observed = observe(mount).await;
+            for finding in findings(mount, &observed) {
+                match finding {
+                    Finding::Fault { id, reason } => want.insert(id, (true, reason)),
+                    Finding::Warning { id, reason } => want.insert(id, (false, reason)),
+                };
+            }
+            let id = format!("{SCRUB_PREFIX}{mount}");
+            let status = observed.scrub.status.clone().unwrap_or_default();
+            if status == "running" {
+                let percent = (observed.scrub.percent.unwrap_or(0.0).floor() as u32).min(100);
+                if !scrubs.get(mount).copied().unwrap_or(false) {
+                    let announced = executor.start(&id, &format!("Scrub {mount}"), 100).await;
+                    scrubs.insert(mount.clone(), announced);
+                }
+                if scrubs.get(mount).copied().unwrap_or(false) && !executor.progress(&id, percent, 100).await {
+                    scrubs.insert(mount.clone(), false);
+                }
+            } else if scrubs.remove(mount).unwrap_or(false) {
+                let ending = if status == "finished" { Ending::Complete } else { Ending::Fail(format!("scrub {}", if status.is_empty() { "state unknown" } else { status.as_str() })) };
+                executor.end(id, ending).await;
+            }
+        }
+        // A scrub job adopted for a mount that is no longer watched cannot be followed.
+        for (mount, announced) in std::mem::take(&mut scrubs) {
+            if mounts.contains(&mount) {
+                scrubs.insert(mount, announced);
+            } else if announced {
+                executor.end(format!("{SCRUB_PREFIX}{mount}"), Ending::Fail("the mount is no longer watched".to_owned())).await;
+            }
+        }
+        for id in raised.keys().filter(|id| !want.contains_key(*id)).cloned().collect::<Vec<_>>() {
+            executor.clear(&id).await;
+        }
+        let reassert = last_reassert.elapsed() >= REASSERT;
+        for (id, (fault, reason)) in &want {
+            if raised.get(id) != Some(&(*fault, reason.clone())) {
+                if *fault { executor.fault(id, reason).await } else { executor.warn(id, reason).await }
+            } else if reassert {
+                executor.raise_as(id, if *fault { "fault" } else { "warning" }, reason).await;
+            }
+        }
+        if reassert {
+            last_reassert = Instant::now();
+        }
+        raised = want;
+    }
 }
 
 /// `monolithd storage-status MOUNT...`: print what the reporter would see, once.

@@ -1,0 +1,9 @@
+[Unit]
+Description=Raise a Fault because the Monolith reporters keep failing
+
+# Started by the OnFailure= of monolith-reporters.service once systemd gives up on it.
+# The reporters clear this fault themselves the next time they start.
+
+[Service]
+Type=oneshot
+ExecStart=/home/chronic_frolic/monolithd/target/release/monolithd event fault-raise reporters:down fault the Monolith reporters keep failing and systemd stopped restarting them

@@ -1,0 +1,17 @@
+# monolithd reporters (monolith-reporters.service). Read at start: restart the service
+# after editing.
+version = 1
+
+[bars]
+# "per_service": one aggregate bar per service; "per_item": one bar per download, torrent...
+# (two progress zones exist, so a third item waits its turn). Owner default 2026-09-25.
+default = "per_service"
+
+[bars.services]
+# Per-service overrides, for example:
+# qbittorrent = "per_item"
+
+[storage]
+# btrfs mounts to watch for health and scrubs. Keep empty until filesystem day: a watched
+# mount that is missing or not btrfs raises a Fault on every LED zone.
+mounts = []

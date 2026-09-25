@@ -11,7 +11,7 @@ Controller - Design and Implementation Handoff"; `docs/runbook.md` covers operat
     src/        the Rust crate (one binary, many subcommands)
     config/     everything the binary reads at runtime (see below)
     qlcplus/    production QLC+ workspace and the owner-editable intake workspaces
-    systemd/    user units, the lighting-stack supervisor and author-mode scripts
+    systemd/    user units (lighting stack, controller, watchdog, reporters, sleep policy), author mode
     python/     the read-only suspend-status tool and its test
     tools/      probe-header.sh and the intake template builder
     docs/       runbook
@@ -50,7 +50,10 @@ Build inside the `monolith-rust` toolbox with `cargo build --release`; run from
     monolithd event pause | resume           stop or resume the controller acting on the plant
     monolithd calibrate --show               list the gains and what full white becomes
     monolithd calibrate ZONE R G B           set a zone gain (0.0 to 1.0), applied within a second
-    monolithd steam-reporter [--dry-run]     report the Steam download in progress as a controller job (needs Decky's DevTools port)
+    monolithd reporters [--dry-run]          the reporters service: Steam downloads (needs Decky's DevTools port), storage health and scrubs, copy-job sweep
+    monolithd job rsync ARGS...              run an rsync copy as a job with rsync's own progress
+    monolithd storage-status MOUNT...        print what the storage observer sees, once
+    monolithd sleep-policy                   observe when the machine would suspend (phase 2)
     monolithd probe-header ...               header LED mapping test (see tools/probe-header.sh)
 
 ## Monolith Remote

@@ -11,6 +11,7 @@
 //! `rsync:<pid>`, so the reporters service can end a job whose wrapper was killed outright.
 
 use crate::reporter::{Ending, Executor};
+use serde_json::Value;
 use std::process::Stdio;
 use std::time::{Duration, Instant};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
@@ -135,6 +136,42 @@ pub async fn run(arguments: Vec<String>) -> Result<(), String> {
     std::process::exit(code);
 }
 
+/// Is `pid` still a `monolithd job` wrapper? (Its cmdline arguments are NUL-separated.)
+fn is_wrapper(pid: u32) -> bool {
+    std::fs::read(format!("/proc/{pid}/cmdline")).is_ok_and(|cmdline| {
+        let arguments: Vec<&[u8]> = cmdline.split(|byte| *byte == 0).collect();
+        arguments.first().is_some_and(|program| program.ends_with(b"monolithd")) && arguments.get(1) == Some(&&b"job"[..])
+    })
+}
+
+/// `rsync:<pid>` jobs whose wrapper is gone (killed outright, or its SSH session dropped).
+fn orphans(status: &Value, alive: impl Fn(u32) -> bool) -> Vec<String> {
+    status["jobs"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(|job| job["id"].as_str())
+        .filter(|id| id.strip_prefix(JOB_PREFIX).and_then(|pid| pid.parse().ok()).is_some_and(|pid| !alive(pid)))
+        .map(str::to_owned)
+        .collect()
+}
+
+/// End orphaned copy jobs every 30 s, so a killed wrapper cannot hold a bar (and block
+/// sleep) until the watchdog's 6 h cap.
+pub async fn sweep(dry_run: bool) -> Result<(), String> {
+    let mut executor = Executor::new("job-sweep", dry_run);
+    let mut tick = interval(Duration::from_secs(30));
+    tick.set_missed_tick_behavior(MissedTickBehavior::Skip);
+    loop {
+        tick.tick().await;
+        executor.retry().await;
+        let Some(status) = executor.status().await else { continue };
+        for id in orphans(&status, is_wrapper) {
+            executor.end(id, Ending::Fail("the copy's wrapper process is gone".to_owned())).await;
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -154,6 +191,12 @@ mod tests {
         assert_eq!(buffer, "    1,024,0", "the unfinished line waits for more output");
         buffer.push_str("00  25%  1.00MB/s    0:00:02\n");
         assert_eq!(take_lines(&mut buffer).iter().filter_map(|line| percent(line)).collect::<Vec<_>>(), vec![25]);
+    }
+
+    #[test]
+    fn only_rsync_jobs_whose_wrapper_is_gone_are_orphans() {
+        let status = serde_json::json!({ "jobs": [{ "id": "rsync:100" }, { "id": "rsync:200" }, { "id": "steam:292030" }, { "id": "rsync:x" }] });
+        assert_eq!(orphans(&status, |pid| pid == 100), vec!["rsync:200".to_owned()]);
     }
 
     #[test]
