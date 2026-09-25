@@ -123,7 +123,18 @@ impl Executor {
 
     /// Raise a warning again without logging; the controller forgets faults on restart.
     pub async fn raise(&mut self, id: &str, reason: &str) {
-        self.send(json!({ "op": "fault.raise", "id": id, "severity": "warning", "reason": reason })).await;
+        self.raise_as(id, "warning", reason).await;
+    }
+
+    /// Raise a Fault (all zones), for data-integrity threats only (owner decision 2026-09-25).
+    pub async fn fault(&mut self, id: &str, reason: &str) {
+        self.raise_as(id, "fault", reason).await;
+        self.log(format!("FAULT {id}: {reason}"));
+    }
+
+    /// Raise with a given severity (`warning` or `fault`) without logging.
+    pub async fn raise_as(&mut self, id: &str, severity: &str, reason: &str) {
+        self.send(json!({ "op": "fault.raise", "id": id, "severity": severity, "reason": reason })).await;
     }
 
     pub async fn clear(&mut self, id: &str) {
