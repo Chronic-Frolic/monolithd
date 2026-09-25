@@ -232,7 +232,10 @@ fn progress(manifest: Option<&BTreeMap<String, String>>, fresh: bool, log_total:
         return None;
     };
     let total_kib = kib_ceil(total);
-    Some((u32::try_from(completed / 1024).unwrap_or(u32::MAX).min(total_kib), total_kib))
+    // Completed rounds down and the total up, so finished bytes must map to the total exactly,
+    // not to one KiB short of it.
+    let completed_kib = if completed >= total { total_kib } else { u32::try_from(completed / 1024).unwrap_or(u32::MAX).min(total_kib) };
+    Some((completed_kib, total_kib))
 }
 
 fn steam_alive() -> bool {
@@ -593,6 +596,8 @@ mod tests {
         assert_eq!(progress(Some(&manifest(20480, 20480, 20480, 20480)), true, 1024 * 1024), Some((0, 1024)));
         // Same totals as the log, but written before this attempt started (a retried update).
         assert_eq!(progress(Some(&manifest(20480, 20480, 20480, 20480)), false, 40960), Some((0, 40)));
+        // Every byte done reads as the whole total, even when the total is not a KiB multiple.
+        assert_eq!(progress(Some(&manifest(6776222544, 6776222544, 7947804199, 7947804199)), true, 6776222544 + 7947804199), Some((14378933, 14378933)));
         // No log total yet: the manifest is all there is.
         assert_eq!(progress(Some(&manifest(0, 1500, 0, 0)), true, 0), Some((0, 2)));
         assert_eq!(progress(None, false, 0), None);
