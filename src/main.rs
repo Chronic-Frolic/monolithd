@@ -11,6 +11,7 @@ mod reporter;
 mod openrgb;
 mod paths;
 mod gamepad;
+mod job;
 mod sleep_policy;
 mod steam;
 mod wayland_idle;
@@ -20,7 +21,7 @@ mod watchdog;
 mod workspace;
 
 fn usage() -> ! {
-    eprintln!("usage: monolithd <e131-receiver|validate-registry [PATH]|workspace <list|select NAME [--check]>|scene <status|start NAME|start-set NAME...|replace NAME|stop NAME|progress ZONE N>|calibrate <--show|ZONE R G B>|event <status|ambient SET|job-start ID LABEL TOTAL [PRIORITY]|job-progress ID N [TOTAL]|job-complete ID|job-fail ID REASON|pause|resume>|remote [PORT]|steam-reporter [--dry-run]|sleep-policy|probe-header <sweep [FROM TO [DWELL_MS]]|at N [SECONDS]>|controller|watchdog>");
+    eprintln!("usage: monolithd <e131-receiver|validate-registry [PATH]|workspace <list|select NAME [--check]>|scene <status|start NAME|start-set NAME...|replace NAME|stop NAME|progress ZONE N>|calibrate <--show|ZONE R G B>|event <status|ambient SET|job-start ID LABEL TOTAL [PRIORITY]|job-progress ID N [TOTAL]|job-complete ID|job-fail ID REASON|pause|resume>|remote [PORT]|steam-reporter [--dry-run]|sleep-policy|job [--dry-run] [--label TEXT] rsync ARGS...|probe-header <sweep [FROM TO [DWELL_MS]]|at N [SECONDS]>|controller|watchdog>");
     std::process::exit(2);
 }
 
@@ -85,6 +86,7 @@ async fn main() {
         Some("remote") => remote::run(arguments.next()).await,
         Some("steam-reporter") => steam::run(arguments.collect()).await,
         Some("sleep-policy") => sleep_policy::run(arguments.collect()).await,
+        Some("job") => job::run(arguments.collect()).await,
         Some("watchdog") => watchdog::run().await,
         _ => usage(),
     };
