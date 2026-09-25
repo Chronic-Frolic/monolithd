@@ -838,6 +838,7 @@ fn root() -> PathBuf {
 
 /// `monolithd controller`: run the controller until it is stopped.
 pub async fn run() -> Result<(), String> {
+    eprintln!("monolithd controller: {}", crate::paths::describe());
     let root = root();
     let layout = crate::config::load_layout(&root.join("scene-layout.toml"))?;
     let (registry, problems) = registry::load_and_validate(&root.join("qlc-functions.toml"), &layout)?;

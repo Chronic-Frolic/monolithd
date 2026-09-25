@@ -7,6 +7,7 @@ Wants=monolith-lighting-stack.service
 # It is not installed or enabled yet: enable it once it has been validated by hand.
 
 [Service]
+Environment=MONOLITHD_CONFIG_DIR=/home/chronic_frolic/monolithd/config
 Type=simple
 ExecStart=/home/chronic_frolic/monolithd/target/release/monolithd controller
 Restart=on-failure

@@ -20,6 +20,7 @@ fn usage() -> ! {
 }
 
 fn validate_registry(path: Option<String>) -> Result<(), String> {
+    println!("{}", paths::describe());
     let root = paths::config_dir();
     let path = path.map(std::path::PathBuf::from).unwrap_or_else(|| root.join("qlc-functions.toml"));
     let layout = config::load_layout(&root.join("scene-layout.toml"))?;

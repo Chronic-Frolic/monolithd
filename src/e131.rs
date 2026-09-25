@@ -96,6 +96,7 @@ async fn connect_output() -> Result<openrgb::QlcOutput, String> {
 }
 
 pub async fn run() -> Result<(), String> {
+    eprintln!("monolithd e131-receiver: {}", crate::paths::describe());
     let layout = config::load_layout(&layout_path())?;
     let listener: SocketAddr = layout.qlc_e131.listener.parse().map_err(|error| format!("parse qlc_e131.listener: {error}"))?;
     if !listener.ip().is_loopback() { return Err("qlc_e131.listener must be a loopback address".to_owned()); }
