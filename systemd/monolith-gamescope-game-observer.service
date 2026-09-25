@@ -1,0 +1,12 @@
+[Unit]
+Description=Monolith Gamescope Game Observer
+After=gamescope-session-plus@ogui-steam.service monolith-event-controller.service
+
+[Service]
+Type=simple
+ExecStart=/home/chronic_frolic/.local/share/monolith-events/venv/bin/python /home/chronic_frolic/monolithd/python/monolith_gamescope_game_observer.py serve
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=default.target

@@ -1,0 +1,40 @@
+# SDK-6 zone ownership and status routing. Controller identities are checked at
+# runtime. `controller_ids` preserves the physically verified left-to-right RAM
+# order while the vendor/location fingerprint rejects unrelated controllers.
+
+[zones.ram]
+kind = "controllers"
+vendor = "ENE"
+location_prefix = "I2C: SMBus PIIX4 adapter port 0"
+controller_ids = [1, 3, 0, 2]
+available = true
+
+[zones.rog_eye]
+kind = "zone"
+controller_vendor = "ASUS"
+controller_serial = "9876543210"
+zone_index = 0
+available = true
+
+[zones.strip]
+kind = "zone"
+controller_vendor = "ASUS"
+controller_serial = "9876543210"
+zone_index = 1
+led_count = 70
+# SDK index 0 is physically at the red end; progress begins at the opposite,
+# magenta end and proceeds toward red.
+progress_direction = "sdk_end_to_start"
+available = true
+
+[zones.gpu_bracket]
+kind = "unmapped"
+available = false
+
+# QLC+ emits these logical OpenRGB controllers as unicast E1.31 universes 1-4.
+# The physical left-to-right order remains `zones.ram.controller_ids` above.
+[qlc_e131]
+listener = "127.0.0.1:5568"
+web_listener = "127.0.0.1:9999"
+ram_controller_ids = [0, 1, 2, 3]
+board_universe = 5

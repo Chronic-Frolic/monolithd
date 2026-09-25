@@ -1,0 +1,18 @@
+[Unit]
+Description=Monolith Event Controller (lighting state and job leases)
+After=monolith-lighting-stack.service
+Wants=monolith-lighting-stack.service
+
+# The controller runs on the host and talks only to the scene gateway's Unix socket.
+# It is not installed or enabled yet: enable it once it has been validated by hand.
+
+[Service]
+Type=simple
+ExecStart=/home/chronic_frolic/monolithd/target/release/monolithd controller
+Restart=on-failure
+RestartSec=2
+NoNewPrivileges=yes
+UMask=0077
+
+[Install]
+WantedBy=default.target

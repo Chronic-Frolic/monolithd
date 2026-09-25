@@ -1,0 +1,55 @@
+# Monolith Event Controller runbook
+
+## Current phase: observe-only suspend policy
+
+`monolith_suspend_status.py` is deliberately read-only. It identifies the active
+physical `seat0` session, reports its idle status and duration, lists systemd
+inhibitors, and explains why automatic suspend is not yet eligible.
+
+It must not call `systemctl suspend`, create an inhibitor, change RGB, or expose
+a network endpoint in this phase.
+
+## Intended suspend rule
+
+Automatic suspension becomes eligible only when all conditions are true:
+
+1. The active physical `seat0` session has been idle for the configured timeout.
+2. No workload holds a blocking `sleep` inhibitor.
+3. No manual remote suspend block is active.
+4. No gaming or streaming safeguard is active.
+5. The wake/start grace period has elapsed.
+
+Do not use global `logind` `IdleAction` for this appliance: persistent SSH and
+user-manager sessions make its all-sessions idle requirement unsuitable.
+
+## Future controls
+
+The manual remote block will be a named, systemd-managed `sleep` inhibitor with
+an explicit reason and expiry. It will be added through the existing narrow
+Monolith Remote allow-list only after this observer has been validated.
+
+## Manual remote suspend block
+
+`monolith-suspend-block.service` is a non-enabled user service. When started, it
+holds a named blocking `sleep` inhibitor through `systemd-inhibit`; `RuntimeMaxSec=12h`
+releases the block automatically. Stopping the unit releases it immediately.
+
+Monolith Remote exposes authenticated `POST /suspend-block` and
+`POST /suspend-unblock` actions. `GET /status` reports whether the block is active
+and its remaining lifetime. This is a manual safety control only; it does not enable
+automatic suspension.
+
+## OpenRGB SDK baseline
+
+`openrgb-sdk.service` runs the existing OpenRGB AppImage as a rootless, loopback-only
+SDK server on `127.0.0.1:6742`. It is enabled for the user default target and must
+not be exposed through Tailscale Serve or any other network ingress.
+
+The isolated Python environment is `~/.local/share/monolith-events/venv`; it is not
+tracked in Git and now serves only `python/monolith_gamescope_game_observer.py`.
+
+## SDK diagnostics
+
+The Python SDK probe and wiring diagnostics (`rgb_sdk_probe.py`, `rgb_sdk_diagnostic.py`)
+and the OpenRGB profiles were retired on 2026-09-25; recover them from Git history if
+needed. For header LED mapping use `tools/probe-header.sh`.

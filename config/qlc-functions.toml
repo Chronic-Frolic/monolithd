@@ -1,0 +1,246 @@
+# Versioned registry of QLC+ Function IDs used as workspace API.
+#
+# Function IDs are not incidental UI numbering: the scene gateway will select
+# assets by the semantic names below. `monolithd validate-registry` proves this
+# file still agrees with the workspace (IDs, types, chaser children, progress
+# step names, and per-zone DMX ownership). QLC+ universe numbers here are the
+# workspace's 0-based indexes (E1.31 universe = index + 1); addresses are 0-based.
+
+version = 1
+
+# Relative to this config/ directory: the workspace lives in the sibling qlcplus/.
+workspace = "../qlcplus/monolith-lighting.qxw"
+
+# Zone geometry: which DMX channels belong to each named zone. Zone names match
+# scene-layout.toml. A Function's owned zones are derived from the channels it
+# actually writes and must equal what is declared here.
+[zones.ram]
+regions = [
+  { universe = 0, address = 0, channels = 24 },
+  { universe = 1, address = 0, channels = 24 },
+  { universe = 2, address = 0, channels = 24 },
+  { universe = 3, address = 0, channels = 24 },
+]
+
+[zones.rog_eye]
+regions = [{ universe = 4, address = 0, channels = 9 }]
+
+# Channels 9-14 of universe 4 intentionally stay unowned: they preserve
+# OpenRGB's two non-visible ASUS logical LEDs.
+[zones.strip]
+regions = [{ universe = 4, address = 15, channels = 210 }]
+
+# Global proof scene. Writes every zone at once, so it is not composable and
+# must be stopped before any zone lease begins.
+[[functions]]
+name = "boot_proof"
+kind = "chaser"
+id = 106
+children = [104, 105]
+zones = ["ram", "rog_eye", "strip"]
+composable = false
+
+# The composable idle set: 109 + 112 + 115 replaces (never overlaps) 106.
+[[functions]]
+name = "ambient_ram"
+kind = "chaser"
+id = 109
+children = [107, 108]
+zones = ["ram"]
+composable = true
+
+[[functions]]
+name = "ambient_eye"
+kind = "chaser"
+id = 112
+children = [110, 111]
+zones = ["rog_eye"]
+composable = true
+
+[[functions]]
+name = "ambient_strip"
+kind = "chaser"
+id = 115
+children = [113, 114]
+zones = ["strip"]
+composable = true
+
+# Named ambient sets: the zone functions that make up one ambient look. A set is started
+# together (start_set) so its chasers stay in phase, and a member returning later rejoins
+# at the next cycle boundary. Sets are data; which one is selected is controller state.
+[[ambient_sets]]
+name = "deep_violet"
+functions = ["ambient_ram", "ambient_eye", "ambient_strip"]
+
+# State-preemption assets (Phase 4, 2026-09-21). Static, no animation. Composable and
+# single-zone, so the gateway needs no special casing: warning/fault/quiet each own a zone
+# exactly like an ambient Function does, just at a higher priority the controller enforces.
+# controller_fault_* are registered for Phase 5 (the watchdog); nothing wires them yet.
+[[functions]]
+name = "warning_eye"
+kind = "scene"
+id = 117
+children = []
+zones = ["rog_eye"]
+composable = true
+
+[[functions]]
+name = "fault_ram"
+kind = "scene"
+id = 118
+children = []
+zones = ["ram"]
+composable = true
+
+[[functions]]
+name = "fault_eye"
+kind = "scene"
+id = 119
+children = []
+zones = ["rog_eye"]
+composable = true
+
+[[functions]]
+name = "quiet_ram"
+kind = "scene"
+id = 120
+children = []
+zones = ["ram"]
+composable = true
+
+[[functions]]
+name = "quiet_eye"
+kind = "scene"
+id = 121
+children = []
+zones = ["rog_eye"]
+composable = true
+
+[[functions]]
+name = "quiet_strip"
+kind = "scene"
+id = 122
+children = []
+zones = ["strip"]
+composable = true
+
+[[functions]]
+name = "fault_strip"
+kind = "scene"
+id = 126
+children = []
+zones = ["strip"]
+composable = true
+
+# Job-running indicator (2026-09-22): a job is active somewhere, shown as white --
+# the same unmodulated FixtureVal as reference_white_eye, so it automatically tracks
+# the eye's calibration gain like every other white asset, with no separate color
+# config. A distinct asset from reference_white_eye (a calibration aid, not meant to
+# appear during normal operation) and from warning_eye (amber; a real operator-raised
+# warning stays visually and programmatically distinct from "something is running").
+# Lowest tier: state_wants() computes this first, so quiet/warning/fault all override it.
+[[functions]]
+name = "working_eye"
+kind = "scene"
+id = 127
+children = []
+zones = ["rog_eye"]
+composable = true
+
+[[functions]]
+name = "warning_ram"
+kind = "scene"
+id = 200
+children = []
+zones = ["ram"]
+composable = true
+
+[[functions]]
+name = "warning_strip"
+kind = "scene"
+id = 201
+children = []
+zones = ["strip"]
+composable = true
+
+[[functions]]
+name = "working_ram"
+kind = "scene"
+id = 202
+children = []
+zones = ["ram"]
+composable = true
+
+[[functions]]
+name = "working_strip"
+kind = "scene"
+id = 203
+children = []
+zones = ["strip"]
+composable = true
+
+[[functions]]
+name = "controller_fault_ram"
+kind = "scene"
+id = 123
+children = []
+zones = ["ram"]
+composable = true
+
+[[functions]]
+name = "controller_fault_eye"
+kind = "scene"
+id = 124
+children = []
+zones = ["rog_eye"]
+composable = true
+
+[[functions]]
+name = "controller_fault_strip"
+kind = "scene"
+id = 125
+children = []
+zones = ["strip"]
+composable = true
+
+# Calibration reference: the eye at full nominal white. The eye has no other white
+# Function, so this is what it is compared against `progress ram 0` (all RAM white)
+# and `progress strip 0` (all strip white) when matching white points by eye. It can
+# run beside them: it owns only the eye zone.
+[[functions]]
+name = "reference_white_eye"
+kind = "scene"
+id = 116
+children = []
+zones = ["rog_eye"]
+composable = true
+
+# Progress-capable zones register a contiguous step range: Function ID is
+# `first_id + completed`, for completed in 0..=total. These steps are produced
+# by the planned offline authoring tool; they are never computed at runtime.
+[[progress]]
+name = "progress_ram"
+zone = "ram"
+label = "RAM"
+first_id = 0
+total = 32
+
+[[progress]]
+name = "progress_strip"
+zone = "strip"
+label = "Strip"
+first_id = 33
+total = 70
+
+[[progress]]
+# Alternate RAM fill: one LED-height across all four sticks at a time, left to
+# right, instead of filling each stick fully before moving to the next. Opt in
+# per job (job.start's "pattern" field); progress_ram remains the default.
+name = "progress_ram_interleaved"
+zone = "ram"
+label = "RAM (interleaved)"
+first_id = 128
+total = 32
+
+# Warning, fault, Quiet, and controller-fault assets do not exist yet and are
+# deliberately absent. Author and register them before wiring automatic use.
