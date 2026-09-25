@@ -3,4 +3,4 @@ Description=Monolith RGB controller fault failsafe
 
 [Service]
 Type=oneshot
-ExecStart=/home/chronic_frolic/.local/share/monolith-events/venv/bin/python /home/chronic_frolic/server-config/monolith-events/monolith_event_watchdog.py --fault
+ExecStart=/home/chronic_frolic/.local/share/monolith-events/venv/bin/python /home/chronic_frolic/monolithd/monolith-events/monolith_event_watchdog.py --fault

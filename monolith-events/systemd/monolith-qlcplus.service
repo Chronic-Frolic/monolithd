@@ -7,7 +7,7 @@ Description=Monolith QLC+ headless scene engine
 [Service]
 Type=simple
 Environment=QT_QPA_PLATFORM=minimal
-ExecStart=/home/chronic_frolic/AppImages/qlcplus-5.2.2-x86_64.AppImage --open /home/chronic_frolic/server-config/qlcplus/monolith-lighting.qxw
+ExecStart=/home/chronic_frolic/AppImages/qlcplus-5.2.2-x86_64.AppImage --open /home/chronic_frolic/monolithd/qlcplus/monolith-lighting.qxw
 Restart=on-failure
 RestartSec=2
 

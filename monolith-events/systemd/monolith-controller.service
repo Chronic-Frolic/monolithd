@@ -8,7 +8,7 @@ Wants=monolith-lighting-stack.service
 
 [Service]
 Type=simple
-ExecStart=/home/chronic_frolic/server-config/monolith-events/monolithd/target/release/monolithd controller
+ExecStart=/home/chronic_frolic/monolithd/monolith-events/monolithd/target/release/monolithd controller
 Restart=on-failure
 RestartSec=2
 NoNewPrivileges=yes

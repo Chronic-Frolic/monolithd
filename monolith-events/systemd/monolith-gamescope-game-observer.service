@@ -4,7 +4,7 @@ After=gamescope-session-plus@ogui-steam.service monolith-event-controller.servic
 
 [Service]
 Type=simple
-ExecStart=/home/chronic_frolic/.local/share/monolith-events/venv/bin/python /home/chronic_frolic/server-config/monolith-events/monolith_gamescope_game_observer.py serve
+ExecStart=/home/chronic_frolic/.local/share/monolith-events/venv/bin/python /home/chronic_frolic/monolithd/monolith-events/monolith_gamescope_game_observer.py serve
 Restart=on-failure
 RestartSec=2
 

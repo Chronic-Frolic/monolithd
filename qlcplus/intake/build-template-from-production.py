@@ -7,7 +7,7 @@ One-time bootstrap, not part of the runtime -- `monolithd workspace select` is t
 tool that runs repeatedly. Rerun this only to regenerate the starter template from
 whatever's live at the time (e.g. after a deliberate hand-authored change to it).
 
-Run from the repo's `qlcplus/` directory's parent (~/server-config):
+Run from the repo's `qlcplus/` directory's parent (~/monolithd):
     python3 qlcplus/intake/build-template-from-production.py
 """
 import re

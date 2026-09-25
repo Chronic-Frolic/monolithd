@@ -28,8 +28,8 @@ set -u -o pipefail
 
 openrgb_appimage=/home/chronic_frolic/AppImages/openrgb-1.0.appimage
 qlc_appimage=/home/chronic_frolic/AppImages/qlcplus-5.2.2-x86_64.AppImage
-adapter=/home/chronic_frolic/server-config/monolith-events/monolithd/target/release/monolithd
-default_workspace="/home/chronic_frolic/server-config/qlcplus/intake/Monolithd Intake Template.qxw"
+adapter=/home/chronic_frolic/monolithd/monolith-events/monolithd/target/release/monolithd
+default_workspace="/home/chronic_frolic/monolithd/qlcplus/intake/Monolithd Intake Template.qxw"
 openrgb_unit=monolith-author-openrgb
 receiver_unit=monolith-author-receiver
 

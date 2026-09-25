@@ -5,8 +5,8 @@ set -u -o pipefail
 
 openrgb_appimage=/home/chronic_frolic/AppImages/openrgb-1.0.appimage
 qlc_appimage=/home/chronic_frolic/AppImages/qlcplus-5.2.2-x86_64.AppImage
-workspace=/home/chronic_frolic/server-config/qlcplus/monolith-lighting.qxw
-adapter=/home/chronic_frolic/server-config/monolith-events/monolithd/target/release/monolithd
+workspace=/home/chronic_frolic/monolithd/qlcplus/monolith-lighting.qxw
+adapter=/home/chronic_frolic/monolithd/monolith-events/monolithd/target/release/monolithd
 
 children=()
 

@@ -8,7 +8,7 @@ Conflicts=monolith-openrgb-sdk-bridge.service
 # direct SDK bridge only after the QLC+ scene engine has a tested baseline.
 [Service]
 Type=simple
-ExecStart=/home/chronic_frolic/server-config/monolith-events/monolithd/target/release/monolithd e131-receiver
+ExecStart=/home/chronic_frolic/monolithd/monolith-events/monolithd/target/release/monolithd e131-receiver
 Restart=on-failure
 RestartSec=2
 
