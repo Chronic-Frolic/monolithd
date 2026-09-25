@@ -26,7 +26,7 @@
 //! and a reporter restart clears its own `steam-reporter:` faults, restores unexpired error
 //! warnings from their IDs, and adopts or ends the `steam:` jobs it left behind.
 
-use crate::controller;
+use crate::reporter::{Ending, Executor};
 use crate::ws::{self, WebSocket};
 use serde_json::{json, Value};
 use std::collections::BTreeMap;
@@ -528,73 +528,34 @@ fn job_id(app: u32) -> String {
 }
 
 struct Reporter {
-    dry_run: bool,
+    executor: Executor,
     core: Core,
-    /// Job endings the controller has not acknowledged; retried every poll.
-    pending: Vec<Action>,
-    last_error: Option<String>,
-}
-
-enum Sent {
-    Ok,
-    Refused(String),
-    Unreachable,
 }
 
 impl Reporter {
-    async fn send(&mut self, request: Value) -> Sent {
-        if self.dry_run {
-            println!("monolithd steam-reporter (dry run): {request}");
-            return Sent::Ok;
-        }
-        match controller::call(&request).await {
-            Ok(reply) if reply["ok"] == Value::Bool(true) => {
-                self.last_error = None;
-                Sent::Ok
-            }
-            Ok(reply) => Sent::Refused(reply["code"].as_str().unwrap_or("error").to_owned()),
-            Err(error) => {
-                if self.last_error.as_deref() != Some(error.as_str()) {
-                    eprintln!("monolithd steam-reporter: {error}");
-                    self.last_error = Some(error);
-                }
-                Sent::Unreachable
-            }
-        }
-    }
-
-    async fn warn(&mut self, id: &str, reason: &str) -> Sent {
-        self.send(json!({ "op": "fault.raise", "id": id, "severity": "warning", "reason": reason })).await
-    }
-
     /// Clear this reporter's own stale faults, restore unexpired error warnings, and adopt
     /// the jobs a previous reporter left behind.
     async fn recover(&mut self) {
-        if self.dry_run {
-            return;
-        }
-        let Ok(status) = controller::call(&json!({ "op": "status" })).await else { return };
+        let Some(status) = self.executor.status().await else { return };
         let (now, now_unix) = (Instant::now(), unix_now());
         for fault in status["active_faults"].as_array().into_iter().flatten() {
             let (Some(id), reason) = (fault["id"].as_str(), fault["reason"].as_str().unwrap_or("")) else { continue };
             if id.starts_with(OWN_FAULT_PREFIX) {
-                self.send(json!({ "op": "fault.clear", "id": id })).await;
+                self.executor.clear(id).await;
             } else if let Some(rest) = id.strip_prefix(ERROR_PREFIX) {
                 match rest.split_once(':').and_then(|(app, expiry)| Some((app.parse::<u32>().ok()?, expiry.parse::<u64>().ok()?))) {
                     Some((app, expiry)) if expiry > now_unix => {
                         self.core.errors.insert(app, (expiry, reason.to_owned()));
                         self.core.raised.insert(id.to_owned(), reason.to_owned());
                     }
-                    _ => {
-                        self.send(json!({ "op": "fault.clear", "id": id })).await;
-                    }
+                    _ => self.executor.clear(id).await,
                 }
             }
         }
         for job in status["jobs"].as_array().into_iter().flatten() {
             if let Some(app) = job["id"].as_str().and_then(|id| id.strip_prefix(JOB_PREFIX)).and_then(|app| app.parse().ok()) {
                 self.core.adopt(app, now, now_unix);
-                eprintln!("monolithd steam-reporter: adopted job {}", job_id(app));
+                self.executor.log(format!("adopted job {}", job_id(app)));
             }
         }
     }
@@ -602,51 +563,25 @@ impl Reporter {
     async fn perform(&mut self, action: Action) {
         match action {
             Action::Start { app, label, total } => {
-                if let Sent::Refused(_) | Sent::Unreachable = self.send(json!({ "op": "job.start", "id": job_id(app), "label": label, "total": total })).await {
-                    // Most often "already completing": this app's previous job is still in its
-                    // completion hold. Announce again next poll.
+                if !self.executor.start(&job_id(app), &label, total).await {
                     self.core.set_announced(app, false);
-                } else {
-                    eprintln!("monolithd steam-reporter: announced {} ({label}, {total})", job_id(app));
                 }
             }
             Action::Progress { app, completed, total } => {
-                if let Sent::Refused(code) = self.send(json!({ "op": "job.progress", "id": job_id(app), "completed": completed, "total": total })).await {
-                    if code == "unknown_job" {
-                        eprintln!("monolithd steam-reporter: controller forgot {}; announcing it again", job_id(app));
-                        self.core.set_announced(app, false);
-                    }
+                if !self.executor.progress(&job_id(app), completed, total).await {
+                    self.core.set_announced(app, false);
                 }
             }
-            Action::Complete { app } => {
-                if let Sent::Unreachable = self.send(json!({ "op": "job.complete", "id": job_id(app) })).await {
-                    self.pending.push(Action::Complete { app });
-                } else {
-                    eprintln!("monolithd steam-reporter: {} completed", job_id(app));
-                }
-            }
-            Action::Fail { app, reason } => {
-                if let Sent::Unreachable = self.send(json!({ "op": "job.fail", "id": job_id(app), "reason": reason })).await {
-                    self.pending.push(Action::Fail { app, reason });
-                } else {
-                    eprintln!("monolithd steam-reporter: {} ended: {reason}", job_id(app));
-                }
-            }
-            Action::Warn { id, reason } => {
-                self.warn(&id, &reason).await;
-                eprintln!("monolithd steam-reporter: warning {id}: {reason}");
-            }
-            Action::Clear { id } => {
-                self.send(json!({ "op": "fault.clear", "id": id })).await;
-                eprintln!("monolithd steam-reporter: cleared {id}");
-            }
+            Action::Complete { app } => self.executor.end(job_id(app), Ending::Complete).await,
+            Action::Fail { app, reason } => self.executor.end(job_id(app), Ending::Fail(reason)).await,
+            Action::Warn { id, reason } => self.executor.warn(&id, &reason).await,
+            Action::Clear { id } => self.executor.clear(&id).await,
         }
     }
 
     async fn step(&mut self) {
-        let mut actions = std::mem::take(&mut self.pending);
-        actions.extend(self.core.tick(Instant::now(), unix_now(), steam_alive()));
-        for action in actions {
+        self.executor.retry().await;
+        for action in self.core.tick(Instant::now(), unix_now(), steam_alive()) {
             self.perform(action).await;
         }
     }
@@ -654,7 +589,7 @@ impl Reporter {
     /// Re-raise every warning that should be up; the controller forgets them on restart.
     async fn reassert(&mut self) {
         for (id, reason) in self.core.raised.clone() {
-            self.warn(&id, &reason).await;
+            self.executor.raise(&id, &reason).await;
         }
     }
 }
@@ -668,7 +603,7 @@ pub async fn run(arguments: Vec<String>) -> Result<(), String> {
         [flag] if flag == "--dry-run" => true,
         _ => return Err(USAGE.to_owned()),
     };
-    let mut reporter = Reporter { dry_run, core: Core::default(), pending: Vec::new(), last_error: None };
+    let mut reporter = Reporter { executor: Executor::new("steam-reporter", dry_run), core: Core::default() };
     reporter.recover().await;
     eprintln!("monolithd steam-reporter: following Steam's download API on {DEVTOOLS}{}", if dry_run { " (dry run)" } else { "" });
     let (sender, mut links) = mpsc::channel(64);

@@ -7,6 +7,7 @@ mod gateway;
 mod qlc;
 mod registry;
 mod remote;
+mod reporter;
 mod openrgb;
 mod paths;
 mod gamepad;
