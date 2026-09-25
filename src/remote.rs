@@ -92,7 +92,7 @@ async fn status(State(state): State<Shared>, headers: HeaderMap) -> Response {
     }
     let (block, lighting) = tokio::join!(manual_block_status(), lighting_status());
     let actions: Vec<&str> = state.actions.iter().map(|(path, _)| path.as_str()).collect();
-    reply(StatusCode::OK, json!({ "status": "ok", "actions": actions, "manual_suspend_block": block, "lighting": lighting }))
+    reply(StatusCode::OK, json!({ "status": "ok", "actions": actions, "manual_suspend_block": block, "lighting": lighting, "sleep_policy": sleep_policy_status() }))
 }
 
 async fn action(State(state): State<Shared>, Path(name): Path<String>, headers: HeaderMap) -> Response {
@@ -193,6 +193,42 @@ fn watchdog_status_at(path: &std::path::Path) -> Value {
         "controller_fault_active": body["controller_fault_active"],
         "last_error": body["last_error"],
         "jobs_blocking_sleep": body["jobs_blocking_sleep"],
+    })
+}
+
+// ---------------------------------------------------------------- the sleep policy
+
+/// `monolithd sleep-policy` rewrites its status every 5 s; older than this, it has stopped.
+const SLEEP_POLICY_STALE_AFTER: u64 = 30;
+
+fn sleep_policy_status() -> Value {
+    match std::env::var_os("XDG_RUNTIME_DIR") {
+        Some(runtime) => sleep_policy_status_at(&PathBuf::from(runtime).join("monolith-events/sleep-policy.json")),
+        None => unreachable("XDG_RUNTIME_DIR is not set".to_owned()),
+    }
+}
+
+/// The observer's verdict: its state, a one-line summary, and when it would suspend.
+fn sleep_policy_status_at(path: &std::path::Path) -> Value {
+    let body: Value = match std::fs::read_to_string(path).map_err(|error| error.to_string()).and_then(|text| serde_json::from_str(&text).map_err(|error| format!("invalid JSON: {error}"))) {
+        Ok(body) => body,
+        Err(error) => return unreachable(format!("{}: {error}", path.display())),
+    };
+    let Some(updated) = body["updated_unix"].as_u64() else { return unreachable("sleep policy status has no updated_unix".to_owned()) };
+    let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|duration| duration.as_secs()).unwrap_or(updated);
+    let age_seconds = now.saturating_sub(updated);
+    if age_seconds > SLEEP_POLICY_STALE_AFTER {
+        return unreachable(format!("sleep policy status is {age_seconds} s old (stale after {SLEEP_POLICY_STALE_AFTER} s)"));
+    }
+    json!({
+        "reachable": true,
+        "age_seconds": age_seconds,
+        "mode": body["mode"],
+        "state": body["state"],
+        "summary": body["summary"],
+        "quiet_minutes": body["quiet_minutes"],
+        "would_suspend_at_unix": if body["state"] == "counting" { body["detail"].clone() } else { Value::Null },
+        "restarted_by": body["restarted_by"],
     })
 }
 
@@ -441,6 +477,24 @@ mod tests {
         assert_eq!(property(output, "ActiveEnterTimestampMonotonic"), "123456");
         assert_eq!(property(output, "Missing"), "");
         assert_eq!(property("ActiveState=inactive\n", "ActiveState"), "inactive");
+    }
+
+    #[test]
+    fn sleep_policy_status_reports_fresh_stale_and_missing() {
+        let directory = std::env::temp_dir().join(format!("monolithd-remote-sleep-test-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&directory);
+        std::fs::create_dir_all(&directory).unwrap();
+        let path = directory.join("sleep-policy.json");
+        assert_eq!(sleep_policy_status_at(&path)["reachable"], false);
+        let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_secs();
+        std::fs::write(&path, format!(r#"{{"mode":"observe","state":"counting","detail":{},"summary":"would suspend at 18:00","quiet_minutes":120,"restarted_by":"wake","updated_unix":{now}}}"#, now + 7200)).unwrap();
+        let fresh = sleep_policy_status_at(&path);
+        assert_eq!((fresh["reachable"].clone(), fresh["state"].clone(), fresh["would_suspend_at_unix"].clone()), (json!(true), json!("counting"), json!(now + 7200)));
+        std::fs::write(&path, format!(r#"{{"mode":"observe","state":"busy","detail":["music (Firefox)"],"summary":"awake","quiet_minutes":120,"restarted_by":"music","updated_unix":{now}}}"#)).unwrap();
+        assert_eq!(sleep_policy_status_at(&path)["would_suspend_at_unix"], Value::Null, "no time while busy");
+        std::fs::write(&path, format!(r#"{{"state":"busy","updated_unix":{}}}"#, now - 60)).unwrap();
+        assert!(sleep_policy_status_at(&path)["error"].as_str().unwrap().contains("stale"));
+        let _ = std::fs::remove_dir_all(&directory);
     }
 
     #[test]

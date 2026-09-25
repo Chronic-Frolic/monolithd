@@ -7,7 +7,10 @@
 //! Activity, each restarting the clock when it ends: a controller job; keyboard and mouse
 //! (KWin's input-idle notification); gamepads (evdev); local music (a playing audio stream
 //! that does not belong to a running game, so an idle game on its menu music still sleeps);
-//! a remote desktop session (KRDP, TCP 3389); a Sunshine streaming session; a wake. Hard
+//! a wake. Remote desktop (KRDP, TCP 3389) and Sunshine streaming sessions are informational
+//! only (owner decision 2026-09-25): a connected but untouched session must not keep the
+//! machine awake, and real remote use already arrives as input (RDP through KWin, Sunshine
+//! through uinput). Hard
 //! blocks: any `block`-mode sleep inhibitor other than the watchdog's own job block (the
 //! manual suspend block is one). A source that cannot be read is unknown, and unknown counts
 //! as busy: the machine stays awake rather than sleeping on a guess.
@@ -49,6 +52,12 @@ enum Source {
 
 impl Source {
     const ALL: [Source; 6] = [Source::Jobs, Source::Input, Source::Gamepad, Source::Audio, Source::RemoteDesktop, Source::Streaming];
+
+    /// Whether this source can hold the machine awake or restart the quiet clock. Remote
+    /// sessions are logged for evidence but count only through the input they produce.
+    fn counts(self) -> bool {
+        !matches!(self, Source::RemoteDesktop | Source::Streaming)
+    }
 
     fn name(self) -> &'static str {
         match self {
@@ -139,7 +148,7 @@ impl Policy {
     fn verdict(&self, now: Instant, quiet: Duration) -> Verdict {
         let mut busy = Vec::new();
         let (mut quiet_since, mut restarted_by) = (self.epoch, self.epoch_reason.clone());
-        for (source, tracked) in &self.sources {
+        for (source, tracked) in self.sources.iter().filter(|(source, _)| source.counts()) {
             let last = match &tracked.reading {
                 Reading::Active(detail) => {
                     busy.push(format!("{} ({detail})", source.name()));
@@ -457,7 +466,7 @@ fn write_status(policy: &Policy, verdict: &Verdict, quiet: Duration, now: Instan
                 Reading::Idle => "idle".into(),
                 Reading::Unknown(reason) => format!("unknown: {reason}"),
             };
-            (source.name().to_owned(), json!({ "reading": reading, "last_active_unix": tracked.last_active.map(|at| unix_at(at, now)) }))
+            (source.name().to_owned(), json!({ "reading": reading, "counts": source.counts(), "last_active_unix": tracked.last_active.map(|at| unix_at(at, now)) }))
         })
         .collect();
     let body = json!({
@@ -564,7 +573,18 @@ mod tests {
     fn unknown_sources_hold_the_machine_awake() {
         let start = Instant::now();
         let policy = Policy::new(start);
-        assert!(matches!(policy.verdict(start + 3 * HOUR, 2 * HOUR).state, State::Busy(reasons) if reasons.len() == 6));
+        assert!(matches!(policy.verdict(start + 3 * HOUR, 2 * HOUR).state, State::Busy(reasons) if reasons.len() == 4), "remote sessions never hold it");
+    }
+
+    #[test]
+    fn a_connected_but_untouched_remote_session_does_not_keep_it_awake() {
+        let start = Instant::now();
+        let mut policy = quiet_policy(start);
+        policy.set(Source::RemoteDesktop, Reading::Active("1 connection(s)".into()), start + 10 * S);
+        policy.set(Source::Streaming, Reading::Unknown("no data".into()), start + 10 * S);
+        let verdict = policy.verdict(start + HOUR, 2 * HOUR);
+        assert_eq!(verdict.state, State::Counting(HOUR));
+        assert_eq!(verdict.restarted_by, "service start");
     }
 
     #[test]
