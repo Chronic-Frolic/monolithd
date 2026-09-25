@@ -46,7 +46,7 @@ SDK server on `127.0.0.1:6742`. It is enabled for the user default target and mu
 not be exposed through Tailscale Serve or any other network ingress.
 
 The isolated Python environment is `~/.local/share/monolith-events/venv`; it is not
-tracked in Git and now serves only `python/monolith_gamescope_game_observer.py`.
+tracked in Git. The Gamescope game observer it served was retired on 2026-09-25.
 
 ## SDK diagnostics
 

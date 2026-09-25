@@ -12,7 +12,7 @@ Controller - Design and Implementation Handoff"; `docs/runbook.md` covers operat
     config/     everything the binary reads at runtime (see below)
     qlcplus/    production QLC+ workspace and the owner-editable intake workspaces
     systemd/    user units, the lighting-stack supervisor and author-mode scripts
-    python/     the observe-only Gamescope game observer and suspend-status tool
+    python/     the read-only suspend-status tool and its test
     tools/      probe-header.sh and the intake template builder
     docs/       runbook
 
