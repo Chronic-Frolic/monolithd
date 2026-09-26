@@ -13,4 +13,4 @@ cue_minutes = 5
 
 # false: observe only, logging when it would suspend. true: show the pre-sleep cue for
 # cue_minutes, then suspend. Re-read every minute, so this is the cutover and the rollback.
-suspend = false
+suspend = true

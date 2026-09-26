@@ -1,11 +1,13 @@
 [Unit]
-Description=Monolith sleep policy (observe only: logs when the machine would suspend)
+Description=Monolith sleep policy (the machine's suspend authority; see config/sleep.toml)
 After=monolith-controller.service
 
-# Phase 2 (2026-09-25): reads jobs, input idle, gamepads, music, remote desktop and
-# streaming sessions, and sleep inhibitors, and reports "would suspend at ..." in the
-# journal and $XDG_RUNTIME_DIR/monolith-events/sleep-policy.json. It never suspends and
-# never changes the LEDs.
+# Reads jobs, input (monolith-input.service), music, remote desktop and streaming
+# sessions, and sleep inhibitors; reports in the journal and
+# $XDG_RUNTIME_DIR/monolith-events/sleep-policy.json. With suspend = true in
+# config/sleep.toml (hot-reloaded) it is the machine's only suspend authority: it shows
+# the pre-sleep cue for the last cue_minutes, then runs systemctl suspend. Steam's and
+# KDE's own suspend timers must be off.
 
 [Service]
 Type=simple
