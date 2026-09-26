@@ -1,4 +1,5 @@
-# Automatic suspend policy. Phase 2 (2026-09-25): observe only; nothing is suspended.
+# Automatic suspend policy. monolithd is White Monolith's only suspend authority once
+# `suspend = true` (phase 3); Steam's and KDE's own suspend timers must be off by then.
 # Read by monolithd sleep-policy, which re-reads this file every minute.
 version = 1
 
@@ -9,3 +10,7 @@ quiet_minutes = 120
 
 # How long the pre-sleep cue shows before suspending (phase 3).
 cue_minutes = 5
+
+# false: observe only, logging when it would suspend. true: show the pre-sleep cue for
+# cue_minutes, then suspend. Re-read every minute, so this is the cutover and the rollback.
+suspend = false

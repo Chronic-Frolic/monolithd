@@ -22,6 +22,8 @@ use tokio::sync::{mpsc, oneshot};
 use tokio::time::{interval, timeout, MissedTickBehavior};
 
 const MAX_REQUEST_BYTES: usize = 4096;
+/// The longest a single pre-sleep request may hold the cue before it must be renewed.
+const MAX_PRE_SLEEP_SECONDS: u64 = 3600;
 const IDLE_TIMEOUT: Duration = Duration::from_secs(30);
 const CLIENT_TIMEOUT: Duration = Duration::from_secs(20);
 const RECENT_ACTIONS: usize = 12;
@@ -425,6 +427,10 @@ struct Controller<L: Link> {
     dirty: bool,
     faults: BTreeMap<String, ActiveFault>,
     quiet: Option<String>,
+    /// The pre-sleep cue (phase 3 of the sleep policy): why, and until when. It expires on
+    /// its own, so a sleep policy that dies mid-countdown cannot leave it up; the policy
+    /// renews it while it counts down.
+    pre_sleep: Option<(String, Instant)>,
     report: Report,
 }
 
@@ -441,7 +447,7 @@ impl<L: Link> Controller<L> {
             .collect();
         let planner = Planner::new(zones, Duration::from_secs(config.complete_hold_seconds));
         let ambient = config.default_ambient.clone();
-        Self { link, registry, config, planner, ambient, paused: false, dirty: true, faults: BTreeMap::new(), quiet: None, report: Report::default() }
+        Self { link, registry, config, planner, ambient, paused: false, dirty: true, faults: BTreeMap::new(), quiet: None, pre_sleep: None, report: Report::default() }
     }
 
     fn take_dirty(&mut self) -> bool {
@@ -481,7 +487,7 @@ impl<L: Link> Controller<L> {
     }
 
     /// The preemption layer: zone -> the function that must own it right now, fault over
-    /// warning over quiet over the automatic working indicator. Empty when nothing is
+    /// warning over quiet over the pre-sleep cue over the automatic working indicator. Empty when nothing is
     /// raised, quiet is not set, and no job is active.
     fn state_wants(&self) -> BTreeMap<String, String> {
         let mut wants = BTreeMap::new();
@@ -506,6 +512,16 @@ impl<L: Link> Controller<L> {
                     continue;
                 }
                 if let Some(name) = self.state_asset("working", zone) {
+                    wants.insert(zone.clone(), name);
+                }
+            }
+        }
+        // The pre-sleep cue: above the job indicator and progress (a job resets the sleep
+        // clock, so the two never meet in practice), below an explicit quiet request and
+        // any warning or fault.
+        if self.pre_sleep.is_some() {
+            for zone in self.registry.zones.keys() {
+                if let Some(name) = self.state_asset("pre_sleep", zone) {
                     wants.insert(zone.clone(), name);
                 }
             }
@@ -584,6 +600,9 @@ impl<L: Link> Controller<L> {
 
     /// One pass of the loop: read the plant, compare, and send what closes the gap.
     async fn reconcile(&mut self, now: Instant) {
+        if self.pre_sleep.as_ref().is_some_and(|(_, until)| *until <= now) {
+            self.pre_sleep = None;
+        }
         self.planner.tick(now);
         self.report.reconciles += 1;
         if self.paused {
@@ -685,7 +704,24 @@ impl<L: Link> Controller<L> {
             }
             ControllerRequest::Resume => {
                 self.paused = false;
+                // The watchdog resumes the controller after every wake; a pre-sleep cue left
+                // from before the suspend no longer means anything.
+                self.pre_sleep = None;
                 Ok(json!({ "paused": false }))
+            }
+            ControllerRequest::PreSleepSet { reason, seconds } => {
+                if !(1..=MAX_PRE_SLEEP_SECONDS).contains(&seconds) {
+                    Err(("bad_request", format!("seconds must be between 1 and {MAX_PRE_SLEEP_SECONDS}")))
+                } else if !self.registry.zones.keys().any(|zone| self.state_asset("pre_sleep", zone).is_some()) {
+                    Err(("bad_request", "no pre_sleep_<zone> asset is registered".to_owned()))
+                } else {
+                    self.pre_sleep = Some((reason.clone(), now + Duration::from_secs(seconds)));
+                    Ok(json!({ "reason": reason, "seconds": seconds }))
+                }
+            }
+            ControllerRequest::PreSleepClear => {
+                self.pre_sleep = None;
+                Ok(json!({}))
             }
         };
         match outcome {
@@ -715,6 +751,7 @@ impl<L: Link> Controller<L> {
             "jobs": self.planner.jobs().iter().map(job_json).collect::<Vec<_>>(),
             "failures": failures,
             "quiet": self.quiet,
+            "pre_sleep": self.pre_sleep.as_ref().map(|(reason, _)| reason),
             "active_faults": self.faults.iter().map(|(id, fault)| json!({ "id": id, "severity": fault.severity.as_str(), "zones": fault.zones, "reason": fault.reason })).collect::<Vec<_>>(),
             "recent_actions": self.report.recent,
             "reconciles": self.report.reconciles,
@@ -773,6 +810,11 @@ pub enum ControllerRequest {
     QuietSet { reason: String },
     #[serde(rename = "quiet.clear")]
     QuietClear,
+    /// Show the pre-sleep cue for `seconds` (renewable) unless something higher wins.
+    #[serde(rename = "presleep.set")]
+    PreSleepSet { reason: String, seconds: u64 },
+    #[serde(rename = "presleep.clear")]
+    PreSleepClear,
     #[serde(rename = "pause")]
     Pause,
     #[serde(rename = "resume")]
@@ -882,7 +924,7 @@ pub async fn run() -> Result<(), String> {
 
 // ---------------------------------------------------------------- the client
 
-const USAGE: &str = "usage: monolithd event <status | ambient SET | job-start ID LABEL TOTAL [PRIORITY] [--pattern NAME] | job-progress ID COMPLETED [TOTAL] | job-complete ID | job-fail ID REASON... | fault-raise ID warning|fault [--zones a,b,c] REASON... | fault-clear ID | quiet-set REASON... | quiet-clear | pause | resume>";
+const USAGE: &str = "usage: monolithd event <status | ambient SET | job-start ID LABEL TOTAL [PRIORITY] [--pattern NAME] | job-progress ID COMPLETED [TOTAL] | job-complete ID | job-fail ID REASON... | fault-raise ID warning|fault [--zones a,b,c] REASON... | fault-clear ID | quiet-set REASON... | quiet-clear | presleep-set SECONDS REASON... | presleep-clear | pause | resume>";
 
 fn client_request(arguments: &[String]) -> Result<Value, String> {
     let words: Vec<&str> = arguments.iter().map(String::as_str).collect();
@@ -945,6 +987,8 @@ fn client_request(arguments: &[String]) -> Result<Value, String> {
         ["fault-clear", id] => json!({ "op": "fault.clear", "id": id }),
         ["quiet-set", reason @ ..] if !reason.is_empty() => json!({ "op": "quiet.set", "reason": reason.join(" ") }),
         ["quiet-clear"] => json!({ "op": "quiet.clear" }),
+        ["presleep-set", seconds, reason @ ..] if !reason.is_empty() => json!({ "op": "presleep.set", "seconds": seconds.parse::<u64>().map_err(|_| format!("{seconds:?} is not a number of seconds"))?, "reason": reason.join(" ") }),
+        ["presleep-clear"] => json!({ "op": "presleep.clear" }),
         ["pause"] => json!({ "op": "pause" }),
         ["resume"] => json!({ "op": "resume" }),
         _ => return Err(USAGE.to_owned()),
@@ -1081,6 +1125,27 @@ mod tests {
         id = 207
         children = []
         zones = ["rog_eye"]
+        composable = true
+        [[functions]]
+        name = "pre_sleep_ram"
+        kind = "scene"
+        id = 208
+        children = []
+        zones = ["ram"]
+        composable = true
+        [[functions]]
+        name = "pre_sleep_eye"
+        kind = "scene"
+        id = 209
+        children = []
+        zones = ["rog_eye"]
+        composable = true
+        [[functions]]
+        name = "pre_sleep_strip"
+        kind = "scene"
+        id = 210
+        children = []
+        zones = ["strip"]
         composable = true
         [[ambient_sets]]
         name = "deep_violet"
@@ -1790,6 +1855,45 @@ mod tests {
         assert_eq!(controller.state_wants()["rog_eye"], "warning_eye", "the real warning wins, and is a distinct asset from the job indicator");
         controller.handle(fault_clear("w"), Instant::now());
         assert_eq!(controller.state_wants()["rog_eye"], "working_eye", "falls back to the job indicator, not to nothing, since the job is still running");
+    }
+
+    #[test]
+    fn the_pre_sleep_cue_sits_below_quiet_and_warnings_and_above_the_job_indicator() {
+        let mut controller = controller_with(&FakeLink::default());
+        let now = Instant::now();
+        controller.handle(ControllerRequest::JobStart { id: "a".into(), label: "x".into(), total: 4, priority: 0, pattern: None }, now);
+        assert_eq!(controller.handle(ControllerRequest::PreSleepSet { reason: "suspending at 03:00".into(), seconds: 300 }, now)["ok"], true);
+        let cue = BTreeMap::from([("ram".to_owned(), "pre_sleep_ram".to_owned()), ("rog_eye".to_owned(), "pre_sleep_eye".to_owned()), ("strip".to_owned(), "pre_sleep_strip".to_owned())]);
+        assert_eq!(controller.state_wants(), cue, "over the job indicator");
+        assert_eq!(controller.status_json()["pre_sleep"], "suspending at 03:00");
+        controller.handle(fault_raise("w", "warning", Some(&["rog_eye"]), "x"), now);
+        assert_eq!(controller.state_wants()["rog_eye"], "warning_eye", "a warning beats the cue");
+        controller.handle(ControllerRequest::QuietSet { reason: "x".into() }, now);
+        assert_eq!(controller.state_wants()["ram"], "quiet_ram", "quiet beats the cue");
+        controller.handle(ControllerRequest::QuietClear, now);
+        controller.handle(ControllerRequest::PreSleepClear, now);
+        assert!(!controller.state_wants().contains_key("ram"));
+        assert_eq!(controller.status_json()["pre_sleep"], Value::Null);
+    }
+
+    #[tokio::test]
+    async fn the_pre_sleep_cue_expires_and_every_wake_clears_it() {
+        let link = FakeLink::default();
+        let mut controller = controller_with(&link);
+        let now = Instant::now();
+        controller.handle(ControllerRequest::PreSleepSet { reason: "x".into(), seconds: 60 }, now);
+        controller.reconcile(now + Duration::from_secs(59)).await;
+        assert!(controller.state_wants().contains_key("ram"), "still inside its time");
+        controller.reconcile(now + Duration::from_secs(60)).await;
+        assert!(controller.state_wants().is_empty(), "a sleep policy that stopped renewing cannot leave it up");
+        controller.handle(ControllerRequest::PreSleepSet { reason: "x".into(), seconds: 300 }, now);
+        controller.handle(ControllerRequest::Pause, now);
+        controller.handle(ControllerRequest::Resume, now);
+        assert!(controller.state_wants().is_empty(), "the watchdog's resume after a wake clears it");
+        assert_eq!(controller.handle(ControllerRequest::PreSleepSet { reason: "x".into(), seconds: 0 }, now)["code"], "bad_request");
+        assert_eq!(controller.handle(ControllerRequest::PreSleepSet { reason: "x".into(), seconds: 3601 }, now)["code"], "bad_request");
+        assert_eq!(client_request(&["presleep-set", "300", "suspending", "soon"].map(String::from)).unwrap(), json!({ "op": "presleep.set", "seconds": 300, "reason": "suspending soon" }));
+        assert_eq!(client_request(&["presleep-clear".to_owned()]).unwrap(), json!({ "op": "presleep.clear" }));
     }
 
     #[test]

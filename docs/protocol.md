@@ -64,7 +64,7 @@ reporter that dies without ending its job cannot keep the machine awake forever.
 Optional `"zones":["ram","strip"]` picks the zones explicitly; each must have an asset
 for that severity registered in `qlc-functions.toml`. Raising an ID that is already
 raised replaces it. Precedence on a zone is fault, then warning, then quiet, then the
-automatic "a job is running" indicator, then progress or ambient.
+pre-sleep cue, then the automatic "a job is running" indicator, then progress or ambient.
 
 ### Everything else
 
@@ -73,6 +73,7 @@ automatic "a job is running" indicator, then progress or ambient.
 | `{"op":"status"}` | The whole state: ambient set, zones and their owners, jobs, recent failures, active faults, quiet, recent actions. |
 | `{"op":"ambient.select","set":NAME}` | Switch the ambient set. |
 | `{"op":"quiet.set","reason":TEXT}` / `{"op":"quiet.clear"}` | Switch every zone to its authored quiet look (for example for a film), and back. |
+| `{"op":"presleep.set","reason":TEXT,"seconds":N}` / `{"op":"presleep.clear"}` | Show the pre-sleep cue on every zone for N seconds (1–3600, renewable), below quiet, warnings and faults. The sleep policy uses it for the last minutes before suspending; it expires on its own and clears when the watchdog resumes the controller after a wake. |
 | `{"op":"pause"}` / `{"op":"resume"}` | Stop or resume the controller acting on the lights. The watchdog uses these around suspend; leave them alone otherwise. |
 
 ## From the shell

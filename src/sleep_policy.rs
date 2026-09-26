@@ -1,4 +1,7 @@
-//! Automatic suspend policy (phase 2: observe only; it never suspends and never changes LEDs).
+//! Automatic suspend policy. With `suspend = true` in `config/sleep.toml` (phase 3, owner
+//! decision 2026-09-26: monolithd is the machine's only suspend authority) it shows the
+//! pre-sleep cue for the last `cue_minutes` and then suspends; with `suspend = false` it only
+//! observes and reports when it would.
 //!
 //! Owner decisions, 2026-09-25: White Monolith suspends after a tunable quiet period (default
 //! two hours) whose clock restarts whenever any activity ends, so the machine can be used
@@ -16,6 +19,13 @@
 //! blocks: any `block`-mode sleep inhibitor other than the watchdog's own job block (the
 //! manual suspend block is one). A source that cannot be read is unknown, and unknown counts
 //! as busy: the machine stays awake rather than sleeping on a guess.
+//!
+//! Acting: in the last `cue_minutes` it asks the controller for the pre-sleep cue, renewing
+//! it every minute (the request expires on its own, so a dead policy cannot leave it up);
+//! any activity withdraws it. At zero it re-reads the sleep inhibitors and runs plain
+//! `systemctl suspend`, as Monolith Remote does: never ignoring inhibitors, so the manual
+//! block and every other program's block still hold. A failed suspend is logged, raised as
+//! a warning, and retried after ten minutes, never in a loop.
 //!
 //! The quiet clock uses `Instant`, which does not advance during suspend, so a missed wake
 //! signal can never cause an immediate second suspend. The period comes from
@@ -41,6 +51,51 @@ const RDP_PORT: u16 = 3389;
 const SUNSHINE_TCP: [u16; 3] = [47984, 47989, 48010];
 const SUNSHINE_UDP: std::ops::RangeInclusive<u16> = 47998..=48010;
 const WATCHDOG_WHO: &str = "Monolith-Event-Watchdog";
+/// How often the pre-sleep cue request is renewed while it shows.
+const CUE_RENEW: Duration = Duration::from_secs(60);
+/// After a suspend request succeeds, wait this long before another (the suspend itself
+/// happens a moment later).
+const AFTER_SUSPEND: Duration = Duration::from_secs(120);
+/// After a suspend request fails, wait this long before trying again.
+const RETRY_FAILED_SUSPEND: Duration = Duration::from_secs(600);
+const SUSPEND_WARNING: &str = "sleep-policy:suspend-failed";
+
+/// What the actor should do on this evaluation.
+#[derive(Debug, Clone, PartialEq)]
+enum Step {
+    Wait,
+    /// Show or renew the pre-sleep cue for this many seconds.
+    Cue(u64),
+    ClearCue,
+    Suspend,
+}
+
+/// Phase 3's memory between evaluations.
+#[derive(Debug, Default)]
+struct Actor {
+    /// When the cue was last requested; `None` while it is not shown.
+    cue_sent: Option<Instant>,
+    /// No suspend request before this.
+    hold_until: Option<Instant>,
+}
+
+impl Actor {
+    fn plan(&self, state: &State, enabled: bool, cue: Duration, now: Instant) -> Step {
+        let clear = if self.cue_sent.is_some() { Step::ClearCue } else { Step::Wait };
+        match state {
+            State::Counting(left) if enabled => {
+                if left.is_zero() {
+                    if self.hold_until.is_some_and(|until| now < until) { Step::Wait } else { Step::Suspend }
+                } else if *left <= cue {
+                    if self.cue_sent.is_none_or(|sent| now.duration_since(sent) >= CUE_RENEW) { Step::Cue(left.as_secs() + 120) } else { Step::Wait }
+                } else {
+                    clear
+                }
+            }
+            _ => clear,
+        }
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 enum Source {
@@ -265,6 +320,9 @@ struct SleepConfig {
     version: u32,
     quiet_minutes: u64,
     cue_minutes: u64,
+    /// Phase 3: act (cue, then suspend) instead of only observing. Hot-reloaded.
+    #[serde(default)]
+    suspend: bool,
 }
 
 fn load_config() -> Result<SleepConfig, String> {
@@ -429,7 +487,7 @@ fn status_file() -> Option<PathBuf> {
     Some(PathBuf::from(std::env::var_os("XDG_RUNTIME_DIR")?).join("monolith-events").join("sleep-policy.json"))
 }
 
-fn write_status(policy: &Policy, verdict: &Verdict, quiet: Duration, now: Instant) {
+fn write_status(policy: &Policy, verdict: &Verdict, quiet: Duration, acting: bool, cue: bool, now: Instant) {
     let Some(path) = status_file() else { return };
     let (state, until) = match &verdict.state {
         State::Busy(reasons) => ("busy", json!(reasons)),
@@ -449,7 +507,8 @@ fn write_status(policy: &Policy, verdict: &Verdict, quiet: Duration, now: Instan
         })
         .collect();
     let body = json!({
-        "mode": "observe",
+        "mode": if acting { "suspend" } else { "observe" },
+        "pre_sleep_cue": cue,
         "quiet_minutes": quiet.as_secs() / 60,
         "state": state,
         "detail": until,
@@ -471,7 +530,7 @@ pub async fn run(arguments: Vec<String>) -> Result<(), String> {
         return Err("usage: monolithd sleep-policy".to_owned());
     }
     let mut config = load_config()?;
-    eprintln!("monolithd sleep-policy: observe only; quiet period {} min; {}", config.quiet_minutes, paths::describe());
+    eprintln!("monolithd sleep-policy: {}; quiet period {} min, cue {} min; {}", if config.suspend { "SUSPENDS" } else { "observe only" }, config.quiet_minutes, config.cue_minutes, paths::describe());
     let (sender, mut updates) = mpsc::channel(256);
     tokio::spawn(follow_input(sender.clone()));
     tokio::spawn(follow_polled(sender));
@@ -481,6 +540,7 @@ pub async fn run(arguments: Vec<String>) -> Result<(), String> {
     let mut reload = interval(Duration::from_secs(60));
     reload.set_missed_tick_behavior(MissedTickBehavior::Skip);
     let (mut last_line, mut last_summary) = (String::new(), Instant::now());
+    let mut actor = Actor::default();
     loop {
         tokio::select! {
             Some(update) = updates.recv() => {
@@ -501,6 +561,9 @@ pub async fn run(arguments: Vec<String>) -> Result<(), String> {
                     Update::Wake => {
                         eprintln!("monolithd sleep-policy: woke from sleep; the quiet clock restarts");
                         policy.wake(now);
+                        // The watchdog's resume clears the controller's cue.
+                        actor = Actor::default();
+                        let _ = controller::call(&json!({ "op": "fault.clear", "id": SUSPEND_WARNING })).await;
                     }
                     Update::Note(note) => eprintln!("monolithd sleep-policy: {note}"),
                 }
@@ -509,6 +572,9 @@ pub async fn run(arguments: Vec<String>) -> Result<(), String> {
                 Ok(fresh) => {
                     if fresh.quiet_minutes != config.quiet_minutes {
                         eprintln!("monolithd sleep-policy: quiet period now {} min", fresh.quiet_minutes);
+                    }
+                    if fresh.suspend != config.suspend {
+                        eprintln!("monolithd sleep-policy: {}", if fresh.suspend { "now SUSPENDS at the end of the quiet period" } else { "now observes only" });
                     }
                     config = fresh;
                 }
@@ -526,7 +592,50 @@ pub async fn run(arguments: Vec<String>) -> Result<(), String> {
                     last_line = key;
                     last_summary = now;
                 }
-                write_status(&policy, &verdict, quiet, now);
+                match actor.plan(&verdict.state, config.suspend, Duration::from_secs(config.cue_minutes * 60), now) {
+                    Step::Wait => {}
+                    Step::Cue(seconds) => {
+                        let reason = format!("suspending at {}", clock(unix_at(now + Duration::from_secs(seconds.saturating_sub(120)), now)));
+                        match controller::call(&json!({ "op": "presleep.set", "reason": reason, "seconds": seconds.min(3600) })).await {
+                            Ok(reply) if reply["ok"] == true => {
+                                if actor.cue_sent.is_none() {
+                                    eprintln!("monolithd sleep-policy: showing the pre-sleep cue ({reason})");
+                                }
+                                actor.cue_sent = Some(now);
+                            }
+                            Ok(reply) => eprintln!("monolithd sleep-policy: the controller refused the pre-sleep cue: {}", reply["error"]),
+                            Err(error) => eprintln!("monolithd sleep-policy: pre-sleep cue: {error}"),
+                        }
+                    }
+                    Step::ClearCue => {
+                        if controller::call(&json!({ "op": "presleep.clear" })).await.is_ok() {
+                            eprintln!("monolithd sleep-policy: pre-sleep cue withdrawn ({line})");
+                            actor.cue_sent = None;
+                        }
+                    }
+                    Step::Suspend => {
+                        // Last look at the inhibitors: they are otherwise polled every 10 s.
+                        let fresh = match output("busctl", &["--json=short", "call", "org.freedesktop.login1", "/org/freedesktop/login1", "org.freedesktop.login1.Manager", "ListInhibitors"]).await {
+                            Ok(text) => blocks(&text).unwrap_or_else(|error| vec![format!("inhibitors unreadable: {error}")]),
+                            Err(error) => vec![format!("inhibitors unreadable: {error}")],
+                        };
+                        if !fresh.is_empty() {
+                            eprintln!("monolithd sleep-policy: not suspending: {}", fresh.join("; "));
+                            policy.blocks = fresh;
+                        } else {
+                            eprintln!("monolithd sleep-policy: SUSPENDING (quiet since {}, clock restarted by {})", clock(unix_at(verdict.quiet_since, now)), verdict.restarted_by);
+                            match output("systemctl", &["suspend"]).await {
+                                Ok(_) => actor.hold_until = Some(now + AFTER_SUSPEND),
+                                Err(error) => {
+                                    eprintln!("monolithd sleep-policy: suspend failed, retrying in {} min: {error}", RETRY_FAILED_SUSPEND.as_secs() / 60);
+                                    actor.hold_until = Some(now + RETRY_FAILED_SUSPEND);
+                                    let _ = controller::call(&json!({ "op": "fault.raise", "id": SUSPEND_WARNING, "severity": "warning", "reason": format!("automatic suspend failed: {error}") })).await;
+                                }
+                            }
+                        }
+                    }
+                }
+                write_status(&policy, &verdict, quiet, config.suspend, actor.cue_sent.is_some(), now);
             }
         }
     }
@@ -538,6 +647,36 @@ mod tests {
 
     const S: Duration = Duration::from_secs(1);
     const HOUR: Duration = Duration::from_secs(3600);
+
+    #[test]
+    fn the_actor_cues_then_suspends_and_backs_off() {
+        let now = Instant::now();
+        let cue = Duration::from_secs(300);
+        let mut actor = Actor::default();
+        let counting = |secs| State::Counting(Duration::from_secs(secs));
+        assert_eq!(actor.plan(&counting(0), false, cue, now), Step::Wait, "observe only never acts");
+        assert_eq!(actor.plan(&counting(600), true, cue, now), Step::Wait, "not yet in the cue window");
+        assert_eq!(actor.plan(&counting(299), true, cue, now), Step::Cue(419), "the cue outlives the countdown by two minutes");
+        actor.cue_sent = Some(now);
+        assert_eq!(actor.plan(&counting(290), true, cue, now + Duration::from_secs(9)), Step::Wait, "renewed only every minute");
+        assert_eq!(actor.plan(&counting(239), true, cue, now + CUE_RENEW), Step::Cue(359));
+        assert_eq!(actor.plan(&State::Busy(vec!["input".into()]), true, cue, now), Step::ClearCue, "activity withdraws it");
+        assert_eq!(actor.plan(&counting(900), true, cue, now), Step::ClearCue, "so does the clock jumping back out of the window");
+        assert_eq!(actor.plan(&State::Blocked(vec!["manual".into()]), true, cue, now), Step::ClearCue, "and a block");
+        assert_eq!(actor.plan(&counting(0), true, cue, now), Step::Suspend);
+        actor.hold_until = Some(now + RETRY_FAILED_SUSPEND);
+        assert_eq!(actor.plan(&counting(0), true, cue, now + Duration::from_secs(60)), Step::Wait, "no retry loop");
+        assert_eq!(actor.plan(&counting(0), true, cue, now + RETRY_FAILED_SUSPEND), Step::Suspend);
+        assert_eq!(actor.plan(&counting(0), false, cue, now + RETRY_FAILED_SUSPEND), Step::ClearCue, "switching off withdraws a shown cue");
+    }
+
+    #[test]
+    fn the_shipped_config_observes_until_the_owner_flips_the_switch() {
+        let config = load_config().unwrap();
+        assert!(!config.suspend, "phase 3 cutover is the owner's step, in one sitting with Steam's and KDE's timers");
+        assert!(toml::from_str::<SleepConfig>("version = 1\nquiet_minutes = 120\ncue_minutes = 5\nsuspend = true\n").unwrap().suspend);
+        assert!(toml::from_str::<SleepConfig>("version = 1\nquiet_minutes = 120\ncue_minutes = 5\nsuspnd = true\n").is_err(), "a typo is rejected");
+    }
 
     fn quiet_policy(start: Instant) -> Policy {
         let mut policy = Policy::new(start);

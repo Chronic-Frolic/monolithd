@@ -31,7 +31,10 @@ workspace.
   a quiet period (2 hours by default) after the last job, input or music. Input comes
   from a small sandboxed service that reads the kernel's input devices and publishes
   only the time of the last input, so it works the same in Desktop Mode, Gaming Mode
-  and over Moonlight. It tells music from game audio. **It currently only observes and logs; it never suspends.**
+  and over Moonlight. It tells music from game audio. With `suspend = true` in
+  `config/sleep.toml` it is the machine's only suspend authority: it shows a pre-sleep
+  cue for the last few minutes, then suspends; with `false` it only logs when it would.
+  Turn off the desktop's and Steam's own suspend timers before switching it on.
 - **Remote** (`monolithd remote`): a narrow HTTP API for suspend, reboot, power off,
   switching between Gaming and Desktop Mode, and a manual suspend block, behind a bearer
   token on loopback.
