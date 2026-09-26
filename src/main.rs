@@ -10,6 +10,7 @@ mod remote;
 mod reporter;
 mod reporters;
 mod openrgb;
+mod openrgb_sdk;
 mod paths;
 mod gamepad;
 mod job;
