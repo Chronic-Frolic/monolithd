@@ -45,7 +45,7 @@ composable = false
 name = "ambient_ram"
 kind = "chaser"
 id = 109
-children = [107, 108]
+children = [107, 108, 182, 183, 184, 185, 186, 187]
 zones = ["ram"]
 composable = true
 
@@ -53,7 +53,7 @@ composable = true
 name = "ambient_eye"
 kind = "chaser"
 id = 112
-children = [110, 111]
+children = [110, 111, 188, 189, 190, 191, 192, 193]
 zones = ["rog_eye"]
 composable = true
 
@@ -61,7 +61,7 @@ composable = true
 name = "ambient_strip"
 kind = "chaser"
 id = 115
-children = [113, 114]
+children = [113, 114, 194, 195, 196, 197, 198, 199]
 zones = ["strip"]
 composable = true
 
