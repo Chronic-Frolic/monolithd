@@ -28,9 +28,10 @@ workspace.
 - **Watchdog** (`monolithd watchdog`): holds off suspend while a job runs (capped at
   6 hours), and hands the lights over cleanly around sleep and wake.
 - **Sleep policy** (`monolithd sleep-policy`): decides when the machine would suspend:
-  a quiet period (2 hours by default) after the last job, input, gamepad use or music.
-  It reads Wayland's input-idle protocol and evdev gamepads directly, and tells music
-  from game audio. **It currently only observes and logs; it never suspends.**
+  a quiet period (2 hours by default) after the last job, input or music. Input comes
+  from a small sandboxed service that reads the kernel's input devices and publishes
+  only the time of the last input, so it works the same in Desktop Mode, Gaming Mode
+  and over Moonlight. It tells music from game audio. **It currently only observes and logs; it never suspends.**
 - **Remote** (`monolithd remote`): a narrow HTTP API for suspend, reboot, power off,
   switching between Gaming and Desktop Mode, and a manual suspend block, behind a bearer
   token on loopback.
@@ -69,9 +70,13 @@ A new reporter built into the daemon follows the same rules through `src/reporte
 - **Fixed ports** on loopback: 6742 (OpenRGB SDK) and 9999 (QLC+ web API) inside the
   lighting stack's private network namespace, where they can't clash with anything on
   the host; 8080 (Steam's DevTools) on the host.
-- **Idle detection** needs a Wayland compositor with `ext_idle_notifier_v1`. KDE Plasma
-  6 is measured; Gaming Mode's gamescope is not tested yet. Gamepads are read through
-  evdev (`ID_INPUT_JOYSTICK` devices only, never keyboards).
+- **Input detection** needs `monolith-input.service` from `systemd/root/`, a system
+  service that runs as a throwaway user in the `input` group, with no network and a
+  read-only filesystem. It reads every keyboard, mouse and gamepad, including
+  Sunshine's virtual devices, and writes only the time of the last input to
+  `/run/monolith-input/activity`. Compositor idle protocols aren't used: gamescope has
+  none. Without the service, input reads as unknown and the machine never counts as
+  idle.
 - **Music detection** needs PipeWire with `pactl`. Streams from processes launched by
   Steam count as game audio, not music.
 - **Storage health** is btrfs only. Device errors and missing devices come from

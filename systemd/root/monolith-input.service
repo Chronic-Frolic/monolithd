@@ -1,0 +1,47 @@
+[Unit]
+Description=Input activity for the monolithd sleep policy (last input time only)
+Documentation=https://github.com/Chronic-Frolic/monolithd
+
+# A system unit. It reads every input device, so it runs as a throwaway user whose only
+# extra right is the input group, cannot reach the network, and sees the filesystem
+# read-only. Its only output is /run/monolith-input/activity: the time of the last input,
+# a heartbeat and a device count, never what was typed. Install a root-owned copy of the
+# binary (never the checkout, which its user can edit), in bin_t for SELinux:
+#   sudo install -m 0755 target/release/monolithd /usr/local/bin/monolithd-input
+#   sudo install -m 0644 systemd/root/monolith-input.service /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now monolith-input.service
+
+[Service]
+Type=exec
+ExecStart=/usr/local/bin/monolithd-input input-activity /run/monolith-input/activity
+DynamicUser=yes
+SupplementaryGroups=input
+RuntimeDirectory=monolith-input
+RuntimeDirectoryMode=0755
+UMask=0022
+DevicePolicy=closed
+DeviceAllow=char-input r
+PrivateNetwork=yes
+RestrictAddressFamilies=AF_UNIX
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+RestrictNamespaces=yes
+RestrictRealtime=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

@@ -4,8 +4,10 @@
 //! two hours) whose clock restarts whenever any activity ends, so the machine can be used
 //! several times without batching and changes state rarely (thermal cycling wears silicon).
 //!
-//! Activity, each restarting the clock when it ends: a controller job; keyboard and mouse
-//! (KWin's input-idle notification); gamepads (evdev); local music (a playing audio stream
+//! Activity, each restarting the clock when it ends: a controller job; input from keyboards,
+//! mice and gamepads, including Moonlight's virtual devices (the input service, `monolithd
+//! input-activity`, which reads the kernel's input devices; see `input_activity.rs`); local
+//! music (a playing audio stream
 //! that does not belong to a running game, so an idle game on its menu music still sleeps);
 //! a wake. Remote desktop (KRDP, TCP 3389) and Sunshine streaming sessions are informational
 //! only (owner decision 2026-09-25): a connected but untouched session must not keep the
@@ -20,7 +22,7 @@
 //! `config/sleep.toml`, re-read every minute. The verdict is logged on change, summarised
 //! every 15 minutes, and written to `$XDG_RUNTIME_DIR/monolith-events/sleep-policy.json`.
 
-use crate::{controller, gamepad::Gamepads, paths, wayland_idle};
+use crate::{controller, input_activity, paths};
 use serde::Deserialize;
 use serde_json::{json, Value};
 use std::collections::{BTreeMap, BTreeSet};
@@ -28,10 +30,10 @@ use std::path::PathBuf;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use tokio::process::Command;
 use tokio::sync::mpsc;
-use tokio::time::{interval, sleep, MissedTickBehavior};
+use tokio::time::{interval, MissedTickBehavior};
 
-/// KWin reports idle after this long without input; the last input was that long before.
-const INPUT_IDLE_MS: u32 = 60_000;
+/// Input within this long counts as someone using the machine right now.
+const INPUT_ACTIVE: f64 = 60.0;
 /// Jobs older than this are ignored, as the watchdog does, so a stuck one cannot pin the machine awake.
 const JOB_CAP: Duration = Duration::from_secs(6 * 3600);
 const SUMMARY_EVERY: Duration = Duration::from_secs(15 * 60);
@@ -44,14 +46,13 @@ const WATCHDOG_WHO: &str = "Monolith-Event-Watchdog";
 enum Source {
     Jobs,
     Input,
-    Gamepad,
     Audio,
     RemoteDesktop,
     Streaming,
 }
 
 impl Source {
-    const ALL: [Source; 6] = [Source::Jobs, Source::Input, Source::Gamepad, Source::Audio, Source::RemoteDesktop, Source::Streaming];
+    const ALL: [Source; 5] = [Source::Jobs, Source::Input, Source::Audio, Source::RemoteDesktop, Source::Streaming];
 
     /// Whether this source can hold the machine awake or restart the quiet clock. Remote
     /// sessions are logged for evidence but count only through the input they produce.
@@ -62,8 +63,7 @@ impl Source {
     fn name(self) -> &'static str {
         match self {
             Source::Jobs => "jobs",
-            Source::Input => "keyboard and mouse",
-            Source::Gamepad => "gamepad",
+            Source::Input => "input",
             Source::Audio => "music",
             Source::RemoteDesktop => "remote desktop",
             Source::Streaming => "streaming",
@@ -139,7 +139,7 @@ impl Policy {
         Some(line)
     }
 
-    /// A momentary activity (a gamepad press) at `at`.
+    /// A momentary activity (an input event) at `at`.
     fn activity(&mut self, source: Source, at: Instant) {
         let tracked = self.sources.get_mut(&source).expect("every source is tracked");
         tracked.last_active = Some(tracked.last_active.map_or(at, |last| last.max(at)));
@@ -299,64 +299,43 @@ enum Update {
     Note(String),
 }
 
+/// Follow the input service's activity file. Missing or stale means the service is not
+/// running, which is unknown, and unknown counts as busy.
 async fn follow_input(updates: mpsc::Sender<Update>) {
-    let runtime = PathBuf::from(std::env::var_os("XDG_RUNTIME_DIR").unwrap_or_else(|| "/run/user/1000".into()));
-    let mut last_problem = String::new();
+    let mut tick = interval(Duration::from_secs(2));
+    let (mut last_input, mut devices, mut last_problem) = (None::<i64>, None::<u64>, String::new());
     loop {
-        let mut problem = "no Wayland compositor socket".to_owned();
-        for socket in wayland_idle::sockets(&runtime) {
-            match wayland_idle::IdleWatch::connect(&socket, INPUT_IDLE_MS).await {
-                Ok(mut watch) => {
-                    let name = socket.file_name().unwrap_or_default().to_string_lossy().into_owned();
-                    let _ = updates.send(Update::Note(format!("input idle: following {name} (ext_idle_notifier_v1 v{})", watch.version))).await;
-                    // Until the compositor says otherwise, assume someone may be there.
-                    let _ = updates.send(Update::Reading(Source::Input, Reading::Active("no idle report yet".into()))).await;
-                    loop {
-                        match watch.event().await {
-                            Ok(wayland_idle::IdleEvent::Idled) => {
-                                let _ = updates.send(Update::Reading(Source::Input, Reading::Idle)).await;
-                                let at = Instant::now().checked_sub(Duration::from_millis(INPUT_IDLE_MS.into())).unwrap_or_else(Instant::now);
-                                let _ = updates.send(Update::Activity(Source::Input, at)).await;
-                            }
-                            Ok(wayland_idle::IdleEvent::Resumed) => {
-                                let _ = updates.send(Update::Reading(Source::Input, Reading::Active(name.clone()))).await;
-                            }
-                            Err(error) => {
-                                problem = format!("{name}: {error}");
-                                break;
-                            }
-                        }
+        tick.tick().await;
+        let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_secs_f64();
+        let reading = std::fs::read_to_string(input_activity::ACTIVITY_FILE)
+            .map_err(|error| format!("{}: {error} (is monolith-input.service installed and running?)", input_activity::ACTIVITY_FILE))
+            .and_then(|text| input_activity::read_activity(&text, now));
+        match reading {
+            Err(problem) => {
+                let _ = updates.send(Update::Reading(Source::Input, Reading::Unknown(problem.clone()))).await;
+                if problem != last_problem {
+                    let _ = updates.send(Update::Note(format!("input unavailable: {problem}"))).await;
+                    last_problem = problem;
+                }
+            }
+            Ok(activity) => {
+                last_problem.clear();
+                if devices != Some(activity.devices) {
+                    let _ = updates.send(Update::Note(format!("input: watching {} devices", activity.devices))).await;
+                    devices = Some(activity.devices);
+                }
+                let active = activity.since_input.is_some_and(|since| since < INPUT_ACTIVE);
+                let _ = updates.send(Update::Reading(Source::Input, if active { Reading::Active("in use".into()) } else { Reading::Idle })).await;
+                if let Some(since) = activity.since_input {
+                    // Whole seconds of the event's wall time identify it across polls.
+                    let stamp = (now - since).round() as i64;
+                    if last_input != Some(stamp) {
+                        last_input = Some(stamp);
+                        let at = Instant::now().checked_sub(Duration::from_secs_f64(since)).unwrap_or_else(Instant::now);
+                        let _ = updates.send(Update::Activity(Source::Input, at)).await;
                     }
                 }
-                Err(error) => problem = format!("{}: {error}", socket.file_name().unwrap_or_default().to_string_lossy()),
             }
-        }
-        let _ = updates.send(Update::Reading(Source::Input, Reading::Unknown(problem.clone()))).await;
-        if problem != last_problem {
-            let _ = updates.send(Update::Note(format!("input idle unavailable: {problem}"))).await;
-            last_problem = problem;
-        }
-        sleep(Duration::from_secs(5)).await;
-    }
-}
-
-async fn follow_gamepads(updates: mpsc::Sender<Update>) {
-    let mut pads = Gamepads::default();
-    let mut known: Vec<String> = Vec::new();
-    let mut tick = interval(Duration::from_secs(1));
-    let _ = updates.send(Update::Reading(Source::Gamepad, Reading::Idle)).await;
-    for count in 0u64.. {
-        tick.tick().await;
-        if count % 10 == 0 {
-            pads.rescan();
-            let names = pads.names();
-            if names != known {
-                let _ = updates.send(Update::Note(format!("gamepads: {}", if names.is_empty() { "none".to_owned() } else { names.join(", ") }))).await;
-                known = names;
-            }
-        }
-        if pads.poll().is_some() {
-            let _ = updates.send(Update::Activity(Source::Gamepad, Instant::now())).await;
         }
     }
 }
@@ -495,7 +474,6 @@ pub async fn run(arguments: Vec<String>) -> Result<(), String> {
     eprintln!("monolithd sleep-policy: observe only; quiet period {} min; {}", config.quiet_minutes, paths::describe());
     let (sender, mut updates) = mpsc::channel(256);
     tokio::spawn(follow_input(sender.clone()));
-    tokio::spawn(follow_gamepads(sender.clone()));
     tokio::spawn(follow_polled(sender));
     let mut policy = Policy::new(Instant::now());
     let mut evaluate = interval(Duration::from_secs(5));
@@ -573,7 +551,7 @@ mod tests {
     fn unknown_sources_hold_the_machine_awake() {
         let start = Instant::now();
         let policy = Policy::new(start);
-        assert!(matches!(policy.verdict(start + 3 * HOUR, 2 * HOUR).state, State::Busy(reasons) if reasons.len() == 4), "remote sessions never hold it");
+        assert!(matches!(policy.verdict(start + 3 * HOUR, 2 * HOUR).state, State::Busy(reasons) if reasons.len() == 3), "jobs, input and music; remote sessions never hold it");
     }
 
     #[test]
@@ -607,12 +585,12 @@ mod tests {
     fn momentary_activity_restarts_the_clock_without_holding_it() {
         let start = Instant::now();
         let mut policy = quiet_policy(start);
-        policy.activity(Source::Gamepad, start + HOUR);
+        policy.activity(Source::Input, start + HOUR);
         let verdict = policy.verdict(start + HOUR + 10 * S, 2 * HOUR);
         assert_eq!(verdict.state, State::Counting(2 * HOUR - 10 * S));
-        assert_eq!(verdict.restarted_by, "gamepad");
-        policy.activity(Source::Gamepad, start + 10 * S);
-        assert_eq!(policy.verdict(start + HOUR + 10 * S, 2 * HOUR).restarted_by, "gamepad", "an older event never moves the clock back");
+        assert_eq!(verdict.restarted_by, "input");
+        policy.activity(Source::Input, start + 10 * S);
+        assert_eq!(policy.verdict(start + HOUR + 10 * S, 2 * HOUR).restarted_by, "input", "an older event never moves the clock back");
     }
 
     #[test]
