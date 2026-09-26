@@ -20,8 +20,9 @@ poll_interval_ms = 1000
 
 # Zones a warning claims when raised with no explicit --zones. Every zone can author
 # warning content since 2026-09-22 (see the intake contract) -- this is what actually
-# picks where it's shown. Kept at the eye only, the original default.
-warning_zones = ["rog_eye"]
+# picks where it's shown. The whole machine since 2026-09-26 (owner), with the animated
+# amber march authored that day.
+warning_zones = ["ram", "rog_eye", "strip"]
 
 # Zones the automatic "a job is running somewhere" indicator claims. Same shape as
 # warning_zones. Kept at the eye only, the original default.

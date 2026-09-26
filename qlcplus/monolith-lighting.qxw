@@ -8323,52 +8323,47 @@
    <FixtureVal ID="41">0,255,1,255,2,255</FixtureVal>
    <FixtureVal ID="42">0,255,1,255,2,255</FixtureVal>
   </Function>
-  <Function ID="117" Type="Scene" Name="Warning Eye">
-   <Speed FadeIn="0" FadeOut="0" Duration="0"/>
-   <FixtureVal ID="40">0,255,1,176,2,0</FixtureVal>
-   <FixtureVal ID="41">0,255,1,176,2,0</FixtureVal>
-   <FixtureVal ID="42">0,255,1,176,2,0</FixtureVal>
+  <Function ID="117" Type="Chaser" Name="Warning Eye Amber March">
+   <Speed FadeIn="400" FadeOut="400" Duration="400"/>
+   <Direction>Forward</Direction>
+   <RunOrder>Loop</RunOrder>
+   <SpeedModes FadeIn="Common" FadeOut="Common" Duration="Common"/>
+   <Step Number="0" FadeIn="0" Hold="0" FadeOut="0">260</Step>
+   <Step Number="1" FadeIn="0" Hold="0" FadeOut="0">261</Step>
+   <Step Number="2" FadeIn="0" Hold="0" FadeOut="0">262</Step>
+   <Step Number="3" FadeIn="0" Hold="0" FadeOut="0">263</Step>
+   <Step Number="4" FadeIn="0" Hold="0" FadeOut="0">264</Step>
+   <Step Number="5" FadeIn="0" Hold="0" FadeOut="0">265</Step>
+   <Step Number="6" FadeIn="0" Hold="0" FadeOut="0">266</Step>
+   <Step Number="7" FadeIn="0" Hold="0" FadeOut="0">267</Step>
   </Function>
-  <Function ID="118" Type="Scene" Name="Fault RAM">
-   <Speed FadeIn="0" FadeOut="0" Duration="0"/>
-   <FixtureVal ID="0">0,255,1,0,2,0</FixtureVal>
-   <FixtureVal ID="1">0,255,1,0,2,0</FixtureVal>
-   <FixtureVal ID="2">0,255,1,0,2,0</FixtureVal>
-   <FixtureVal ID="3">0,255,1,0,2,0</FixtureVal>
-   <FixtureVal ID="4">0,255,1,0,2,0</FixtureVal>
-   <FixtureVal ID="5">0,255,1,0,2,0</FixtureVal>
-   <FixtureVal ID="6">0,255,1,0,2,0</FixtureVal>
-   <FixtureVal ID="7">0,255,1,0,2,0</FixtureVal>
-   <FixtureVal ID="8">0,255,1,0,2,0</FixtureVal>
-   <FixtureVal ID="9">0,255,1,0,2,0</FixtureVal>
-   <FixtureVal ID="10">0,255,1,0,2,0</FixtureVal>
-   <FixtureVal ID="11">0,255,1,0,2,0</FixtureVal>
-   <FixtureVal ID="12">0,255,1,0,2,0</FixtureVal>
-   <FixtureVal ID="13">0,255,1,0,2,0</FixtureVal>
-   <FixtureVal ID="14">0,255,1,0,2,0</FixtureVal>
-   <FixtureVal ID="15">0,255,1,0,2,0</FixtureVal>
-   <FixtureVal ID="16">0,255,1,0,2,0</FixtureVal>
-   <FixtureVal ID="17">0,255,1,0,2,0</FixtureVal>
-   <FixtureVal ID="18">0,255,1,0,2,0</FixtureVal>
-   <FixtureVal ID="19">0,255,1,0,2,0</FixtureVal>
-   <FixtureVal ID="20">0,255,1,0,2,0</FixtureVal>
-   <FixtureVal ID="21">0,255,1,0,2,0</FixtureVal>
-   <FixtureVal ID="22">0,255,1,0,2,0</FixtureVal>
-   <FixtureVal ID="23">0,255,1,0,2,0</FixtureVal>
-   <FixtureVal ID="24">0,255,1,0,2,0</FixtureVal>
-   <FixtureVal ID="25">0,255,1,0,2,0</FixtureVal>
-   <FixtureVal ID="26">0,255,1,0,2,0</FixtureVal>
-   <FixtureVal ID="27">0,255,1,0,2,0</FixtureVal>
-   <FixtureVal ID="28">0,255,1,0,2,0</FixtureVal>
-   <FixtureVal ID="29">0,255,1,0,2,0</FixtureVal>
-   <FixtureVal ID="30">0,255,1,0,2,0</FixtureVal>
-   <FixtureVal ID="31">0,255,1,0,2,0</FixtureVal>
+  <Function ID="118" Type="Chaser" Name="Fault RAM Red Alert">
+   <Speed FadeIn="300" FadeOut="300" Duration="300"/>
+   <Direction>Forward</Direction>
+   <RunOrder>Loop</RunOrder>
+   <SpeedModes FadeIn="Common" FadeOut="Common" Duration="Common"/>
+   <Step Number="0" FadeIn="0" Hold="0" FadeOut="0">228</Step>
+   <Step Number="1" FadeIn="0" Hold="0" FadeOut="0">229</Step>
+   <Step Number="2" FadeIn="0" Hold="0" FadeOut="0">230</Step>
+   <Step Number="3" FadeIn="0" Hold="0" FadeOut="0">231</Step>
+   <Step Number="4" FadeIn="0" Hold="0" FadeOut="0">232</Step>
+   <Step Number="5" FadeIn="0" Hold="0" FadeOut="0">233</Step>
+   <Step Number="6" FadeIn="0" Hold="0" FadeOut="0">234</Step>
+   <Step Number="7" FadeIn="0" Hold="0" FadeOut="0">235</Step>
   </Function>
-  <Function ID="119" Type="Scene" Name="Fault Eye">
-   <Speed FadeIn="0" FadeOut="0" Duration="0"/>
-   <FixtureVal ID="40">0,255,1,0,2,0</FixtureVal>
-   <FixtureVal ID="41">0,255,1,0,2,0</FixtureVal>
-   <FixtureVal ID="42">0,255,1,0,2,0</FixtureVal>
+  <Function ID="119" Type="Chaser" Name="Fault Eye Red Alert">
+   <Speed FadeIn="300" FadeOut="300" Duration="300"/>
+   <Direction>Forward</Direction>
+   <RunOrder>Loop</RunOrder>
+   <SpeedModes FadeIn="Common" FadeOut="Common" Duration="Common"/>
+   <Step Number="0" FadeIn="0" Hold="0" FadeOut="0">236</Step>
+   <Step Number="1" FadeIn="0" Hold="0" FadeOut="0">237</Step>
+   <Step Number="2" FadeIn="0" Hold="0" FadeOut="0">238</Step>
+   <Step Number="3" FadeIn="0" Hold="0" FadeOut="0">239</Step>
+   <Step Number="4" FadeIn="0" Hold="0" FadeOut="0">240</Step>
+   <Step Number="5" FadeIn="0" Hold="0" FadeOut="0">241</Step>
+   <Step Number="6" FadeIn="0" Hold="0" FadeOut="0">242</Step>
+   <Step Number="7" FadeIn="0" Hold="0" FadeOut="0">243</Step>
   </Function>
   <Function ID="120" Type="Scene" Name="Quiet RAM">
    <Speed FadeIn="0" FadeOut="0" Duration="0"/>
@@ -8598,78 +8593,19 @@
    <FixtureVal ID="111">0,255,1,0,2,255</FixtureVal>
    <FixtureVal ID="112">0,255,1,0,2,255</FixtureVal>
   </Function>
-  <Function ID="126" Type="Scene" Name="Fault Strip">
-   <Speed FadeIn="0" FadeOut="0" Duration="0"/>
-   <FixtureVal ID="43">0,255,1,0,2,0</FixtureVal>
-   <FixtureVal ID="44">0,255,1,0,2,0</FixtureVal>
-   <FixtureVal ID="45">0,255,1,0,2,0</FixtureVal>
-   <FixtureVal ID="46">0,255,1,0,2,0</FixtureVal>
-   <FixtureVal ID="47">0,255,1,0,2,0</FixtureVal>
-   <FixtureVal ID="48">0,255,1,0,2,0</FixtureVal>
-   <FixtureVal ID="49">0,255,1,0,2,0</FixtureVal>
-   <FixtureVal ID="50">0,255,1,0,2,0</FixtureVal>
-   <FixtureVal ID="51">0,255,1,0,2,0</FixtureVal>
-   <FixtureVal ID="52">0,255,1,0,2,0</FixtureVal>
-   <FixtureVal ID="53">0,255,1,0,2,0</FixtureVal>
-   <FixtureVal ID="54">0,255,1,0,2,0</FixtureVal>
-   <FixtureVal ID="55">0,255,1,0,2,0</FixtureVal>
-   <FixtureVal ID="56">0,255,1,0,2,0</FixtureVal>
-   <FixtureVal ID="57">0,255,1,0,2,0</FixtureVal>
-   <FixtureVal ID="58">0,255,1,0,2,0</FixtureVal>
-   <FixtureVal ID="59">0,255,1,0,2,0</FixtureVal>
-   <FixtureVal ID="60">0,255,1,0,2,0</FixtureVal>
-   <FixtureVal ID="61">0,255,1,0,2,0</FixtureVal>
-   <FixtureVal ID="62">0,255,1,0,2,0</FixtureVal>
-   <FixtureVal ID="63">0,255,1,0,2,0</FixtureVal>
-   <FixtureVal ID="64">0,255,1,0,2,0</FixtureVal>
-   <FixtureVal ID="65">0,255,1,0,2,0</FixtureVal>
-   <FixtureVal ID="66">0,255,1,0,2,0</FixtureVal>
-   <FixtureVal ID="67">0,255,1,0,2,0</FixtureVal>
-   <FixtureVal ID="68">0,255,1,0,2,0</FixtureVal>
-   <FixtureVal ID="69">0,255,1,0,2,0</FixtureVal>
-   <FixtureVal ID="70">0,255,1,0,2,0</FixtureVal>
-   <FixtureVal ID="71">0,255,1,0,2,0</FixtureVal>
-   <FixtureVal ID="72">0,255,1,0,2,0</FixtureVal>
-   <FixtureVal ID="73">0,255,1,0,2,0</FixtureVal>
-   <FixtureVal ID="74">0,255,1,0,2,0</FixtureVal>
-   <FixtureVal ID="75">0,255,1,0,2,0</FixtureVal>
-   <FixtureVal ID="76">0,255,1,0,2,0</FixtureVal>
-   <FixtureVal ID="77">0,255,1,0,2,0</FixtureVal>
-   <FixtureVal ID="78">0,255,1,0,2,0</FixtureVal>
-   <FixtureVal ID="79">0,255,1,0,2,0</FixtureVal>
-   <FixtureVal ID="80">0,255,1,0,2,0</FixtureVal>
-   <FixtureVal ID="81">0,255,1,0,2,0</FixtureVal>
-   <FixtureVal ID="82">0,255,1,0,2,0</FixtureVal>
-   <FixtureVal ID="83">0,255,1,0,2,0</FixtureVal>
-   <FixtureVal ID="84">0,255,1,0,2,0</FixtureVal>
-   <FixtureVal ID="85">0,255,1,0,2,0</FixtureVal>
-   <FixtureVal ID="86">0,255,1,0,2,0</FixtureVal>
-   <FixtureVal ID="87">0,255,1,0,2,0</FixtureVal>
-   <FixtureVal ID="88">0,255,1,0,2,0</FixtureVal>
-   <FixtureVal ID="89">0,255,1,0,2,0</FixtureVal>
-   <FixtureVal ID="90">0,255,1,0,2,0</FixtureVal>
-   <FixtureVal ID="91">0,255,1,0,2,0</FixtureVal>
-   <FixtureVal ID="92">0,255,1,0,2,0</FixtureVal>
-   <FixtureVal ID="93">0,255,1,0,2,0</FixtureVal>
-   <FixtureVal ID="94">0,255,1,0,2,0</FixtureVal>
-   <FixtureVal ID="95">0,255,1,0,2,0</FixtureVal>
-   <FixtureVal ID="96">0,255,1,0,2,0</FixtureVal>
-   <FixtureVal ID="97">0,255,1,0,2,0</FixtureVal>
-   <FixtureVal ID="98">0,255,1,0,2,0</FixtureVal>
-   <FixtureVal ID="99">0,255,1,0,2,0</FixtureVal>
-   <FixtureVal ID="100">0,255,1,0,2,0</FixtureVal>
-   <FixtureVal ID="101">0,255,1,0,2,0</FixtureVal>
-   <FixtureVal ID="102">0,255,1,0,2,0</FixtureVal>
-   <FixtureVal ID="103">0,255,1,0,2,0</FixtureVal>
-   <FixtureVal ID="104">0,255,1,0,2,0</FixtureVal>
-   <FixtureVal ID="105">0,255,1,0,2,0</FixtureVal>
-   <FixtureVal ID="106">0,255,1,0,2,0</FixtureVal>
-   <FixtureVal ID="107">0,255,1,0,2,0</FixtureVal>
-   <FixtureVal ID="108">0,255,1,0,2,0</FixtureVal>
-   <FixtureVal ID="109">0,255,1,0,2,0</FixtureVal>
-   <FixtureVal ID="110">0,255,1,0,2,0</FixtureVal>
-   <FixtureVal ID="111">0,255,1,0,2,0</FixtureVal>
-   <FixtureVal ID="112">0,255,1,0,2,0</FixtureVal>
+  <Function ID="126" Type="Chaser" Name="Fault Strip Red Alert">
+   <Speed FadeIn="300" FadeOut="300" Duration="300"/>
+   <Direction>Forward</Direction>
+   <RunOrder>Loop</RunOrder>
+   <SpeedModes FadeIn="Common" FadeOut="Common" Duration="Common"/>
+   <Step Number="0" FadeIn="0" Hold="0" FadeOut="0">244</Step>
+   <Step Number="1" FadeIn="0" Hold="0" FadeOut="0">245</Step>
+   <Step Number="2" FadeIn="0" Hold="0" FadeOut="0">246</Step>
+   <Step Number="3" FadeIn="0" Hold="0" FadeOut="0">247</Step>
+   <Step Number="4" FadeIn="0" Hold="0" FadeOut="0">248</Step>
+   <Step Number="5" FadeIn="0" Hold="0" FadeOut="0">249</Step>
+   <Step Number="6" FadeIn="0" Hold="0" FadeOut="0">250</Step>
+   <Step Number="7" FadeIn="0" Hold="0" FadeOut="0">251</Step>
   </Function>
   <Function ID="127" Type="Scene" Name="Working Eye">
    <Speed FadeIn="0" FadeOut="0" Duration="0"/>
@@ -9832,113 +9768,33 @@
    <FixtureVal ID="30">0,0,1,255,2,0</FixtureVal>
    <FixtureVal ID="31">0,0,1,255,2,0</FixtureVal>
   </Function>
-  <Function ID="200" Type="Scene" Name="Warning RAM">
-   <Speed FadeIn="0" FadeOut="0" Duration="0"/>
-   <FixtureVal ID="0">0,255,1,176,2,0</FixtureVal>
-   <FixtureVal ID="1">0,255,1,176,2,0</FixtureVal>
-   <FixtureVal ID="2">0,255,1,176,2,0</FixtureVal>
-   <FixtureVal ID="3">0,255,1,176,2,0</FixtureVal>
-   <FixtureVal ID="4">0,255,1,176,2,0</FixtureVal>
-   <FixtureVal ID="5">0,255,1,176,2,0</FixtureVal>
-   <FixtureVal ID="6">0,255,1,176,2,0</FixtureVal>
-   <FixtureVal ID="7">0,255,1,176,2,0</FixtureVal>
-   <FixtureVal ID="8">0,255,1,176,2,0</FixtureVal>
-   <FixtureVal ID="9">0,255,1,176,2,0</FixtureVal>
-   <FixtureVal ID="10">0,255,1,176,2,0</FixtureVal>
-   <FixtureVal ID="11">0,255,1,176,2,0</FixtureVal>
-   <FixtureVal ID="12">0,255,1,176,2,0</FixtureVal>
-   <FixtureVal ID="13">0,255,1,176,2,0</FixtureVal>
-   <FixtureVal ID="14">0,255,1,176,2,0</FixtureVal>
-   <FixtureVal ID="15">0,255,1,176,2,0</FixtureVal>
-   <FixtureVal ID="16">0,255,1,176,2,0</FixtureVal>
-   <FixtureVal ID="17">0,255,1,176,2,0</FixtureVal>
-   <FixtureVal ID="18">0,255,1,176,2,0</FixtureVal>
-   <FixtureVal ID="19">0,255,1,176,2,0</FixtureVal>
-   <FixtureVal ID="20">0,255,1,176,2,0</FixtureVal>
-   <FixtureVal ID="21">0,255,1,176,2,0</FixtureVal>
-   <FixtureVal ID="22">0,255,1,176,2,0</FixtureVal>
-   <FixtureVal ID="23">0,255,1,176,2,0</FixtureVal>
-   <FixtureVal ID="24">0,255,1,176,2,0</FixtureVal>
-   <FixtureVal ID="25">0,255,1,176,2,0</FixtureVal>
-   <FixtureVal ID="26">0,255,1,176,2,0</FixtureVal>
-   <FixtureVal ID="27">0,255,1,176,2,0</FixtureVal>
-   <FixtureVal ID="28">0,255,1,176,2,0</FixtureVal>
-   <FixtureVal ID="29">0,255,1,176,2,0</FixtureVal>
-   <FixtureVal ID="30">0,255,1,176,2,0</FixtureVal>
-   <FixtureVal ID="31">0,255,1,176,2,0</FixtureVal>
+  <Function ID="200" Type="Chaser" Name="Warning RAM Amber March">
+   <Speed FadeIn="400" FadeOut="400" Duration="400"/>
+   <Direction>Forward</Direction>
+   <RunOrder>Loop</RunOrder>
+   <SpeedModes FadeIn="Common" FadeOut="Common" Duration="Common"/>
+   <Step Number="0" FadeIn="0" Hold="0" FadeOut="0">252</Step>
+   <Step Number="1" FadeIn="0" Hold="0" FadeOut="0">253</Step>
+   <Step Number="2" FadeIn="0" Hold="0" FadeOut="0">254</Step>
+   <Step Number="3" FadeIn="0" Hold="0" FadeOut="0">255</Step>
+   <Step Number="4" FadeIn="0" Hold="0" FadeOut="0">256</Step>
+   <Step Number="5" FadeIn="0" Hold="0" FadeOut="0">257</Step>
+   <Step Number="6" FadeIn="0" Hold="0" FadeOut="0">258</Step>
+   <Step Number="7" FadeIn="0" Hold="0" FadeOut="0">259</Step>
   </Function>
-  <Function ID="201" Type="Scene" Name="Warning Strip">
-   <Speed FadeIn="0" FadeOut="0" Duration="0"/>
-   <FixtureVal ID="43">0,255,1,176,2,0</FixtureVal>
-   <FixtureVal ID="44">0,255,1,176,2,0</FixtureVal>
-   <FixtureVal ID="45">0,255,1,176,2,0</FixtureVal>
-   <FixtureVal ID="46">0,255,1,176,2,0</FixtureVal>
-   <FixtureVal ID="47">0,255,1,176,2,0</FixtureVal>
-   <FixtureVal ID="48">0,255,1,176,2,0</FixtureVal>
-   <FixtureVal ID="49">0,255,1,176,2,0</FixtureVal>
-   <FixtureVal ID="50">0,255,1,176,2,0</FixtureVal>
-   <FixtureVal ID="51">0,255,1,176,2,0</FixtureVal>
-   <FixtureVal ID="52">0,255,1,176,2,0</FixtureVal>
-   <FixtureVal ID="53">0,255,1,176,2,0</FixtureVal>
-   <FixtureVal ID="54">0,255,1,176,2,0</FixtureVal>
-   <FixtureVal ID="55">0,255,1,176,2,0</FixtureVal>
-   <FixtureVal ID="56">0,255,1,176,2,0</FixtureVal>
-   <FixtureVal ID="57">0,255,1,176,2,0</FixtureVal>
-   <FixtureVal ID="58">0,255,1,176,2,0</FixtureVal>
-   <FixtureVal ID="59">0,255,1,176,2,0</FixtureVal>
-   <FixtureVal ID="60">0,255,1,176,2,0</FixtureVal>
-   <FixtureVal ID="61">0,255,1,176,2,0</FixtureVal>
-   <FixtureVal ID="62">0,255,1,176,2,0</FixtureVal>
-   <FixtureVal ID="63">0,255,1,176,2,0</FixtureVal>
-   <FixtureVal ID="64">0,255,1,176,2,0</FixtureVal>
-   <FixtureVal ID="65">0,255,1,176,2,0</FixtureVal>
-   <FixtureVal ID="66">0,255,1,176,2,0</FixtureVal>
-   <FixtureVal ID="67">0,255,1,176,2,0</FixtureVal>
-   <FixtureVal ID="68">0,255,1,176,2,0</FixtureVal>
-   <FixtureVal ID="69">0,255,1,176,2,0</FixtureVal>
-   <FixtureVal ID="70">0,255,1,176,2,0</FixtureVal>
-   <FixtureVal ID="71">0,255,1,176,2,0</FixtureVal>
-   <FixtureVal ID="72">0,255,1,176,2,0</FixtureVal>
-   <FixtureVal ID="73">0,255,1,176,2,0</FixtureVal>
-   <FixtureVal ID="74">0,255,1,176,2,0</FixtureVal>
-   <FixtureVal ID="75">0,255,1,176,2,0</FixtureVal>
-   <FixtureVal ID="76">0,255,1,176,2,0</FixtureVal>
-   <FixtureVal ID="77">0,255,1,176,2,0</FixtureVal>
-   <FixtureVal ID="78">0,255,1,176,2,0</FixtureVal>
-   <FixtureVal ID="79">0,255,1,176,2,0</FixtureVal>
-   <FixtureVal ID="80">0,255,1,176,2,0</FixtureVal>
-   <FixtureVal ID="81">0,255,1,176,2,0</FixtureVal>
-   <FixtureVal ID="82">0,255,1,176,2,0</FixtureVal>
-   <FixtureVal ID="83">0,255,1,176,2,0</FixtureVal>
-   <FixtureVal ID="84">0,255,1,176,2,0</FixtureVal>
-   <FixtureVal ID="85">0,255,1,176,2,0</FixtureVal>
-   <FixtureVal ID="86">0,255,1,176,2,0</FixtureVal>
-   <FixtureVal ID="87">0,255,1,176,2,0</FixtureVal>
-   <FixtureVal ID="88">0,255,1,176,2,0</FixtureVal>
-   <FixtureVal ID="89">0,255,1,176,2,0</FixtureVal>
-   <FixtureVal ID="90">0,255,1,176,2,0</FixtureVal>
-   <FixtureVal ID="91">0,255,1,176,2,0</FixtureVal>
-   <FixtureVal ID="92">0,255,1,176,2,0</FixtureVal>
-   <FixtureVal ID="93">0,255,1,176,2,0</FixtureVal>
-   <FixtureVal ID="94">0,255,1,176,2,0</FixtureVal>
-   <FixtureVal ID="95">0,255,1,176,2,0</FixtureVal>
-   <FixtureVal ID="96">0,255,1,176,2,0</FixtureVal>
-   <FixtureVal ID="97">0,255,1,176,2,0</FixtureVal>
-   <FixtureVal ID="98">0,255,1,176,2,0</FixtureVal>
-   <FixtureVal ID="99">0,255,1,176,2,0</FixtureVal>
-   <FixtureVal ID="100">0,255,1,176,2,0</FixtureVal>
-   <FixtureVal ID="101">0,255,1,176,2,0</FixtureVal>
-   <FixtureVal ID="102">0,255,1,176,2,0</FixtureVal>
-   <FixtureVal ID="103">0,255,1,176,2,0</FixtureVal>
-   <FixtureVal ID="104">0,255,1,176,2,0</FixtureVal>
-   <FixtureVal ID="105">0,255,1,176,2,0</FixtureVal>
-   <FixtureVal ID="106">0,255,1,176,2,0</FixtureVal>
-   <FixtureVal ID="107">0,255,1,176,2,0</FixtureVal>
-   <FixtureVal ID="108">0,255,1,176,2,0</FixtureVal>
-   <FixtureVal ID="109">0,255,1,176,2,0</FixtureVal>
-   <FixtureVal ID="110">0,255,1,176,2,0</FixtureVal>
-   <FixtureVal ID="111">0,255,1,176,2,0</FixtureVal>
-   <FixtureVal ID="112">0,255,1,176,2,0</FixtureVal>
+  <Function ID="201" Type="Chaser" Name="Warning Strip Amber March">
+   <Speed FadeIn="400" FadeOut="400" Duration="400"/>
+   <Direction>Forward</Direction>
+   <RunOrder>Loop</RunOrder>
+   <SpeedModes FadeIn="Common" FadeOut="Common" Duration="Common"/>
+   <Step Number="0" FadeIn="0" Hold="0" FadeOut="0">268</Step>
+   <Step Number="1" FadeIn="0" Hold="0" FadeOut="0">269</Step>
+   <Step Number="2" FadeIn="0" Hold="0" FadeOut="0">270</Step>
+   <Step Number="3" FadeIn="0" Hold="0" FadeOut="0">271</Step>
+   <Step Number="4" FadeIn="0" Hold="0" FadeOut="0">272</Step>
+   <Step Number="5" FadeIn="0" Hold="0" FadeOut="0">273</Step>
+   <Step Number="6" FadeIn="0" Hold="0" FadeOut="0">274</Step>
+   <Step Number="7" FadeIn="0" Hold="0" FadeOut="0">275</Step>
   </Function>
   <Function ID="202" Type="Scene" Name="Working RAM">
    <Speed FadeIn="0" FadeOut="0" Duration="0"/>
@@ -12363,6 +12219,1830 @@
    <FixtureVal ID="110">0,103,1,0,2,255</FixtureVal>
    <FixtureVal ID="111">0,114,1,0,2,255</FixtureVal>
    <FixtureVal ID="112">0,124,1,0,2,255</FixtureVal>
+  </Function>
+  <Function ID="228" Type="Scene" Name="Fault RAM Red Alert 1">
+   <Speed FadeIn="0" FadeOut="0" Duration="0"/>
+   <FixtureVal ID="0">0,255,1,35,2,35</FixtureVal>
+   <FixtureVal ID="1">0,255,1,128,2,128</FixtureVal>
+   <FixtureVal ID="2">0,255,1,220,2,220</FixtureVal>
+   <FixtureVal ID="3">0,255,1,248,2,248</FixtureVal>
+   <FixtureVal ID="4">0,255,1,253,2,253</FixtureVal>
+   <FixtureVal ID="5">0,255,1,254,2,254</FixtureVal>
+   <FixtureVal ID="6">0,255,1,254,2,254</FixtureVal>
+   <FixtureVal ID="7">0,255,1,254,2,254</FixtureVal>
+   <FixtureVal ID="8">0,255,1,253,2,253</FixtureVal>
+   <FixtureVal ID="9">0,255,1,254,2,254</FixtureVal>
+   <FixtureVal ID="10">0,255,1,254,2,254</FixtureVal>
+   <FixtureVal ID="11">0,255,1,254,2,254</FixtureVal>
+   <FixtureVal ID="12">0,255,1,253,2,253</FixtureVal>
+   <FixtureVal ID="13">0,255,1,248,2,248</FixtureVal>
+   <FixtureVal ID="14">0,255,1,220,2,220</FixtureVal>
+   <FixtureVal ID="15">0,255,1,128,2,128</FixtureVal>
+   <FixtureVal ID="16">0,255,1,2,2,2</FixtureVal>
+   <FixtureVal ID="17">0,255,1,7,2,7</FixtureVal>
+   <FixtureVal ID="18">0,255,1,35,2,35</FixtureVal>
+   <FixtureVal ID="19">0,255,1,128,2,128</FixtureVal>
+   <FixtureVal ID="20">0,255,1,220,2,220</FixtureVal>
+   <FixtureVal ID="21">0,255,1,248,2,248</FixtureVal>
+   <FixtureVal ID="22">0,255,1,253,2,253</FixtureVal>
+   <FixtureVal ID="23">0,255,1,254,2,254</FixtureVal>
+   <FixtureVal ID="24">0,255,1,220,2,220</FixtureVal>
+   <FixtureVal ID="25">0,255,1,248,2,248</FixtureVal>
+   <FixtureVal ID="26">0,255,1,253,2,253</FixtureVal>
+   <FixtureVal ID="27">0,255,1,254,2,254</FixtureVal>
+   <FixtureVal ID="28">0,255,1,254,2,254</FixtureVal>
+   <FixtureVal ID="29">0,255,1,254,2,254</FixtureVal>
+   <FixtureVal ID="30">0,255,1,253,2,253</FixtureVal>
+   <FixtureVal ID="31">0,255,1,248,2,248</FixtureVal>
+  </Function>
+  <Function ID="229" Type="Scene" Name="Fault RAM Red Alert 2">
+   <Speed FadeIn="0" FadeOut="0" Duration="0"/>
+   <FixtureVal ID="0">0,255,1,254,2,254</FixtureVal>
+   <FixtureVal ID="1">0,255,1,254,2,254</FixtureVal>
+   <FixtureVal ID="2">0,255,1,254,2,254</FixtureVal>
+   <FixtureVal ID="3">0,255,1,253,2,253</FixtureVal>
+   <FixtureVal ID="4">0,255,1,248,2,248</FixtureVal>
+   <FixtureVal ID="5">0,255,1,220,2,220</FixtureVal>
+   <FixtureVal ID="6">0,255,1,128,2,128</FixtureVal>
+   <FixtureVal ID="7">0,255,1,35,2,35</FixtureVal>
+   <FixtureVal ID="8">0,255,1,248,2,248</FixtureVal>
+   <FixtureVal ID="9">0,255,1,220,2,220</FixtureVal>
+   <FixtureVal ID="10">0,255,1,128,2,128</FixtureVal>
+   <FixtureVal ID="11">0,255,1,35,2,35</FixtureVal>
+   <FixtureVal ID="12">0,255,1,7,2,7</FixtureVal>
+   <FixtureVal ID="13">0,255,1,2,2,2</FixtureVal>
+   <FixtureVal ID="14">0,255,1,1,2,1</FixtureVal>
+   <FixtureVal ID="15">0,255,1,1,2,1</FixtureVal>
+   <FixtureVal ID="16">0,255,1,248,2,248</FixtureVal>
+   <FixtureVal ID="17">0,255,1,253,2,253</FixtureVal>
+   <FixtureVal ID="18">0,255,1,254,2,254</FixtureVal>
+   <FixtureVal ID="19">0,255,1,254,2,254</FixtureVal>
+   <FixtureVal ID="20">0,255,1,254,2,254</FixtureVal>
+   <FixtureVal ID="21">0,255,1,253,2,253</FixtureVal>
+   <FixtureVal ID="22">0,255,1,248,2,248</FixtureVal>
+   <FixtureVal ID="23">0,255,1,220,2,220</FixtureVal>
+   <FixtureVal ID="24">0,255,1,254,2,254</FixtureVal>
+   <FixtureVal ID="25">0,255,1,253,2,253</FixtureVal>
+   <FixtureVal ID="26">0,255,1,248,2,248</FixtureVal>
+   <FixtureVal ID="27">0,255,1,220,2,220</FixtureVal>
+   <FixtureVal ID="28">0,255,1,128,2,128</FixtureVal>
+   <FixtureVal ID="29">0,255,1,35,2,35</FixtureVal>
+   <FixtureVal ID="30">0,255,1,7,2,7</FixtureVal>
+   <FixtureVal ID="31">0,255,1,2,2,2</FixtureVal>
+  </Function>
+  <Function ID="230" Type="Scene" Name="Fault RAM Red Alert 3">
+   <Speed FadeIn="0" FadeOut="0" Duration="0"/>
+   <FixtureVal ID="0">0,255,1,220,2,220</FixtureVal>
+   <FixtureVal ID="1">0,255,1,128,2,128</FixtureVal>
+   <FixtureVal ID="2">0,255,1,35,2,35</FixtureVal>
+   <FixtureVal ID="3">0,255,1,7,2,7</FixtureVal>
+   <FixtureVal ID="4">0,255,1,2,2,2</FixtureVal>
+   <FixtureVal ID="5">0,255,1,1,2,1</FixtureVal>
+   <FixtureVal ID="6">0,255,1,1,2,1</FixtureVal>
+   <FixtureVal ID="7">0,255,1,1,2,1</FixtureVal>
+   <FixtureVal ID="8">0,255,1,2,2,2</FixtureVal>
+   <FixtureVal ID="9">0,255,1,1,2,1</FixtureVal>
+   <FixtureVal ID="10">0,255,1,1,2,1</FixtureVal>
+   <FixtureVal ID="11">0,255,1,1,2,1</FixtureVal>
+   <FixtureVal ID="12">0,255,1,2,2,2</FixtureVal>
+   <FixtureVal ID="13">0,255,1,7,2,7</FixtureVal>
+   <FixtureVal ID="14">0,255,1,35,2,35</FixtureVal>
+   <FixtureVal ID="15">0,255,1,127,2,127</FixtureVal>
+   <FixtureVal ID="16">0,255,1,253,2,253</FixtureVal>
+   <FixtureVal ID="17">0,255,1,248,2,248</FixtureVal>
+   <FixtureVal ID="18">0,255,1,220,2,220</FixtureVal>
+   <FixtureVal ID="19">0,255,1,128,2,128</FixtureVal>
+   <FixtureVal ID="20">0,255,1,35,2,35</FixtureVal>
+   <FixtureVal ID="21">0,255,1,7,2,7</FixtureVal>
+   <FixtureVal ID="22">0,255,1,2,2,2</FixtureVal>
+   <FixtureVal ID="23">0,255,1,1,2,1</FixtureVal>
+   <FixtureVal ID="24">0,255,1,35,2,35</FixtureVal>
+   <FixtureVal ID="25">0,255,1,7,2,7</FixtureVal>
+   <FixtureVal ID="26">0,255,1,2,2,2</FixtureVal>
+   <FixtureVal ID="27">0,255,1,1,2,1</FixtureVal>
+   <FixtureVal ID="28">0,255,1,1,2,1</FixtureVal>
+   <FixtureVal ID="29">0,255,1,1,2,1</FixtureVal>
+   <FixtureVal ID="30">0,255,1,2,2,2</FixtureVal>
+   <FixtureVal ID="31">0,255,1,7,2,7</FixtureVal>
+  </Function>
+  <Function ID="231" Type="Scene" Name="Fault RAM Red Alert 4">
+   <Speed FadeIn="0" FadeOut="0" Duration="0"/>
+   <FixtureVal ID="0">0,255,1,1,2,1</FixtureVal>
+   <FixtureVal ID="1">0,255,1,1,2,1</FixtureVal>
+   <FixtureVal ID="2">0,255,1,1,2,1</FixtureVal>
+   <FixtureVal ID="3">0,255,1,2,2,2</FixtureVal>
+   <FixtureVal ID="4">0,255,1,7,2,7</FixtureVal>
+   <FixtureVal ID="5">0,255,1,35,2,35</FixtureVal>
+   <FixtureVal ID="6">0,255,1,127,2,127</FixtureVal>
+   <FixtureVal ID="7">0,255,1,220,2,220</FixtureVal>
+   <FixtureVal ID="8">0,255,1,7,2,7</FixtureVal>
+   <FixtureVal ID="9">0,255,1,35,2,35</FixtureVal>
+   <FixtureVal ID="10">0,255,1,127,2,127</FixtureVal>
+   <FixtureVal ID="11">0,255,1,220,2,220</FixtureVal>
+   <FixtureVal ID="12">0,255,1,248,2,248</FixtureVal>
+   <FixtureVal ID="13">0,255,1,253,2,253</FixtureVal>
+   <FixtureVal ID="14">0,255,1,254,2,254</FixtureVal>
+   <FixtureVal ID="15">0,255,1,254,2,254</FixtureVal>
+   <FixtureVal ID="16">0,255,1,7,2,7</FixtureVal>
+   <FixtureVal ID="17">0,255,1,2,2,2</FixtureVal>
+   <FixtureVal ID="18">0,255,1,1,2,1</FixtureVal>
+   <FixtureVal ID="19">0,255,1,1,2,1</FixtureVal>
+   <FixtureVal ID="20">0,255,1,1,2,1</FixtureVal>
+   <FixtureVal ID="21">0,255,1,2,2,2</FixtureVal>
+   <FixtureVal ID="22">0,255,1,7,2,7</FixtureVal>
+   <FixtureVal ID="23">0,255,1,35,2,35</FixtureVal>
+   <FixtureVal ID="24">0,255,1,1,2,1</FixtureVal>
+   <FixtureVal ID="25">0,255,1,2,2,2</FixtureVal>
+   <FixtureVal ID="26">0,255,1,7,2,7</FixtureVal>
+   <FixtureVal ID="27">0,255,1,35,2,35</FixtureVal>
+   <FixtureVal ID="28">0,255,1,127,2,127</FixtureVal>
+   <FixtureVal ID="29">0,255,1,220,2,220</FixtureVal>
+   <FixtureVal ID="30">0,255,1,248,2,248</FixtureVal>
+   <FixtureVal ID="31">0,255,1,253,2,253</FixtureVal>
+  </Function>
+  <Function ID="232" Type="Scene" Name="Fault RAM Red Alert 5">
+   <Speed FadeIn="0" FadeOut="0" Duration="0"/>
+   <FixtureVal ID="0">0,255,1,35,2,35</FixtureVal>
+   <FixtureVal ID="1">0,255,1,127,2,127</FixtureVal>
+   <FixtureVal ID="2">0,255,1,220,2,220</FixtureVal>
+   <FixtureVal ID="3">0,255,1,248,2,248</FixtureVal>
+   <FixtureVal ID="4">0,255,1,253,2,253</FixtureVal>
+   <FixtureVal ID="5">0,255,1,254,2,254</FixtureVal>
+   <FixtureVal ID="6">0,255,1,254,2,254</FixtureVal>
+   <FixtureVal ID="7">0,255,1,254,2,254</FixtureVal>
+   <FixtureVal ID="8">0,255,1,253,2,253</FixtureVal>
+   <FixtureVal ID="9">0,255,1,254,2,254</FixtureVal>
+   <FixtureVal ID="10">0,255,1,254,2,254</FixtureVal>
+   <FixtureVal ID="11">0,255,1,254,2,254</FixtureVal>
+   <FixtureVal ID="12">0,255,1,253,2,253</FixtureVal>
+   <FixtureVal ID="13">0,255,1,248,2,248</FixtureVal>
+   <FixtureVal ID="14">0,255,1,220,2,220</FixtureVal>
+   <FixtureVal ID="15">0,255,1,128,2,128</FixtureVal>
+   <FixtureVal ID="16">0,255,1,2,2,2</FixtureVal>
+   <FixtureVal ID="17">0,255,1,7,2,7</FixtureVal>
+   <FixtureVal ID="18">0,255,1,35,2,35</FixtureVal>
+   <FixtureVal ID="19">0,255,1,127,2,127</FixtureVal>
+   <FixtureVal ID="20">0,255,1,220,2,220</FixtureVal>
+   <FixtureVal ID="21">0,255,1,248,2,248</FixtureVal>
+   <FixtureVal ID="22">0,255,1,253,2,253</FixtureVal>
+   <FixtureVal ID="23">0,255,1,254,2,254</FixtureVal>
+   <FixtureVal ID="24">0,255,1,220,2,220</FixtureVal>
+   <FixtureVal ID="25">0,255,1,248,2,248</FixtureVal>
+   <FixtureVal ID="26">0,255,1,253,2,253</FixtureVal>
+   <FixtureVal ID="27">0,255,1,254,2,254</FixtureVal>
+   <FixtureVal ID="28">0,255,1,254,2,254</FixtureVal>
+   <FixtureVal ID="29">0,255,1,254,2,254</FixtureVal>
+   <FixtureVal ID="30">0,255,1,253,2,253</FixtureVal>
+   <FixtureVal ID="31">0,255,1,248,2,248</FixtureVal>
+  </Function>
+  <Function ID="233" Type="Scene" Name="Fault RAM Red Alert 6">
+   <Speed FadeIn="0" FadeOut="0" Duration="0"/>
+   <FixtureVal ID="0">0,255,1,254,2,254</FixtureVal>
+   <FixtureVal ID="1">0,255,1,254,2,254</FixtureVal>
+   <FixtureVal ID="2">0,255,1,254,2,254</FixtureVal>
+   <FixtureVal ID="3">0,255,1,253,2,253</FixtureVal>
+   <FixtureVal ID="4">0,255,1,248,2,248</FixtureVal>
+   <FixtureVal ID="5">0,255,1,220,2,220</FixtureVal>
+   <FixtureVal ID="6">0,255,1,128,2,128</FixtureVal>
+   <FixtureVal ID="7">0,255,1,35,2,35</FixtureVal>
+   <FixtureVal ID="8">0,255,1,248,2,248</FixtureVal>
+   <FixtureVal ID="9">0,255,1,220,2,220</FixtureVal>
+   <FixtureVal ID="10">0,255,1,128,2,128</FixtureVal>
+   <FixtureVal ID="11">0,255,1,35,2,35</FixtureVal>
+   <FixtureVal ID="12">0,255,1,7,2,7</FixtureVal>
+   <FixtureVal ID="13">0,255,1,2,2,2</FixtureVal>
+   <FixtureVal ID="14">0,255,1,1,2,1</FixtureVal>
+   <FixtureVal ID="15">0,255,1,1,2,1</FixtureVal>
+   <FixtureVal ID="16">0,255,1,248,2,248</FixtureVal>
+   <FixtureVal ID="17">0,255,1,253,2,253</FixtureVal>
+   <FixtureVal ID="18">0,255,1,254,2,254</FixtureVal>
+   <FixtureVal ID="19">0,255,1,254,2,254</FixtureVal>
+   <FixtureVal ID="20">0,255,1,254,2,254</FixtureVal>
+   <FixtureVal ID="21">0,255,1,253,2,253</FixtureVal>
+   <FixtureVal ID="22">0,255,1,248,2,248</FixtureVal>
+   <FixtureVal ID="23">0,255,1,220,2,220</FixtureVal>
+   <FixtureVal ID="24">0,255,1,254,2,254</FixtureVal>
+   <FixtureVal ID="25">0,255,1,253,2,253</FixtureVal>
+   <FixtureVal ID="26">0,255,1,248,2,248</FixtureVal>
+   <FixtureVal ID="27">0,255,1,220,2,220</FixtureVal>
+   <FixtureVal ID="28">0,255,1,128,2,128</FixtureVal>
+   <FixtureVal ID="29">0,255,1,35,2,35</FixtureVal>
+   <FixtureVal ID="30">0,255,1,7,2,7</FixtureVal>
+   <FixtureVal ID="31">0,255,1,2,2,2</FixtureVal>
+  </Function>
+  <Function ID="234" Type="Scene" Name="Fault RAM Red Alert 7">
+   <Speed FadeIn="0" FadeOut="0" Duration="0"/>
+   <FixtureVal ID="0">0,255,1,220,2,220</FixtureVal>
+   <FixtureVal ID="1">0,255,1,128,2,128</FixtureVal>
+   <FixtureVal ID="2">0,255,1,35,2,35</FixtureVal>
+   <FixtureVal ID="3">0,255,1,7,2,7</FixtureVal>
+   <FixtureVal ID="4">0,255,1,2,2,2</FixtureVal>
+   <FixtureVal ID="5">0,255,1,1,2,1</FixtureVal>
+   <FixtureVal ID="6">0,255,1,1,2,1</FixtureVal>
+   <FixtureVal ID="7">0,255,1,1,2,1</FixtureVal>
+   <FixtureVal ID="8">0,255,1,2,2,2</FixtureVal>
+   <FixtureVal ID="9">0,255,1,1,2,1</FixtureVal>
+   <FixtureVal ID="10">0,255,1,1,2,1</FixtureVal>
+   <FixtureVal ID="11">0,255,1,1,2,1</FixtureVal>
+   <FixtureVal ID="12">0,255,1,2,2,2</FixtureVal>
+   <FixtureVal ID="13">0,255,1,7,2,7</FixtureVal>
+   <FixtureVal ID="14">0,255,1,35,2,35</FixtureVal>
+   <FixtureVal ID="15">0,255,1,127,2,127</FixtureVal>
+   <FixtureVal ID="16">0,255,1,253,2,253</FixtureVal>
+   <FixtureVal ID="17">0,255,1,248,2,248</FixtureVal>
+   <FixtureVal ID="18">0,255,1,220,2,220</FixtureVal>
+   <FixtureVal ID="19">0,255,1,128,2,128</FixtureVal>
+   <FixtureVal ID="20">0,255,1,35,2,35</FixtureVal>
+   <FixtureVal ID="21">0,255,1,7,2,7</FixtureVal>
+   <FixtureVal ID="22">0,255,1,2,2,2</FixtureVal>
+   <FixtureVal ID="23">0,255,1,1,2,1</FixtureVal>
+   <FixtureVal ID="24">0,255,1,35,2,35</FixtureVal>
+   <FixtureVal ID="25">0,255,1,7,2,7</FixtureVal>
+   <FixtureVal ID="26">0,255,1,2,2,2</FixtureVal>
+   <FixtureVal ID="27">0,255,1,1,2,1</FixtureVal>
+   <FixtureVal ID="28">0,255,1,1,2,1</FixtureVal>
+   <FixtureVal ID="29">0,255,1,1,2,1</FixtureVal>
+   <FixtureVal ID="30">0,255,1,2,2,2</FixtureVal>
+   <FixtureVal ID="31">0,255,1,7,2,7</FixtureVal>
+  </Function>
+  <Function ID="235" Type="Scene" Name="Fault RAM Red Alert 8">
+   <Speed FadeIn="0" FadeOut="0" Duration="0"/>
+   <FixtureVal ID="0">0,255,1,1,2,1</FixtureVal>
+   <FixtureVal ID="1">0,255,1,1,2,1</FixtureVal>
+   <FixtureVal ID="2">0,255,1,1,2,1</FixtureVal>
+   <FixtureVal ID="3">0,255,1,2,2,2</FixtureVal>
+   <FixtureVal ID="4">0,255,1,7,2,7</FixtureVal>
+   <FixtureVal ID="5">0,255,1,35,2,35</FixtureVal>
+   <FixtureVal ID="6">0,255,1,127,2,127</FixtureVal>
+   <FixtureVal ID="7">0,255,1,220,2,220</FixtureVal>
+   <FixtureVal ID="8">0,255,1,7,2,7</FixtureVal>
+   <FixtureVal ID="9">0,255,1,35,2,35</FixtureVal>
+   <FixtureVal ID="10">0,255,1,127,2,127</FixtureVal>
+   <FixtureVal ID="11">0,255,1,220,2,220</FixtureVal>
+   <FixtureVal ID="12">0,255,1,248,2,248</FixtureVal>
+   <FixtureVal ID="13">0,255,1,253,2,253</FixtureVal>
+   <FixtureVal ID="14">0,255,1,254,2,254</FixtureVal>
+   <FixtureVal ID="15">0,255,1,254,2,254</FixtureVal>
+   <FixtureVal ID="16">0,255,1,7,2,7</FixtureVal>
+   <FixtureVal ID="17">0,255,1,2,2,2</FixtureVal>
+   <FixtureVal ID="18">0,255,1,1,2,1</FixtureVal>
+   <FixtureVal ID="19">0,255,1,1,2,1</FixtureVal>
+   <FixtureVal ID="20">0,255,1,1,2,1</FixtureVal>
+   <FixtureVal ID="21">0,255,1,2,2,2</FixtureVal>
+   <FixtureVal ID="22">0,255,1,7,2,7</FixtureVal>
+   <FixtureVal ID="23">0,255,1,35,2,35</FixtureVal>
+   <FixtureVal ID="24">0,255,1,1,2,1</FixtureVal>
+   <FixtureVal ID="25">0,255,1,2,2,2</FixtureVal>
+   <FixtureVal ID="26">0,255,1,7,2,7</FixtureVal>
+   <FixtureVal ID="27">0,255,1,35,2,35</FixtureVal>
+   <FixtureVal ID="28">0,255,1,127,2,127</FixtureVal>
+   <FixtureVal ID="29">0,255,1,220,2,220</FixtureVal>
+   <FixtureVal ID="30">0,255,1,248,2,248</FixtureVal>
+   <FixtureVal ID="31">0,255,1,253,2,253</FixtureVal>
+  </Function>
+  <Function ID="236" Type="Scene" Name="Fault Eye Red Alert 1">
+   <Speed FadeIn="0" FadeOut="0" Duration="0"/>
+   <FixtureVal ID="40">0,255,1,128,2,128</FixtureVal>
+   <FixtureVal ID="41">0,255,1,220,2,220</FixtureVal>
+   <FixtureVal ID="42">0,255,1,248,2,248</FixtureVal>
+  </Function>
+  <Function ID="237" Type="Scene" Name="Fault Eye Red Alert 2">
+   <Speed FadeIn="0" FadeOut="0" Duration="0"/>
+   <FixtureVal ID="40">0,255,1,1,2,1</FixtureVal>
+   <FixtureVal ID="41">0,255,1,1,2,1</FixtureVal>
+   <FixtureVal ID="42">0,255,1,2,2,2</FixtureVal>
+  </Function>
+  <Function ID="238" Type="Scene" Name="Fault Eye Red Alert 3">
+   <Speed FadeIn="0" FadeOut="0" Duration="0"/>
+   <FixtureVal ID="40">0,255,1,127,2,127</FixtureVal>
+   <FixtureVal ID="41">0,255,1,35,2,35</FixtureVal>
+   <FixtureVal ID="42">0,255,1,7,2,7</FixtureVal>
+  </Function>
+  <Function ID="239" Type="Scene" Name="Fault Eye Red Alert 4">
+   <Speed FadeIn="0" FadeOut="0" Duration="0"/>
+   <FixtureVal ID="40">0,255,1,254,2,254</FixtureVal>
+   <FixtureVal ID="41">0,255,1,254,2,254</FixtureVal>
+   <FixtureVal ID="42">0,255,1,253,2,253</FixtureVal>
+  </Function>
+  <Function ID="240" Type="Scene" Name="Fault Eye Red Alert 5">
+   <Speed FadeIn="0" FadeOut="0" Duration="0"/>
+   <FixtureVal ID="40">0,255,1,128,2,128</FixtureVal>
+   <FixtureVal ID="41">0,255,1,220,2,220</FixtureVal>
+   <FixtureVal ID="42">0,255,1,248,2,248</FixtureVal>
+  </Function>
+  <Function ID="241" Type="Scene" Name="Fault Eye Red Alert 6">
+   <Speed FadeIn="0" FadeOut="0" Duration="0"/>
+   <FixtureVal ID="40">0,255,1,1,2,1</FixtureVal>
+   <FixtureVal ID="41">0,255,1,1,2,1</FixtureVal>
+   <FixtureVal ID="42">0,255,1,2,2,2</FixtureVal>
+  </Function>
+  <Function ID="242" Type="Scene" Name="Fault Eye Red Alert 7">
+   <Speed FadeIn="0" FadeOut="0" Duration="0"/>
+   <FixtureVal ID="40">0,255,1,127,2,127</FixtureVal>
+   <FixtureVal ID="41">0,255,1,35,2,35</FixtureVal>
+   <FixtureVal ID="42">0,255,1,7,2,7</FixtureVal>
+  </Function>
+  <Function ID="243" Type="Scene" Name="Fault Eye Red Alert 8">
+   <Speed FadeIn="0" FadeOut="0" Duration="0"/>
+   <FixtureVal ID="40">0,255,1,254,2,254</FixtureVal>
+   <FixtureVal ID="41">0,255,1,254,2,254</FixtureVal>
+   <FixtureVal ID="42">0,255,1,253,2,253</FixtureVal>
+  </Function>
+  <Function ID="244" Type="Scene" Name="Fault Strip Red Alert 1">
+   <Speed FadeIn="0" FadeOut="0" Duration="0"/>
+   <FixtureVal ID="43">0,255,1,220,2,220</FixtureVal>
+   <FixtureVal ID="44">0,255,1,248,2,248</FixtureVal>
+   <FixtureVal ID="45">0,255,1,253,2,253</FixtureVal>
+   <FixtureVal ID="46">0,255,1,254,2,254</FixtureVal>
+   <FixtureVal ID="47">0,255,1,254,2,254</FixtureVal>
+   <FixtureVal ID="48">0,255,1,254,2,254</FixtureVal>
+   <FixtureVal ID="49">0,255,1,253,2,253</FixtureVal>
+   <FixtureVal ID="50">0,255,1,248,2,248</FixtureVal>
+   <FixtureVal ID="51">0,255,1,220,2,220</FixtureVal>
+   <FixtureVal ID="52">0,255,1,127,2,127</FixtureVal>
+   <FixtureVal ID="53">0,255,1,35,2,35</FixtureVal>
+   <FixtureVal ID="54">0,255,1,7,2,7</FixtureVal>
+   <FixtureVal ID="55">0,255,1,2,2,2</FixtureVal>
+   <FixtureVal ID="56">0,255,1,1,2,1</FixtureVal>
+   <FixtureVal ID="57">0,255,1,1,2,1</FixtureVal>
+   <FixtureVal ID="58">0,255,1,1,2,1</FixtureVal>
+   <FixtureVal ID="59">0,255,1,2,2,2</FixtureVal>
+   <FixtureVal ID="60">0,255,1,7,2,7</FixtureVal>
+   <FixtureVal ID="61">0,255,1,35,2,35</FixtureVal>
+   <FixtureVal ID="62">0,255,1,128,2,128</FixtureVal>
+   <FixtureVal ID="63">0,255,1,220,2,220</FixtureVal>
+   <FixtureVal ID="64">0,255,1,248,2,248</FixtureVal>
+   <FixtureVal ID="65">0,255,1,253,2,253</FixtureVal>
+   <FixtureVal ID="66">0,255,1,254,2,254</FixtureVal>
+   <FixtureVal ID="67">0,255,1,254,2,254</FixtureVal>
+   <FixtureVal ID="68">0,255,1,254,2,254</FixtureVal>
+   <FixtureVal ID="69">0,255,1,253,2,253</FixtureVal>
+   <FixtureVal ID="70">0,255,1,248,2,248</FixtureVal>
+   <FixtureVal ID="71">0,255,1,220,2,220</FixtureVal>
+   <FixtureVal ID="72">0,255,1,127,2,127</FixtureVal>
+   <FixtureVal ID="73">0,255,1,35,2,35</FixtureVal>
+   <FixtureVal ID="74">0,255,1,7,2,7</FixtureVal>
+   <FixtureVal ID="75">0,255,1,2,2,2</FixtureVal>
+   <FixtureVal ID="76">0,255,1,1,2,1</FixtureVal>
+   <FixtureVal ID="77">0,255,1,1,2,1</FixtureVal>
+   <FixtureVal ID="78">0,255,1,1,2,1</FixtureVal>
+   <FixtureVal ID="79">0,255,1,2,2,2</FixtureVal>
+   <FixtureVal ID="80">0,255,1,7,2,7</FixtureVal>
+   <FixtureVal ID="81">0,255,1,35,2,35</FixtureVal>
+   <FixtureVal ID="82">0,255,1,128,2,128</FixtureVal>
+   <FixtureVal ID="83">0,255,1,220,2,220</FixtureVal>
+   <FixtureVal ID="84">0,255,1,248,2,248</FixtureVal>
+   <FixtureVal ID="85">0,255,1,253,2,253</FixtureVal>
+   <FixtureVal ID="86">0,255,1,254,2,254</FixtureVal>
+   <FixtureVal ID="87">0,255,1,254,2,254</FixtureVal>
+   <FixtureVal ID="88">0,255,1,254,2,254</FixtureVal>
+   <FixtureVal ID="89">0,255,1,253,2,253</FixtureVal>
+   <FixtureVal ID="90">0,255,1,248,2,248</FixtureVal>
+   <FixtureVal ID="91">0,255,1,220,2,220</FixtureVal>
+   <FixtureVal ID="92">0,255,1,127,2,127</FixtureVal>
+   <FixtureVal ID="93">0,255,1,35,2,35</FixtureVal>
+   <FixtureVal ID="94">0,255,1,7,2,7</FixtureVal>
+   <FixtureVal ID="95">0,255,1,2,2,2</FixtureVal>
+   <FixtureVal ID="96">0,255,1,1,2,1</FixtureVal>
+   <FixtureVal ID="97">0,255,1,1,2,1</FixtureVal>
+   <FixtureVal ID="98">0,255,1,1,2,1</FixtureVal>
+   <FixtureVal ID="99">0,255,1,2,2,2</FixtureVal>
+   <FixtureVal ID="100">0,255,1,7,2,7</FixtureVal>
+   <FixtureVal ID="101">0,255,1,35,2,35</FixtureVal>
+   <FixtureVal ID="102">0,255,1,128,2,128</FixtureVal>
+   <FixtureVal ID="103">0,255,1,220,2,220</FixtureVal>
+   <FixtureVal ID="104">0,255,1,248,2,248</FixtureVal>
+   <FixtureVal ID="105">0,255,1,253,2,253</FixtureVal>
+   <FixtureVal ID="106">0,255,1,254,2,254</FixtureVal>
+   <FixtureVal ID="107">0,255,1,254,2,254</FixtureVal>
+   <FixtureVal ID="108">0,255,1,254,2,254</FixtureVal>
+   <FixtureVal ID="109">0,255,1,253,2,253</FixtureVal>
+   <FixtureVal ID="110">0,255,1,248,2,248</FixtureVal>
+   <FixtureVal ID="111">0,255,1,220,2,220</FixtureVal>
+   <FixtureVal ID="112">0,255,1,128,2,128</FixtureVal>
+  </Function>
+  <Function ID="245" Type="Scene" Name="Fault Strip Red Alert 2">
+   <Speed FadeIn="0" FadeOut="0" Duration="0"/>
+   <FixtureVal ID="43">0,255,1,254,2,254</FixtureVal>
+   <FixtureVal ID="44">0,255,1,253,2,253</FixtureVal>
+   <FixtureVal ID="45">0,255,1,248,2,248</FixtureVal>
+   <FixtureVal ID="46">0,255,1,220,2,220</FixtureVal>
+   <FixtureVal ID="47">0,255,1,127,2,127</FixtureVal>
+   <FixtureVal ID="48">0,255,1,35,2,35</FixtureVal>
+   <FixtureVal ID="49">0,255,1,7,2,7</FixtureVal>
+   <FixtureVal ID="50">0,255,1,2,2,2</FixtureVal>
+   <FixtureVal ID="51">0,255,1,1,2,1</FixtureVal>
+   <FixtureVal ID="52">0,255,1,1,2,1</FixtureVal>
+   <FixtureVal ID="53">0,255,1,1,2,1</FixtureVal>
+   <FixtureVal ID="54">0,255,1,2,2,2</FixtureVal>
+   <FixtureVal ID="55">0,255,1,7,2,7</FixtureVal>
+   <FixtureVal ID="56">0,255,1,35,2,35</FixtureVal>
+   <FixtureVal ID="57">0,255,1,128,2,128</FixtureVal>
+   <FixtureVal ID="58">0,255,1,220,2,220</FixtureVal>
+   <FixtureVal ID="59">0,255,1,248,2,248</FixtureVal>
+   <FixtureVal ID="60">0,255,1,253,2,253</FixtureVal>
+   <FixtureVal ID="61">0,255,1,254,2,254</FixtureVal>
+   <FixtureVal ID="62">0,255,1,254,2,254</FixtureVal>
+   <FixtureVal ID="63">0,255,1,254,2,254</FixtureVal>
+   <FixtureVal ID="64">0,255,1,253,2,253</FixtureVal>
+   <FixtureVal ID="65">0,255,1,248,2,248</FixtureVal>
+   <FixtureVal ID="66">0,255,1,220,2,220</FixtureVal>
+   <FixtureVal ID="67">0,255,1,127,2,127</FixtureVal>
+   <FixtureVal ID="68">0,255,1,35,2,35</FixtureVal>
+   <FixtureVal ID="69">0,255,1,7,2,7</FixtureVal>
+   <FixtureVal ID="70">0,255,1,2,2,2</FixtureVal>
+   <FixtureVal ID="71">0,255,1,1,2,1</FixtureVal>
+   <FixtureVal ID="72">0,255,1,1,2,1</FixtureVal>
+   <FixtureVal ID="73">0,255,1,1,2,1</FixtureVal>
+   <FixtureVal ID="74">0,255,1,2,2,2</FixtureVal>
+   <FixtureVal ID="75">0,255,1,7,2,7</FixtureVal>
+   <FixtureVal ID="76">0,255,1,35,2,35</FixtureVal>
+   <FixtureVal ID="77">0,255,1,128,2,128</FixtureVal>
+   <FixtureVal ID="78">0,255,1,220,2,220</FixtureVal>
+   <FixtureVal ID="79">0,255,1,248,2,248</FixtureVal>
+   <FixtureVal ID="80">0,255,1,253,2,253</FixtureVal>
+   <FixtureVal ID="81">0,255,1,254,2,254</FixtureVal>
+   <FixtureVal ID="82">0,255,1,254,2,254</FixtureVal>
+   <FixtureVal ID="83">0,255,1,254,2,254</FixtureVal>
+   <FixtureVal ID="84">0,255,1,253,2,253</FixtureVal>
+   <FixtureVal ID="85">0,255,1,248,2,248</FixtureVal>
+   <FixtureVal ID="86">0,255,1,220,2,220</FixtureVal>
+   <FixtureVal ID="87">0,255,1,127,2,127</FixtureVal>
+   <FixtureVal ID="88">0,255,1,35,2,35</FixtureVal>
+   <FixtureVal ID="89">0,255,1,7,2,7</FixtureVal>
+   <FixtureVal ID="90">0,255,1,2,2,2</FixtureVal>
+   <FixtureVal ID="91">0,255,1,1,2,1</FixtureVal>
+   <FixtureVal ID="92">0,255,1,1,2,1</FixtureVal>
+   <FixtureVal ID="93">0,255,1,1,2,1</FixtureVal>
+   <FixtureVal ID="94">0,255,1,2,2,2</FixtureVal>
+   <FixtureVal ID="95">0,255,1,7,2,7</FixtureVal>
+   <FixtureVal ID="96">0,255,1,35,2,35</FixtureVal>
+   <FixtureVal ID="97">0,255,1,128,2,128</FixtureVal>
+   <FixtureVal ID="98">0,255,1,220,2,220</FixtureVal>
+   <FixtureVal ID="99">0,255,1,248,2,248</FixtureVal>
+   <FixtureVal ID="100">0,255,1,253,2,253</FixtureVal>
+   <FixtureVal ID="101">0,255,1,254,2,254</FixtureVal>
+   <FixtureVal ID="102">0,255,1,254,2,254</FixtureVal>
+   <FixtureVal ID="103">0,255,1,254,2,254</FixtureVal>
+   <FixtureVal ID="104">0,255,1,253,2,253</FixtureVal>
+   <FixtureVal ID="105">0,255,1,248,2,248</FixtureVal>
+   <FixtureVal ID="106">0,255,1,220,2,220</FixtureVal>
+   <FixtureVal ID="107">0,255,1,128,2,128</FixtureVal>
+   <FixtureVal ID="108">0,255,1,35,2,35</FixtureVal>
+   <FixtureVal ID="109">0,255,1,7,2,7</FixtureVal>
+   <FixtureVal ID="110">0,255,1,2,2,2</FixtureVal>
+   <FixtureVal ID="111">0,255,1,1,2,1</FixtureVal>
+   <FixtureVal ID="112">0,255,1,1,2,1</FixtureVal>
+  </Function>
+  <Function ID="246" Type="Scene" Name="Fault Strip Red Alert 3">
+   <Speed FadeIn="0" FadeOut="0" Duration="0"/>
+   <FixtureVal ID="43">0,255,1,35,2,35</FixtureVal>
+   <FixtureVal ID="44">0,255,1,7,2,7</FixtureVal>
+   <FixtureVal ID="45">0,255,1,2,2,2</FixtureVal>
+   <FixtureVal ID="46">0,255,1,1,2,1</FixtureVal>
+   <FixtureVal ID="47">0,255,1,1,2,1</FixtureVal>
+   <FixtureVal ID="48">0,255,1,1,2,1</FixtureVal>
+   <FixtureVal ID="49">0,255,1,2,2,2</FixtureVal>
+   <FixtureVal ID="50">0,255,1,7,2,7</FixtureVal>
+   <FixtureVal ID="51">0,255,1,35,2,35</FixtureVal>
+   <FixtureVal ID="52">0,255,1,128,2,128</FixtureVal>
+   <FixtureVal ID="53">0,255,1,220,2,220</FixtureVal>
+   <FixtureVal ID="54">0,255,1,248,2,248</FixtureVal>
+   <FixtureVal ID="55">0,255,1,253,2,253</FixtureVal>
+   <FixtureVal ID="56">0,255,1,254,2,254</FixtureVal>
+   <FixtureVal ID="57">0,255,1,254,2,254</FixtureVal>
+   <FixtureVal ID="58">0,255,1,254,2,254</FixtureVal>
+   <FixtureVal ID="59">0,255,1,253,2,253</FixtureVal>
+   <FixtureVal ID="60">0,255,1,248,2,248</FixtureVal>
+   <FixtureVal ID="61">0,255,1,220,2,220</FixtureVal>
+   <FixtureVal ID="62">0,255,1,127,2,127</FixtureVal>
+   <FixtureVal ID="63">0,255,1,35,2,35</FixtureVal>
+   <FixtureVal ID="64">0,255,1,7,2,7</FixtureVal>
+   <FixtureVal ID="65">0,255,1,2,2,2</FixtureVal>
+   <FixtureVal ID="66">0,255,1,1,2,1</FixtureVal>
+   <FixtureVal ID="67">0,255,1,1,2,1</FixtureVal>
+   <FixtureVal ID="68">0,255,1,1,2,1</FixtureVal>
+   <FixtureVal ID="69">0,255,1,2,2,2</FixtureVal>
+   <FixtureVal ID="70">0,255,1,7,2,7</FixtureVal>
+   <FixtureVal ID="71">0,255,1,35,2,35</FixtureVal>
+   <FixtureVal ID="72">0,255,1,128,2,128</FixtureVal>
+   <FixtureVal ID="73">0,255,1,220,2,220</FixtureVal>
+   <FixtureVal ID="74">0,255,1,248,2,248</FixtureVal>
+   <FixtureVal ID="75">0,255,1,253,2,253</FixtureVal>
+   <FixtureVal ID="76">0,255,1,254,2,254</FixtureVal>
+   <FixtureVal ID="77">0,255,1,254,2,254</FixtureVal>
+   <FixtureVal ID="78">0,255,1,254,2,254</FixtureVal>
+   <FixtureVal ID="79">0,255,1,253,2,253</FixtureVal>
+   <FixtureVal ID="80">0,255,1,248,2,248</FixtureVal>
+   <FixtureVal ID="81">0,255,1,220,2,220</FixtureVal>
+   <FixtureVal ID="82">0,255,1,127,2,127</FixtureVal>
+   <FixtureVal ID="83">0,255,1,35,2,35</FixtureVal>
+   <FixtureVal ID="84">0,255,1,7,2,7</FixtureVal>
+   <FixtureVal ID="85">0,255,1,2,2,2</FixtureVal>
+   <FixtureVal ID="86">0,255,1,1,2,1</FixtureVal>
+   <FixtureVal ID="87">0,255,1,1,2,1</FixtureVal>
+   <FixtureVal ID="88">0,255,1,1,2,1</FixtureVal>
+   <FixtureVal ID="89">0,255,1,2,2,2</FixtureVal>
+   <FixtureVal ID="90">0,255,1,7,2,7</FixtureVal>
+   <FixtureVal ID="91">0,255,1,35,2,35</FixtureVal>
+   <FixtureVal ID="92">0,255,1,128,2,128</FixtureVal>
+   <FixtureVal ID="93">0,255,1,220,2,220</FixtureVal>
+   <FixtureVal ID="94">0,255,1,248,2,248</FixtureVal>
+   <FixtureVal ID="95">0,255,1,253,2,253</FixtureVal>
+   <FixtureVal ID="96">0,255,1,254,2,254</FixtureVal>
+   <FixtureVal ID="97">0,255,1,254,2,254</FixtureVal>
+   <FixtureVal ID="98">0,255,1,254,2,254</FixtureVal>
+   <FixtureVal ID="99">0,255,1,253,2,253</FixtureVal>
+   <FixtureVal ID="100">0,255,1,248,2,248</FixtureVal>
+   <FixtureVal ID="101">0,255,1,220,2,220</FixtureVal>
+   <FixtureVal ID="102">0,255,1,128,2,128</FixtureVal>
+   <FixtureVal ID="103">0,255,1,35,2,35</FixtureVal>
+   <FixtureVal ID="104">0,255,1,7,2,7</FixtureVal>
+   <FixtureVal ID="105">0,255,1,2,2,2</FixtureVal>
+   <FixtureVal ID="106">0,255,1,1,2,1</FixtureVal>
+   <FixtureVal ID="107">0,255,1,1,2,1</FixtureVal>
+   <FixtureVal ID="108">0,255,1,1,2,1</FixtureVal>
+   <FixtureVal ID="109">0,255,1,2,2,2</FixtureVal>
+   <FixtureVal ID="110">0,255,1,7,2,7</FixtureVal>
+   <FixtureVal ID="111">0,255,1,35,2,35</FixtureVal>
+   <FixtureVal ID="112">0,255,1,127,2,127</FixtureVal>
+  </Function>
+  <Function ID="247" Type="Scene" Name="Fault Strip Red Alert 4">
+   <Speed FadeIn="0" FadeOut="0" Duration="0"/>
+   <FixtureVal ID="43">0,255,1,1,2,1</FixtureVal>
+   <FixtureVal ID="44">0,255,1,2,2,2</FixtureVal>
+   <FixtureVal ID="45">0,255,1,7,2,7</FixtureVal>
+   <FixtureVal ID="46">0,255,1,35,2,35</FixtureVal>
+   <FixtureVal ID="47">0,255,1,128,2,128</FixtureVal>
+   <FixtureVal ID="48">0,255,1,220,2,220</FixtureVal>
+   <FixtureVal ID="49">0,255,1,248,2,248</FixtureVal>
+   <FixtureVal ID="50">0,255,1,253,2,253</FixtureVal>
+   <FixtureVal ID="51">0,255,1,254,2,254</FixtureVal>
+   <FixtureVal ID="52">0,255,1,254,2,254</FixtureVal>
+   <FixtureVal ID="53">0,255,1,254,2,254</FixtureVal>
+   <FixtureVal ID="54">0,255,1,253,2,253</FixtureVal>
+   <FixtureVal ID="55">0,255,1,248,2,248</FixtureVal>
+   <FixtureVal ID="56">0,255,1,220,2,220</FixtureVal>
+   <FixtureVal ID="57">0,255,1,127,2,127</FixtureVal>
+   <FixtureVal ID="58">0,255,1,35,2,35</FixtureVal>
+   <FixtureVal ID="59">0,255,1,7,2,7</FixtureVal>
+   <FixtureVal ID="60">0,255,1,2,2,2</FixtureVal>
+   <FixtureVal ID="61">0,255,1,1,2,1</FixtureVal>
+   <FixtureVal ID="62">0,255,1,1,2,1</FixtureVal>
+   <FixtureVal ID="63">0,255,1,1,2,1</FixtureVal>
+   <FixtureVal ID="64">0,255,1,2,2,2</FixtureVal>
+   <FixtureVal ID="65">0,255,1,7,2,7</FixtureVal>
+   <FixtureVal ID="66">0,255,1,35,2,35</FixtureVal>
+   <FixtureVal ID="67">0,255,1,128,2,128</FixtureVal>
+   <FixtureVal ID="68">0,255,1,220,2,220</FixtureVal>
+   <FixtureVal ID="69">0,255,1,248,2,248</FixtureVal>
+   <FixtureVal ID="70">0,255,1,253,2,253</FixtureVal>
+   <FixtureVal ID="71">0,255,1,254,2,254</FixtureVal>
+   <FixtureVal ID="72">0,255,1,254,2,254</FixtureVal>
+   <FixtureVal ID="73">0,255,1,254,2,254</FixtureVal>
+   <FixtureVal ID="74">0,255,1,253,2,253</FixtureVal>
+   <FixtureVal ID="75">0,255,1,248,2,248</FixtureVal>
+   <FixtureVal ID="76">0,255,1,220,2,220</FixtureVal>
+   <FixtureVal ID="77">0,255,1,127,2,127</FixtureVal>
+   <FixtureVal ID="78">0,255,1,35,2,35</FixtureVal>
+   <FixtureVal ID="79">0,255,1,7,2,7</FixtureVal>
+   <FixtureVal ID="80">0,255,1,2,2,2</FixtureVal>
+   <FixtureVal ID="81">0,255,1,1,2,1</FixtureVal>
+   <FixtureVal ID="82">0,255,1,1,2,1</FixtureVal>
+   <FixtureVal ID="83">0,255,1,1,2,1</FixtureVal>
+   <FixtureVal ID="84">0,255,1,2,2,2</FixtureVal>
+   <FixtureVal ID="85">0,255,1,7,2,7</FixtureVal>
+   <FixtureVal ID="86">0,255,1,35,2,35</FixtureVal>
+   <FixtureVal ID="87">0,255,1,128,2,128</FixtureVal>
+   <FixtureVal ID="88">0,255,1,220,2,220</FixtureVal>
+   <FixtureVal ID="89">0,255,1,248,2,248</FixtureVal>
+   <FixtureVal ID="90">0,255,1,253,2,253</FixtureVal>
+   <FixtureVal ID="91">0,255,1,254,2,254</FixtureVal>
+   <FixtureVal ID="92">0,255,1,254,2,254</FixtureVal>
+   <FixtureVal ID="93">0,255,1,254,2,254</FixtureVal>
+   <FixtureVal ID="94">0,255,1,253,2,253</FixtureVal>
+   <FixtureVal ID="95">0,255,1,248,2,248</FixtureVal>
+   <FixtureVal ID="96">0,255,1,220,2,220</FixtureVal>
+   <FixtureVal ID="97">0,255,1,128,2,128</FixtureVal>
+   <FixtureVal ID="98">0,255,1,35,2,35</FixtureVal>
+   <FixtureVal ID="99">0,255,1,7,2,7</FixtureVal>
+   <FixtureVal ID="100">0,255,1,2,2,2</FixtureVal>
+   <FixtureVal ID="101">0,255,1,1,2,1</FixtureVal>
+   <FixtureVal ID="102">0,255,1,1,2,1</FixtureVal>
+   <FixtureVal ID="103">0,255,1,1,2,1</FixtureVal>
+   <FixtureVal ID="104">0,255,1,2,2,2</FixtureVal>
+   <FixtureVal ID="105">0,255,1,7,2,7</FixtureVal>
+   <FixtureVal ID="106">0,255,1,35,2,35</FixtureVal>
+   <FixtureVal ID="107">0,255,1,127,2,127</FixtureVal>
+   <FixtureVal ID="108">0,255,1,220,2,220</FixtureVal>
+   <FixtureVal ID="109">0,255,1,248,2,248</FixtureVal>
+   <FixtureVal ID="110">0,255,1,253,2,253</FixtureVal>
+   <FixtureVal ID="111">0,255,1,254,2,254</FixtureVal>
+   <FixtureVal ID="112">0,255,1,254,2,254</FixtureVal>
+  </Function>
+  <Function ID="248" Type="Scene" Name="Fault Strip Red Alert 5">
+   <Speed FadeIn="0" FadeOut="0" Duration="0"/>
+   <FixtureVal ID="43">0,255,1,220,2,220</FixtureVal>
+   <FixtureVal ID="44">0,255,1,248,2,248</FixtureVal>
+   <FixtureVal ID="45">0,255,1,253,2,253</FixtureVal>
+   <FixtureVal ID="46">0,255,1,254,2,254</FixtureVal>
+   <FixtureVal ID="47">0,255,1,254,2,254</FixtureVal>
+   <FixtureVal ID="48">0,255,1,254,2,254</FixtureVal>
+   <FixtureVal ID="49">0,255,1,253,2,253</FixtureVal>
+   <FixtureVal ID="50">0,255,1,248,2,248</FixtureVal>
+   <FixtureVal ID="51">0,255,1,220,2,220</FixtureVal>
+   <FixtureVal ID="52">0,255,1,127,2,127</FixtureVal>
+   <FixtureVal ID="53">0,255,1,35,2,35</FixtureVal>
+   <FixtureVal ID="54">0,255,1,7,2,7</FixtureVal>
+   <FixtureVal ID="55">0,255,1,2,2,2</FixtureVal>
+   <FixtureVal ID="56">0,255,1,1,2,1</FixtureVal>
+   <FixtureVal ID="57">0,255,1,1,2,1</FixtureVal>
+   <FixtureVal ID="58">0,255,1,1,2,1</FixtureVal>
+   <FixtureVal ID="59">0,255,1,2,2,2</FixtureVal>
+   <FixtureVal ID="60">0,255,1,7,2,7</FixtureVal>
+   <FixtureVal ID="61">0,255,1,35,2,35</FixtureVal>
+   <FixtureVal ID="62">0,255,1,128,2,128</FixtureVal>
+   <FixtureVal ID="63">0,255,1,220,2,220</FixtureVal>
+   <FixtureVal ID="64">0,255,1,248,2,248</FixtureVal>
+   <FixtureVal ID="65">0,255,1,253,2,253</FixtureVal>
+   <FixtureVal ID="66">0,255,1,254,2,254</FixtureVal>
+   <FixtureVal ID="67">0,255,1,254,2,254</FixtureVal>
+   <FixtureVal ID="68">0,255,1,254,2,254</FixtureVal>
+   <FixtureVal ID="69">0,255,1,253,2,253</FixtureVal>
+   <FixtureVal ID="70">0,255,1,248,2,248</FixtureVal>
+   <FixtureVal ID="71">0,255,1,220,2,220</FixtureVal>
+   <FixtureVal ID="72">0,255,1,127,2,127</FixtureVal>
+   <FixtureVal ID="73">0,255,1,35,2,35</FixtureVal>
+   <FixtureVal ID="74">0,255,1,7,2,7</FixtureVal>
+   <FixtureVal ID="75">0,255,1,2,2,2</FixtureVal>
+   <FixtureVal ID="76">0,255,1,1,2,1</FixtureVal>
+   <FixtureVal ID="77">0,255,1,1,2,1</FixtureVal>
+   <FixtureVal ID="78">0,255,1,1,2,1</FixtureVal>
+   <FixtureVal ID="79">0,255,1,2,2,2</FixtureVal>
+   <FixtureVal ID="80">0,255,1,7,2,7</FixtureVal>
+   <FixtureVal ID="81">0,255,1,35,2,35</FixtureVal>
+   <FixtureVal ID="82">0,255,1,128,2,128</FixtureVal>
+   <FixtureVal ID="83">0,255,1,220,2,220</FixtureVal>
+   <FixtureVal ID="84">0,255,1,248,2,248</FixtureVal>
+   <FixtureVal ID="85">0,255,1,253,2,253</FixtureVal>
+   <FixtureVal ID="86">0,255,1,254,2,254</FixtureVal>
+   <FixtureVal ID="87">0,255,1,254,2,254</FixtureVal>
+   <FixtureVal ID="88">0,255,1,254,2,254</FixtureVal>
+   <FixtureVal ID="89">0,255,1,253,2,253</FixtureVal>
+   <FixtureVal ID="90">0,255,1,248,2,248</FixtureVal>
+   <FixtureVal ID="91">0,255,1,220,2,220</FixtureVal>
+   <FixtureVal ID="92">0,255,1,128,2,128</FixtureVal>
+   <FixtureVal ID="93">0,255,1,35,2,35</FixtureVal>
+   <FixtureVal ID="94">0,255,1,7,2,7</FixtureVal>
+   <FixtureVal ID="95">0,255,1,2,2,2</FixtureVal>
+   <FixtureVal ID="96">0,255,1,1,2,1</FixtureVal>
+   <FixtureVal ID="97">0,255,1,1,2,1</FixtureVal>
+   <FixtureVal ID="98">0,255,1,1,2,1</FixtureVal>
+   <FixtureVal ID="99">0,255,1,2,2,2</FixtureVal>
+   <FixtureVal ID="100">0,255,1,7,2,7</FixtureVal>
+   <FixtureVal ID="101">0,255,1,35,2,35</FixtureVal>
+   <FixtureVal ID="102">0,255,1,127,2,127</FixtureVal>
+   <FixtureVal ID="103">0,255,1,220,2,220</FixtureVal>
+   <FixtureVal ID="104">0,255,1,248,2,248</FixtureVal>
+   <FixtureVal ID="105">0,255,1,253,2,253</FixtureVal>
+   <FixtureVal ID="106">0,255,1,254,2,254</FixtureVal>
+   <FixtureVal ID="107">0,255,1,254,2,254</FixtureVal>
+   <FixtureVal ID="108">0,255,1,254,2,254</FixtureVal>
+   <FixtureVal ID="109">0,255,1,253,2,253</FixtureVal>
+   <FixtureVal ID="110">0,255,1,248,2,248</FixtureVal>
+   <FixtureVal ID="111">0,255,1,220,2,220</FixtureVal>
+   <FixtureVal ID="112">0,255,1,128,2,128</FixtureVal>
+  </Function>
+  <Function ID="249" Type="Scene" Name="Fault Strip Red Alert 6">
+   <Speed FadeIn="0" FadeOut="0" Duration="0"/>
+   <FixtureVal ID="43">0,255,1,254,2,254</FixtureVal>
+   <FixtureVal ID="44">0,255,1,253,2,253</FixtureVal>
+   <FixtureVal ID="45">0,255,1,248,2,248</FixtureVal>
+   <FixtureVal ID="46">0,255,1,220,2,220</FixtureVal>
+   <FixtureVal ID="47">0,255,1,127,2,127</FixtureVal>
+   <FixtureVal ID="48">0,255,1,35,2,35</FixtureVal>
+   <FixtureVal ID="49">0,255,1,7,2,7</FixtureVal>
+   <FixtureVal ID="50">0,255,1,2,2,2</FixtureVal>
+   <FixtureVal ID="51">0,255,1,1,2,1</FixtureVal>
+   <FixtureVal ID="52">0,255,1,1,2,1</FixtureVal>
+   <FixtureVal ID="53">0,255,1,1,2,1</FixtureVal>
+   <FixtureVal ID="54">0,255,1,2,2,2</FixtureVal>
+   <FixtureVal ID="55">0,255,1,7,2,7</FixtureVal>
+   <FixtureVal ID="56">0,255,1,35,2,35</FixtureVal>
+   <FixtureVal ID="57">0,255,1,128,2,128</FixtureVal>
+   <FixtureVal ID="58">0,255,1,220,2,220</FixtureVal>
+   <FixtureVal ID="59">0,255,1,248,2,248</FixtureVal>
+   <FixtureVal ID="60">0,255,1,253,2,253</FixtureVal>
+   <FixtureVal ID="61">0,255,1,254,2,254</FixtureVal>
+   <FixtureVal ID="62">0,255,1,254,2,254</FixtureVal>
+   <FixtureVal ID="63">0,255,1,254,2,254</FixtureVal>
+   <FixtureVal ID="64">0,255,1,253,2,253</FixtureVal>
+   <FixtureVal ID="65">0,255,1,248,2,248</FixtureVal>
+   <FixtureVal ID="66">0,255,1,220,2,220</FixtureVal>
+   <FixtureVal ID="67">0,255,1,127,2,127</FixtureVal>
+   <FixtureVal ID="68">0,255,1,35,2,35</FixtureVal>
+   <FixtureVal ID="69">0,255,1,7,2,7</FixtureVal>
+   <FixtureVal ID="70">0,255,1,2,2,2</FixtureVal>
+   <FixtureVal ID="71">0,255,1,1,2,1</FixtureVal>
+   <FixtureVal ID="72">0,255,1,1,2,1</FixtureVal>
+   <FixtureVal ID="73">0,255,1,1,2,1</FixtureVal>
+   <FixtureVal ID="74">0,255,1,2,2,2</FixtureVal>
+   <FixtureVal ID="75">0,255,1,7,2,7</FixtureVal>
+   <FixtureVal ID="76">0,255,1,35,2,35</FixtureVal>
+   <FixtureVal ID="77">0,255,1,128,2,128</FixtureVal>
+   <FixtureVal ID="78">0,255,1,220,2,220</FixtureVal>
+   <FixtureVal ID="79">0,255,1,248,2,248</FixtureVal>
+   <FixtureVal ID="80">0,255,1,253,2,253</FixtureVal>
+   <FixtureVal ID="81">0,255,1,254,2,254</FixtureVal>
+   <FixtureVal ID="82">0,255,1,254,2,254</FixtureVal>
+   <FixtureVal ID="83">0,255,1,254,2,254</FixtureVal>
+   <FixtureVal ID="84">0,255,1,253,2,253</FixtureVal>
+   <FixtureVal ID="85">0,255,1,248,2,248</FixtureVal>
+   <FixtureVal ID="86">0,255,1,220,2,220</FixtureVal>
+   <FixtureVal ID="87">0,255,1,128,2,128</FixtureVal>
+   <FixtureVal ID="88">0,255,1,35,2,35</FixtureVal>
+   <FixtureVal ID="89">0,255,1,7,2,7</FixtureVal>
+   <FixtureVal ID="90">0,255,1,2,2,2</FixtureVal>
+   <FixtureVal ID="91">0,255,1,1,2,1</FixtureVal>
+   <FixtureVal ID="92">0,255,1,1,2,1</FixtureVal>
+   <FixtureVal ID="93">0,255,1,1,2,1</FixtureVal>
+   <FixtureVal ID="94">0,255,1,2,2,2</FixtureVal>
+   <FixtureVal ID="95">0,255,1,7,2,7</FixtureVal>
+   <FixtureVal ID="96">0,255,1,35,2,35</FixtureVal>
+   <FixtureVal ID="97">0,255,1,127,2,127</FixtureVal>
+   <FixtureVal ID="98">0,255,1,220,2,220</FixtureVal>
+   <FixtureVal ID="99">0,255,1,248,2,248</FixtureVal>
+   <FixtureVal ID="100">0,255,1,253,2,253</FixtureVal>
+   <FixtureVal ID="101">0,255,1,254,2,254</FixtureVal>
+   <FixtureVal ID="102">0,255,1,254,2,254</FixtureVal>
+   <FixtureVal ID="103">0,255,1,254,2,254</FixtureVal>
+   <FixtureVal ID="104">0,255,1,253,2,253</FixtureVal>
+   <FixtureVal ID="105">0,255,1,248,2,248</FixtureVal>
+   <FixtureVal ID="106">0,255,1,220,2,220</FixtureVal>
+   <FixtureVal ID="107">0,255,1,128,2,128</FixtureVal>
+   <FixtureVal ID="108">0,255,1,35,2,35</FixtureVal>
+   <FixtureVal ID="109">0,255,1,7,2,7</FixtureVal>
+   <FixtureVal ID="110">0,255,1,2,2,2</FixtureVal>
+   <FixtureVal ID="111">0,255,1,1,2,1</FixtureVal>
+   <FixtureVal ID="112">0,255,1,1,2,1</FixtureVal>
+  </Function>
+  <Function ID="250" Type="Scene" Name="Fault Strip Red Alert 7">
+   <Speed FadeIn="0" FadeOut="0" Duration="0"/>
+   <FixtureVal ID="43">0,255,1,35,2,35</FixtureVal>
+   <FixtureVal ID="44">0,255,1,7,2,7</FixtureVal>
+   <FixtureVal ID="45">0,255,1,2,2,2</FixtureVal>
+   <FixtureVal ID="46">0,255,1,1,2,1</FixtureVal>
+   <FixtureVal ID="47">0,255,1,1,2,1</FixtureVal>
+   <FixtureVal ID="48">0,255,1,1,2,1</FixtureVal>
+   <FixtureVal ID="49">0,255,1,2,2,2</FixtureVal>
+   <FixtureVal ID="50">0,255,1,7,2,7</FixtureVal>
+   <FixtureVal ID="51">0,255,1,35,2,35</FixtureVal>
+   <FixtureVal ID="52">0,255,1,128,2,128</FixtureVal>
+   <FixtureVal ID="53">0,255,1,220,2,220</FixtureVal>
+   <FixtureVal ID="54">0,255,1,248,2,248</FixtureVal>
+   <FixtureVal ID="55">0,255,1,253,2,253</FixtureVal>
+   <FixtureVal ID="56">0,255,1,254,2,254</FixtureVal>
+   <FixtureVal ID="57">0,255,1,254,2,254</FixtureVal>
+   <FixtureVal ID="58">0,255,1,254,2,254</FixtureVal>
+   <FixtureVal ID="59">0,255,1,253,2,253</FixtureVal>
+   <FixtureVal ID="60">0,255,1,248,2,248</FixtureVal>
+   <FixtureVal ID="61">0,255,1,220,2,220</FixtureVal>
+   <FixtureVal ID="62">0,255,1,127,2,127</FixtureVal>
+   <FixtureVal ID="63">0,255,1,35,2,35</FixtureVal>
+   <FixtureVal ID="64">0,255,1,7,2,7</FixtureVal>
+   <FixtureVal ID="65">0,255,1,2,2,2</FixtureVal>
+   <FixtureVal ID="66">0,255,1,1,2,1</FixtureVal>
+   <FixtureVal ID="67">0,255,1,1,2,1</FixtureVal>
+   <FixtureVal ID="68">0,255,1,1,2,1</FixtureVal>
+   <FixtureVal ID="69">0,255,1,2,2,2</FixtureVal>
+   <FixtureVal ID="70">0,255,1,7,2,7</FixtureVal>
+   <FixtureVal ID="71">0,255,1,35,2,35</FixtureVal>
+   <FixtureVal ID="72">0,255,1,128,2,128</FixtureVal>
+   <FixtureVal ID="73">0,255,1,220,2,220</FixtureVal>
+   <FixtureVal ID="74">0,255,1,248,2,248</FixtureVal>
+   <FixtureVal ID="75">0,255,1,253,2,253</FixtureVal>
+   <FixtureVal ID="76">0,255,1,254,2,254</FixtureVal>
+   <FixtureVal ID="77">0,255,1,254,2,254</FixtureVal>
+   <FixtureVal ID="78">0,255,1,254,2,254</FixtureVal>
+   <FixtureVal ID="79">0,255,1,253,2,253</FixtureVal>
+   <FixtureVal ID="80">0,255,1,248,2,248</FixtureVal>
+   <FixtureVal ID="81">0,255,1,220,2,220</FixtureVal>
+   <FixtureVal ID="82">0,255,1,128,2,128</FixtureVal>
+   <FixtureVal ID="83">0,255,1,35,2,35</FixtureVal>
+   <FixtureVal ID="84">0,255,1,7,2,7</FixtureVal>
+   <FixtureVal ID="85">0,255,1,2,2,2</FixtureVal>
+   <FixtureVal ID="86">0,255,1,1,2,1</FixtureVal>
+   <FixtureVal ID="87">0,255,1,1,2,1</FixtureVal>
+   <FixtureVal ID="88">0,255,1,1,2,1</FixtureVal>
+   <FixtureVal ID="89">0,255,1,2,2,2</FixtureVal>
+   <FixtureVal ID="90">0,255,1,7,2,7</FixtureVal>
+   <FixtureVal ID="91">0,255,1,35,2,35</FixtureVal>
+   <FixtureVal ID="92">0,255,1,127,2,127</FixtureVal>
+   <FixtureVal ID="93">0,255,1,220,2,220</FixtureVal>
+   <FixtureVal ID="94">0,255,1,248,2,248</FixtureVal>
+   <FixtureVal ID="95">0,255,1,253,2,253</FixtureVal>
+   <FixtureVal ID="96">0,255,1,254,2,254</FixtureVal>
+   <FixtureVal ID="97">0,255,1,254,2,254</FixtureVal>
+   <FixtureVal ID="98">0,255,1,254,2,254</FixtureVal>
+   <FixtureVal ID="99">0,255,1,253,2,253</FixtureVal>
+   <FixtureVal ID="100">0,255,1,248,2,248</FixtureVal>
+   <FixtureVal ID="101">0,255,1,220,2,220</FixtureVal>
+   <FixtureVal ID="102">0,255,1,128,2,128</FixtureVal>
+   <FixtureVal ID="103">0,255,1,35,2,35</FixtureVal>
+   <FixtureVal ID="104">0,255,1,7,2,7</FixtureVal>
+   <FixtureVal ID="105">0,255,1,2,2,2</FixtureVal>
+   <FixtureVal ID="106">0,255,1,1,2,1</FixtureVal>
+   <FixtureVal ID="107">0,255,1,1,2,1</FixtureVal>
+   <FixtureVal ID="108">0,255,1,1,2,1</FixtureVal>
+   <FixtureVal ID="109">0,255,1,2,2,2</FixtureVal>
+   <FixtureVal ID="110">0,255,1,7,2,7</FixtureVal>
+   <FixtureVal ID="111">0,255,1,35,2,35</FixtureVal>
+   <FixtureVal ID="112">0,255,1,127,2,127</FixtureVal>
+  </Function>
+  <Function ID="251" Type="Scene" Name="Fault Strip Red Alert 8">
+   <Speed FadeIn="0" FadeOut="0" Duration="0"/>
+   <FixtureVal ID="43">0,255,1,1,2,1</FixtureVal>
+   <FixtureVal ID="44">0,255,1,2,2,2</FixtureVal>
+   <FixtureVal ID="45">0,255,1,7,2,7</FixtureVal>
+   <FixtureVal ID="46">0,255,1,35,2,35</FixtureVal>
+   <FixtureVal ID="47">0,255,1,128,2,128</FixtureVal>
+   <FixtureVal ID="48">0,255,1,220,2,220</FixtureVal>
+   <FixtureVal ID="49">0,255,1,248,2,248</FixtureVal>
+   <FixtureVal ID="50">0,255,1,253,2,253</FixtureVal>
+   <FixtureVal ID="51">0,255,1,254,2,254</FixtureVal>
+   <FixtureVal ID="52">0,255,1,254,2,254</FixtureVal>
+   <FixtureVal ID="53">0,255,1,254,2,254</FixtureVal>
+   <FixtureVal ID="54">0,255,1,253,2,253</FixtureVal>
+   <FixtureVal ID="55">0,255,1,248,2,248</FixtureVal>
+   <FixtureVal ID="56">0,255,1,220,2,220</FixtureVal>
+   <FixtureVal ID="57">0,255,1,127,2,127</FixtureVal>
+   <FixtureVal ID="58">0,255,1,35,2,35</FixtureVal>
+   <FixtureVal ID="59">0,255,1,7,2,7</FixtureVal>
+   <FixtureVal ID="60">0,255,1,2,2,2</FixtureVal>
+   <FixtureVal ID="61">0,255,1,1,2,1</FixtureVal>
+   <FixtureVal ID="62">0,255,1,1,2,1</FixtureVal>
+   <FixtureVal ID="63">0,255,1,1,2,1</FixtureVal>
+   <FixtureVal ID="64">0,255,1,2,2,2</FixtureVal>
+   <FixtureVal ID="65">0,255,1,7,2,7</FixtureVal>
+   <FixtureVal ID="66">0,255,1,35,2,35</FixtureVal>
+   <FixtureVal ID="67">0,255,1,128,2,128</FixtureVal>
+   <FixtureVal ID="68">0,255,1,220,2,220</FixtureVal>
+   <FixtureVal ID="69">0,255,1,248,2,248</FixtureVal>
+   <FixtureVal ID="70">0,255,1,253,2,253</FixtureVal>
+   <FixtureVal ID="71">0,255,1,254,2,254</FixtureVal>
+   <FixtureVal ID="72">0,255,1,254,2,254</FixtureVal>
+   <FixtureVal ID="73">0,255,1,254,2,254</FixtureVal>
+   <FixtureVal ID="74">0,255,1,253,2,253</FixtureVal>
+   <FixtureVal ID="75">0,255,1,248,2,248</FixtureVal>
+   <FixtureVal ID="76">0,255,1,220,2,220</FixtureVal>
+   <FixtureVal ID="77">0,255,1,128,2,128</FixtureVal>
+   <FixtureVal ID="78">0,255,1,35,2,35</FixtureVal>
+   <FixtureVal ID="79">0,255,1,7,2,7</FixtureVal>
+   <FixtureVal ID="80">0,255,1,2,2,2</FixtureVal>
+   <FixtureVal ID="81">0,255,1,1,2,1</FixtureVal>
+   <FixtureVal ID="82">0,255,1,1,2,1</FixtureVal>
+   <FixtureVal ID="83">0,255,1,1,2,1</FixtureVal>
+   <FixtureVal ID="84">0,255,1,2,2,2</FixtureVal>
+   <FixtureVal ID="85">0,255,1,7,2,7</FixtureVal>
+   <FixtureVal ID="86">0,255,1,35,2,35</FixtureVal>
+   <FixtureVal ID="87">0,255,1,127,2,127</FixtureVal>
+   <FixtureVal ID="88">0,255,1,220,2,220</FixtureVal>
+   <FixtureVal ID="89">0,255,1,248,2,248</FixtureVal>
+   <FixtureVal ID="90">0,255,1,253,2,253</FixtureVal>
+   <FixtureVal ID="91">0,255,1,254,2,254</FixtureVal>
+   <FixtureVal ID="92">0,255,1,254,2,254</FixtureVal>
+   <FixtureVal ID="93">0,255,1,254,2,254</FixtureVal>
+   <FixtureVal ID="94">0,255,1,253,2,253</FixtureVal>
+   <FixtureVal ID="95">0,255,1,248,2,248</FixtureVal>
+   <FixtureVal ID="96">0,255,1,220,2,220</FixtureVal>
+   <FixtureVal ID="97">0,255,1,128,2,128</FixtureVal>
+   <FixtureVal ID="98">0,255,1,35,2,35</FixtureVal>
+   <FixtureVal ID="99">0,255,1,7,2,7</FixtureVal>
+   <FixtureVal ID="100">0,255,1,2,2,2</FixtureVal>
+   <FixtureVal ID="101">0,255,1,1,2,1</FixtureVal>
+   <FixtureVal ID="102">0,255,1,1,2,1</FixtureVal>
+   <FixtureVal ID="103">0,255,1,1,2,1</FixtureVal>
+   <FixtureVal ID="104">0,255,1,2,2,2</FixtureVal>
+   <FixtureVal ID="105">0,255,1,7,2,7</FixtureVal>
+   <FixtureVal ID="106">0,255,1,35,2,35</FixtureVal>
+   <FixtureVal ID="107">0,255,1,127,2,127</FixtureVal>
+   <FixtureVal ID="108">0,255,1,220,2,220</FixtureVal>
+   <FixtureVal ID="109">0,255,1,248,2,248</FixtureVal>
+   <FixtureVal ID="110">0,255,1,253,2,253</FixtureVal>
+   <FixtureVal ID="111">0,255,1,254,2,254</FixtureVal>
+   <FixtureVal ID="112">0,255,1,254,2,254</FixtureVal>
+  </Function>
+  <Function ID="252" Type="Scene" Name="Warning RAM Amber March 1">
+   <Speed FadeIn="0" FadeOut="0" Duration="0"/>
+   <FixtureVal ID="0">0,255,1,81,2,0</FixtureVal>
+   <FixtureVal ID="1">0,255,1,85,2,0</FixtureVal>
+   <FixtureVal ID="2">0,255,1,106,2,0</FixtureVal>
+   <FixtureVal ID="3">0,255,1,164,2,0</FixtureVal>
+   <FixtureVal ID="4">0,255,1,216,2,0</FixtureVal>
+   <FixtureVal ID="5">0,255,1,236,2,0</FixtureVal>
+   <FixtureVal ID="6">0,255,1,240,2,0</FixtureVal>
+   <FixtureVal ID="7">0,255,1,236,2,0</FixtureVal>
+   <FixtureVal ID="8">0,255,1,216,2,0</FixtureVal>
+   <FixtureVal ID="9">0,255,1,236,2,0</FixtureVal>
+   <FixtureVal ID="10">0,255,1,240,2,0</FixtureVal>
+   <FixtureVal ID="11">0,255,1,236,2,0</FixtureVal>
+   <FixtureVal ID="12">0,255,1,216,2,0</FixtureVal>
+   <FixtureVal ID="13">0,255,1,164,2,0</FixtureVal>
+   <FixtureVal ID="14">0,255,1,106,2,0</FixtureVal>
+   <FixtureVal ID="15">0,255,1,85,2,0</FixtureVal>
+   <FixtureVal ID="16">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="17">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="18">0,255,1,81,2,0</FixtureVal>
+   <FixtureVal ID="19">0,255,1,85,2,0</FixtureVal>
+   <FixtureVal ID="20">0,255,1,106,2,0</FixtureVal>
+   <FixtureVal ID="21">0,255,1,164,2,0</FixtureVal>
+   <FixtureVal ID="22">0,255,1,216,2,0</FixtureVal>
+   <FixtureVal ID="23">0,255,1,236,2,0</FixtureVal>
+   <FixtureVal ID="24">0,255,1,106,2,0</FixtureVal>
+   <FixtureVal ID="25">0,255,1,164,2,0</FixtureVal>
+   <FixtureVal ID="26">0,255,1,216,2,0</FixtureVal>
+   <FixtureVal ID="27">0,255,1,236,2,0</FixtureVal>
+   <FixtureVal ID="28">0,255,1,240,2,0</FixtureVal>
+   <FixtureVal ID="29">0,255,1,236,2,0</FixtureVal>
+   <FixtureVal ID="30">0,255,1,216,2,0</FixtureVal>
+   <FixtureVal ID="31">0,255,1,164,2,0</FixtureVal>
+  </Function>
+  <Function ID="253" Type="Scene" Name="Warning RAM Amber March 2">
+   <Speed FadeIn="0" FadeOut="0" Duration="0"/>
+   <FixtureVal ID="0">0,255,1,236,2,0</FixtureVal>
+   <FixtureVal ID="1">0,255,1,240,2,0</FixtureVal>
+   <FixtureVal ID="2">0,255,1,236,2,0</FixtureVal>
+   <FixtureVal ID="3">0,255,1,216,2,0</FixtureVal>
+   <FixtureVal ID="4">0,255,1,164,2,0</FixtureVal>
+   <FixtureVal ID="5">0,255,1,106,2,0</FixtureVal>
+   <FixtureVal ID="6">0,255,1,85,2,0</FixtureVal>
+   <FixtureVal ID="7">0,255,1,81,2,0</FixtureVal>
+   <FixtureVal ID="8">0,255,1,164,2,0</FixtureVal>
+   <FixtureVal ID="9">0,255,1,106,2,0</FixtureVal>
+   <FixtureVal ID="10">0,255,1,85,2,0</FixtureVal>
+   <FixtureVal ID="11">0,255,1,81,2,0</FixtureVal>
+   <FixtureVal ID="12">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="13">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="14">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="15">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="16">0,255,1,164,2,0</FixtureVal>
+   <FixtureVal ID="17">0,255,1,216,2,0</FixtureVal>
+   <FixtureVal ID="18">0,255,1,236,2,0</FixtureVal>
+   <FixtureVal ID="19">0,255,1,240,2,0</FixtureVal>
+   <FixtureVal ID="20">0,255,1,236,2,0</FixtureVal>
+   <FixtureVal ID="21">0,255,1,216,2,0</FixtureVal>
+   <FixtureVal ID="22">0,255,1,164,2,0</FixtureVal>
+   <FixtureVal ID="23">0,255,1,106,2,0</FixtureVal>
+   <FixtureVal ID="24">0,255,1,236,2,0</FixtureVal>
+   <FixtureVal ID="25">0,255,1,216,2,0</FixtureVal>
+   <FixtureVal ID="26">0,255,1,164,2,0</FixtureVal>
+   <FixtureVal ID="27">0,255,1,106,2,0</FixtureVal>
+   <FixtureVal ID="28">0,255,1,85,2,0</FixtureVal>
+   <FixtureVal ID="29">0,255,1,81,2,0</FixtureVal>
+   <FixtureVal ID="30">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="31">0,255,1,80,2,0</FixtureVal>
+  </Function>
+  <Function ID="254" Type="Scene" Name="Warning RAM Amber March 3">
+   <Speed FadeIn="0" FadeOut="0" Duration="0"/>
+   <FixtureVal ID="0">0,255,1,106,2,0</FixtureVal>
+   <FixtureVal ID="1">0,255,1,85,2,0</FixtureVal>
+   <FixtureVal ID="2">0,255,1,81,2,0</FixtureVal>
+   <FixtureVal ID="3">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="4">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="5">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="6">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="7">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="8">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="9">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="10">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="11">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="12">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="13">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="14">0,255,1,81,2,0</FixtureVal>
+   <FixtureVal ID="15">0,255,1,85,2,0</FixtureVal>
+   <FixtureVal ID="16">0,255,1,216,2,0</FixtureVal>
+   <FixtureVal ID="17">0,255,1,164,2,0</FixtureVal>
+   <FixtureVal ID="18">0,255,1,106,2,0</FixtureVal>
+   <FixtureVal ID="19">0,255,1,85,2,0</FixtureVal>
+   <FixtureVal ID="20">0,255,1,81,2,0</FixtureVal>
+   <FixtureVal ID="21">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="22">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="23">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="24">0,255,1,81,2,0</FixtureVal>
+   <FixtureVal ID="25">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="26">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="27">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="28">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="29">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="30">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="31">0,255,1,80,2,0</FixtureVal>
+  </Function>
+  <Function ID="255" Type="Scene" Name="Warning RAM Amber March 4">
+   <Speed FadeIn="0" FadeOut="0" Duration="0"/>
+   <FixtureVal ID="0">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="1">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="2">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="3">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="4">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="5">0,255,1,81,2,0</FixtureVal>
+   <FixtureVal ID="6">0,255,1,85,2,0</FixtureVal>
+   <FixtureVal ID="7">0,255,1,106,2,0</FixtureVal>
+   <FixtureVal ID="8">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="9">0,255,1,81,2,0</FixtureVal>
+   <FixtureVal ID="10">0,255,1,85,2,0</FixtureVal>
+   <FixtureVal ID="11">0,255,1,106,2,0</FixtureVal>
+   <FixtureVal ID="12">0,255,1,164,2,0</FixtureVal>
+   <FixtureVal ID="13">0,255,1,216,2,0</FixtureVal>
+   <FixtureVal ID="14">0,255,1,236,2,0</FixtureVal>
+   <FixtureVal ID="15">0,255,1,240,2,0</FixtureVal>
+   <FixtureVal ID="16">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="17">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="18">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="19">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="20">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="21">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="22">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="23">0,255,1,81,2,0</FixtureVal>
+   <FixtureVal ID="24">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="25">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="26">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="27">0,255,1,81,2,0</FixtureVal>
+   <FixtureVal ID="28">0,255,1,85,2,0</FixtureVal>
+   <FixtureVal ID="29">0,255,1,106,2,0</FixtureVal>
+   <FixtureVal ID="30">0,255,1,164,2,0</FixtureVal>
+   <FixtureVal ID="31">0,255,1,216,2,0</FixtureVal>
+  </Function>
+  <Function ID="256" Type="Scene" Name="Warning RAM Amber March 5">
+   <Speed FadeIn="0" FadeOut="0" Duration="0"/>
+   <FixtureVal ID="0">0,255,1,81,2,0</FixtureVal>
+   <FixtureVal ID="1">0,255,1,85,2,0</FixtureVal>
+   <FixtureVal ID="2">0,255,1,106,2,0</FixtureVal>
+   <FixtureVal ID="3">0,255,1,164,2,0</FixtureVal>
+   <FixtureVal ID="4">0,255,1,216,2,0</FixtureVal>
+   <FixtureVal ID="5">0,255,1,236,2,0</FixtureVal>
+   <FixtureVal ID="6">0,255,1,240,2,0</FixtureVal>
+   <FixtureVal ID="7">0,255,1,236,2,0</FixtureVal>
+   <FixtureVal ID="8">0,255,1,216,2,0</FixtureVal>
+   <FixtureVal ID="9">0,255,1,236,2,0</FixtureVal>
+   <FixtureVal ID="10">0,255,1,240,2,0</FixtureVal>
+   <FixtureVal ID="11">0,255,1,236,2,0</FixtureVal>
+   <FixtureVal ID="12">0,255,1,216,2,0</FixtureVal>
+   <FixtureVal ID="13">0,255,1,164,2,0</FixtureVal>
+   <FixtureVal ID="14">0,255,1,106,2,0</FixtureVal>
+   <FixtureVal ID="15">0,255,1,85,2,0</FixtureVal>
+   <FixtureVal ID="16">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="17">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="18">0,255,1,81,2,0</FixtureVal>
+   <FixtureVal ID="19">0,255,1,85,2,0</FixtureVal>
+   <FixtureVal ID="20">0,255,1,106,2,0</FixtureVal>
+   <FixtureVal ID="21">0,255,1,164,2,0</FixtureVal>
+   <FixtureVal ID="22">0,255,1,216,2,0</FixtureVal>
+   <FixtureVal ID="23">0,255,1,236,2,0</FixtureVal>
+   <FixtureVal ID="24">0,255,1,106,2,0</FixtureVal>
+   <FixtureVal ID="25">0,255,1,164,2,0</FixtureVal>
+   <FixtureVal ID="26">0,255,1,216,2,0</FixtureVal>
+   <FixtureVal ID="27">0,255,1,236,2,0</FixtureVal>
+   <FixtureVal ID="28">0,255,1,240,2,0</FixtureVal>
+   <FixtureVal ID="29">0,255,1,236,2,0</FixtureVal>
+   <FixtureVal ID="30">0,255,1,216,2,0</FixtureVal>
+   <FixtureVal ID="31">0,255,1,164,2,0</FixtureVal>
+  </Function>
+  <Function ID="257" Type="Scene" Name="Warning RAM Amber March 6">
+   <Speed FadeIn="0" FadeOut="0" Duration="0"/>
+   <FixtureVal ID="0">0,255,1,236,2,0</FixtureVal>
+   <FixtureVal ID="1">0,255,1,240,2,0</FixtureVal>
+   <FixtureVal ID="2">0,255,1,236,2,0</FixtureVal>
+   <FixtureVal ID="3">0,255,1,216,2,0</FixtureVal>
+   <FixtureVal ID="4">0,255,1,164,2,0</FixtureVal>
+   <FixtureVal ID="5">0,255,1,106,2,0</FixtureVal>
+   <FixtureVal ID="6">0,255,1,85,2,0</FixtureVal>
+   <FixtureVal ID="7">0,255,1,81,2,0</FixtureVal>
+   <FixtureVal ID="8">0,255,1,164,2,0</FixtureVal>
+   <FixtureVal ID="9">0,255,1,106,2,0</FixtureVal>
+   <FixtureVal ID="10">0,255,1,85,2,0</FixtureVal>
+   <FixtureVal ID="11">0,255,1,81,2,0</FixtureVal>
+   <FixtureVal ID="12">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="13">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="14">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="15">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="16">0,255,1,164,2,0</FixtureVal>
+   <FixtureVal ID="17">0,255,1,216,2,0</FixtureVal>
+   <FixtureVal ID="18">0,255,1,236,2,0</FixtureVal>
+   <FixtureVal ID="19">0,255,1,240,2,0</FixtureVal>
+   <FixtureVal ID="20">0,255,1,236,2,0</FixtureVal>
+   <FixtureVal ID="21">0,255,1,216,2,0</FixtureVal>
+   <FixtureVal ID="22">0,255,1,164,2,0</FixtureVal>
+   <FixtureVal ID="23">0,255,1,106,2,0</FixtureVal>
+   <FixtureVal ID="24">0,255,1,236,2,0</FixtureVal>
+   <FixtureVal ID="25">0,255,1,216,2,0</FixtureVal>
+   <FixtureVal ID="26">0,255,1,164,2,0</FixtureVal>
+   <FixtureVal ID="27">0,255,1,106,2,0</FixtureVal>
+   <FixtureVal ID="28">0,255,1,85,2,0</FixtureVal>
+   <FixtureVal ID="29">0,255,1,81,2,0</FixtureVal>
+   <FixtureVal ID="30">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="31">0,255,1,80,2,0</FixtureVal>
+  </Function>
+  <Function ID="258" Type="Scene" Name="Warning RAM Amber March 7">
+   <Speed FadeIn="0" FadeOut="0" Duration="0"/>
+   <FixtureVal ID="0">0,255,1,106,2,0</FixtureVal>
+   <FixtureVal ID="1">0,255,1,85,2,0</FixtureVal>
+   <FixtureVal ID="2">0,255,1,81,2,0</FixtureVal>
+   <FixtureVal ID="3">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="4">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="5">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="6">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="7">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="8">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="9">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="10">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="11">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="12">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="13">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="14">0,255,1,81,2,0</FixtureVal>
+   <FixtureVal ID="15">0,255,1,85,2,0</FixtureVal>
+   <FixtureVal ID="16">0,255,1,216,2,0</FixtureVal>
+   <FixtureVal ID="17">0,255,1,164,2,0</FixtureVal>
+   <FixtureVal ID="18">0,255,1,106,2,0</FixtureVal>
+   <FixtureVal ID="19">0,255,1,85,2,0</FixtureVal>
+   <FixtureVal ID="20">0,255,1,81,2,0</FixtureVal>
+   <FixtureVal ID="21">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="22">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="23">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="24">0,255,1,81,2,0</FixtureVal>
+   <FixtureVal ID="25">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="26">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="27">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="28">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="29">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="30">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="31">0,255,1,80,2,0</FixtureVal>
+  </Function>
+  <Function ID="259" Type="Scene" Name="Warning RAM Amber March 8">
+   <Speed FadeIn="0" FadeOut="0" Duration="0"/>
+   <FixtureVal ID="0">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="1">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="2">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="3">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="4">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="5">0,255,1,81,2,0</FixtureVal>
+   <FixtureVal ID="6">0,255,1,85,2,0</FixtureVal>
+   <FixtureVal ID="7">0,255,1,106,2,0</FixtureVal>
+   <FixtureVal ID="8">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="9">0,255,1,81,2,0</FixtureVal>
+   <FixtureVal ID="10">0,255,1,85,2,0</FixtureVal>
+   <FixtureVal ID="11">0,255,1,106,2,0</FixtureVal>
+   <FixtureVal ID="12">0,255,1,164,2,0</FixtureVal>
+   <FixtureVal ID="13">0,255,1,216,2,0</FixtureVal>
+   <FixtureVal ID="14">0,255,1,236,2,0</FixtureVal>
+   <FixtureVal ID="15">0,255,1,240,2,0</FixtureVal>
+   <FixtureVal ID="16">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="17">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="18">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="19">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="20">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="21">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="22">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="23">0,255,1,81,2,0</FixtureVal>
+   <FixtureVal ID="24">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="25">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="26">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="27">0,255,1,81,2,0</FixtureVal>
+   <FixtureVal ID="28">0,255,1,85,2,0</FixtureVal>
+   <FixtureVal ID="29">0,255,1,106,2,0</FixtureVal>
+   <FixtureVal ID="30">0,255,1,164,2,0</FixtureVal>
+   <FixtureVal ID="31">0,255,1,216,2,0</FixtureVal>
+  </Function>
+  <Function ID="260" Type="Scene" Name="Warning Eye Amber March 1">
+   <Speed FadeIn="0" FadeOut="0" Duration="0"/>
+   <FixtureVal ID="40">0,255,1,85,2,0</FixtureVal>
+   <FixtureVal ID="41">0,255,1,106,2,0</FixtureVal>
+   <FixtureVal ID="42">0,255,1,164,2,0</FixtureVal>
+  </Function>
+  <Function ID="261" Type="Scene" Name="Warning Eye Amber March 2">
+   <Speed FadeIn="0" FadeOut="0" Duration="0"/>
+   <FixtureVal ID="40">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="41">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="42">0,255,1,80,2,0</FixtureVal>
+  </Function>
+  <Function ID="262" Type="Scene" Name="Warning Eye Amber March 3">
+   <Speed FadeIn="0" FadeOut="0" Duration="0"/>
+   <FixtureVal ID="40">0,255,1,85,2,0</FixtureVal>
+   <FixtureVal ID="41">0,255,1,81,2,0</FixtureVal>
+   <FixtureVal ID="42">0,255,1,80,2,0</FixtureVal>
+  </Function>
+  <Function ID="263" Type="Scene" Name="Warning Eye Amber March 4">
+   <Speed FadeIn="0" FadeOut="0" Duration="0"/>
+   <FixtureVal ID="40">0,255,1,240,2,0</FixtureVal>
+   <FixtureVal ID="41">0,255,1,236,2,0</FixtureVal>
+   <FixtureVal ID="42">0,255,1,216,2,0</FixtureVal>
+  </Function>
+  <Function ID="264" Type="Scene" Name="Warning Eye Amber March 5">
+   <Speed FadeIn="0" FadeOut="0" Duration="0"/>
+   <FixtureVal ID="40">0,255,1,85,2,0</FixtureVal>
+   <FixtureVal ID="41">0,255,1,106,2,0</FixtureVal>
+   <FixtureVal ID="42">0,255,1,164,2,0</FixtureVal>
+  </Function>
+  <Function ID="265" Type="Scene" Name="Warning Eye Amber March 6">
+   <Speed FadeIn="0" FadeOut="0" Duration="0"/>
+   <FixtureVal ID="40">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="41">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="42">0,255,1,80,2,0</FixtureVal>
+  </Function>
+  <Function ID="266" Type="Scene" Name="Warning Eye Amber March 7">
+   <Speed FadeIn="0" FadeOut="0" Duration="0"/>
+   <FixtureVal ID="40">0,255,1,85,2,0</FixtureVal>
+   <FixtureVal ID="41">0,255,1,81,2,0</FixtureVal>
+   <FixtureVal ID="42">0,255,1,80,2,0</FixtureVal>
+  </Function>
+  <Function ID="267" Type="Scene" Name="Warning Eye Amber March 8">
+   <Speed FadeIn="0" FadeOut="0" Duration="0"/>
+   <FixtureVal ID="40">0,255,1,240,2,0</FixtureVal>
+   <FixtureVal ID="41">0,255,1,236,2,0</FixtureVal>
+   <FixtureVal ID="42">0,255,1,216,2,0</FixtureVal>
+  </Function>
+  <Function ID="268" Type="Scene" Name="Warning Strip Amber March 1">
+   <Speed FadeIn="0" FadeOut="0" Duration="0"/>
+   <FixtureVal ID="43">0,255,1,106,2,0</FixtureVal>
+   <FixtureVal ID="44">0,255,1,164,2,0</FixtureVal>
+   <FixtureVal ID="45">0,255,1,216,2,0</FixtureVal>
+   <FixtureVal ID="46">0,255,1,236,2,0</FixtureVal>
+   <FixtureVal ID="47">0,255,1,240,2,0</FixtureVal>
+   <FixtureVal ID="48">0,255,1,236,2,0</FixtureVal>
+   <FixtureVal ID="49">0,255,1,216,2,0</FixtureVal>
+   <FixtureVal ID="50">0,255,1,164,2,0</FixtureVal>
+   <FixtureVal ID="51">0,255,1,106,2,0</FixtureVal>
+   <FixtureVal ID="52">0,255,1,85,2,0</FixtureVal>
+   <FixtureVal ID="53">0,255,1,81,2,0</FixtureVal>
+   <FixtureVal ID="54">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="55">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="56">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="57">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="58">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="59">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="60">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="61">0,255,1,81,2,0</FixtureVal>
+   <FixtureVal ID="62">0,255,1,85,2,0</FixtureVal>
+   <FixtureVal ID="63">0,255,1,106,2,0</FixtureVal>
+   <FixtureVal ID="64">0,255,1,164,2,0</FixtureVal>
+   <FixtureVal ID="65">0,255,1,216,2,0</FixtureVal>
+   <FixtureVal ID="66">0,255,1,236,2,0</FixtureVal>
+   <FixtureVal ID="67">0,255,1,240,2,0</FixtureVal>
+   <FixtureVal ID="68">0,255,1,236,2,0</FixtureVal>
+   <FixtureVal ID="69">0,255,1,216,2,0</FixtureVal>
+   <FixtureVal ID="70">0,255,1,164,2,0</FixtureVal>
+   <FixtureVal ID="71">0,255,1,106,2,0</FixtureVal>
+   <FixtureVal ID="72">0,255,1,85,2,0</FixtureVal>
+   <FixtureVal ID="73">0,255,1,81,2,0</FixtureVal>
+   <FixtureVal ID="74">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="75">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="76">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="77">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="78">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="79">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="80">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="81">0,255,1,81,2,0</FixtureVal>
+   <FixtureVal ID="82">0,255,1,85,2,0</FixtureVal>
+   <FixtureVal ID="83">0,255,1,106,2,0</FixtureVal>
+   <FixtureVal ID="84">0,255,1,164,2,0</FixtureVal>
+   <FixtureVal ID="85">0,255,1,216,2,0</FixtureVal>
+   <FixtureVal ID="86">0,255,1,236,2,0</FixtureVal>
+   <FixtureVal ID="87">0,255,1,240,2,0</FixtureVal>
+   <FixtureVal ID="88">0,255,1,236,2,0</FixtureVal>
+   <FixtureVal ID="89">0,255,1,216,2,0</FixtureVal>
+   <FixtureVal ID="90">0,255,1,164,2,0</FixtureVal>
+   <FixtureVal ID="91">0,255,1,106,2,0</FixtureVal>
+   <FixtureVal ID="92">0,255,1,85,2,0</FixtureVal>
+   <FixtureVal ID="93">0,255,1,81,2,0</FixtureVal>
+   <FixtureVal ID="94">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="95">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="96">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="97">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="98">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="99">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="100">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="101">0,255,1,81,2,0</FixtureVal>
+   <FixtureVal ID="102">0,255,1,85,2,0</FixtureVal>
+   <FixtureVal ID="103">0,255,1,106,2,0</FixtureVal>
+   <FixtureVal ID="104">0,255,1,164,2,0</FixtureVal>
+   <FixtureVal ID="105">0,255,1,216,2,0</FixtureVal>
+   <FixtureVal ID="106">0,255,1,236,2,0</FixtureVal>
+   <FixtureVal ID="107">0,255,1,240,2,0</FixtureVal>
+   <FixtureVal ID="108">0,255,1,236,2,0</FixtureVal>
+   <FixtureVal ID="109">0,255,1,216,2,0</FixtureVal>
+   <FixtureVal ID="110">0,255,1,164,2,0</FixtureVal>
+   <FixtureVal ID="111">0,255,1,106,2,0</FixtureVal>
+   <FixtureVal ID="112">0,255,1,85,2,0</FixtureVal>
+  </Function>
+  <Function ID="269" Type="Scene" Name="Warning Strip Amber March 2">
+   <Speed FadeIn="0" FadeOut="0" Duration="0"/>
+   <FixtureVal ID="43">0,255,1,236,2,0</FixtureVal>
+   <FixtureVal ID="44">0,255,1,216,2,0</FixtureVal>
+   <FixtureVal ID="45">0,255,1,164,2,0</FixtureVal>
+   <FixtureVal ID="46">0,255,1,106,2,0</FixtureVal>
+   <FixtureVal ID="47">0,255,1,85,2,0</FixtureVal>
+   <FixtureVal ID="48">0,255,1,81,2,0</FixtureVal>
+   <FixtureVal ID="49">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="50">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="51">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="52">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="53">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="54">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="55">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="56">0,255,1,81,2,0</FixtureVal>
+   <FixtureVal ID="57">0,255,1,85,2,0</FixtureVal>
+   <FixtureVal ID="58">0,255,1,106,2,0</FixtureVal>
+   <FixtureVal ID="59">0,255,1,164,2,0</FixtureVal>
+   <FixtureVal ID="60">0,255,1,216,2,0</FixtureVal>
+   <FixtureVal ID="61">0,255,1,236,2,0</FixtureVal>
+   <FixtureVal ID="62">0,255,1,240,2,0</FixtureVal>
+   <FixtureVal ID="63">0,255,1,236,2,0</FixtureVal>
+   <FixtureVal ID="64">0,255,1,216,2,0</FixtureVal>
+   <FixtureVal ID="65">0,255,1,164,2,0</FixtureVal>
+   <FixtureVal ID="66">0,255,1,106,2,0</FixtureVal>
+   <FixtureVal ID="67">0,255,1,85,2,0</FixtureVal>
+   <FixtureVal ID="68">0,255,1,81,2,0</FixtureVal>
+   <FixtureVal ID="69">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="70">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="71">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="72">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="73">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="74">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="75">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="76">0,255,1,81,2,0</FixtureVal>
+   <FixtureVal ID="77">0,255,1,85,2,0</FixtureVal>
+   <FixtureVal ID="78">0,255,1,106,2,0</FixtureVal>
+   <FixtureVal ID="79">0,255,1,164,2,0</FixtureVal>
+   <FixtureVal ID="80">0,255,1,216,2,0</FixtureVal>
+   <FixtureVal ID="81">0,255,1,236,2,0</FixtureVal>
+   <FixtureVal ID="82">0,255,1,240,2,0</FixtureVal>
+   <FixtureVal ID="83">0,255,1,236,2,0</FixtureVal>
+   <FixtureVal ID="84">0,255,1,216,2,0</FixtureVal>
+   <FixtureVal ID="85">0,255,1,164,2,0</FixtureVal>
+   <FixtureVal ID="86">0,255,1,106,2,0</FixtureVal>
+   <FixtureVal ID="87">0,255,1,85,2,0</FixtureVal>
+   <FixtureVal ID="88">0,255,1,81,2,0</FixtureVal>
+   <FixtureVal ID="89">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="90">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="91">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="92">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="93">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="94">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="95">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="96">0,255,1,81,2,0</FixtureVal>
+   <FixtureVal ID="97">0,255,1,85,2,0</FixtureVal>
+   <FixtureVal ID="98">0,255,1,106,2,0</FixtureVal>
+   <FixtureVal ID="99">0,255,1,164,2,0</FixtureVal>
+   <FixtureVal ID="100">0,255,1,216,2,0</FixtureVal>
+   <FixtureVal ID="101">0,255,1,236,2,0</FixtureVal>
+   <FixtureVal ID="102">0,255,1,240,2,0</FixtureVal>
+   <FixtureVal ID="103">0,255,1,236,2,0</FixtureVal>
+   <FixtureVal ID="104">0,255,1,216,2,0</FixtureVal>
+   <FixtureVal ID="105">0,255,1,164,2,0</FixtureVal>
+   <FixtureVal ID="106">0,255,1,106,2,0</FixtureVal>
+   <FixtureVal ID="107">0,255,1,85,2,0</FixtureVal>
+   <FixtureVal ID="108">0,255,1,81,2,0</FixtureVal>
+   <FixtureVal ID="109">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="110">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="111">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="112">0,255,1,80,2,0</FixtureVal>
+  </Function>
+  <Function ID="270" Type="Scene" Name="Warning Strip Amber March 3">
+   <Speed FadeIn="0" FadeOut="0" Duration="0"/>
+   <FixtureVal ID="43">0,255,1,81,2,0</FixtureVal>
+   <FixtureVal ID="44">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="45">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="46">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="47">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="48">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="49">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="50">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="51">0,255,1,81,2,0</FixtureVal>
+   <FixtureVal ID="52">0,255,1,85,2,0</FixtureVal>
+   <FixtureVal ID="53">0,255,1,106,2,0</FixtureVal>
+   <FixtureVal ID="54">0,255,1,164,2,0</FixtureVal>
+   <FixtureVal ID="55">0,255,1,216,2,0</FixtureVal>
+   <FixtureVal ID="56">0,255,1,236,2,0</FixtureVal>
+   <FixtureVal ID="57">0,255,1,240,2,0</FixtureVal>
+   <FixtureVal ID="58">0,255,1,236,2,0</FixtureVal>
+   <FixtureVal ID="59">0,255,1,216,2,0</FixtureVal>
+   <FixtureVal ID="60">0,255,1,164,2,0</FixtureVal>
+   <FixtureVal ID="61">0,255,1,106,2,0</FixtureVal>
+   <FixtureVal ID="62">0,255,1,85,2,0</FixtureVal>
+   <FixtureVal ID="63">0,255,1,81,2,0</FixtureVal>
+   <FixtureVal ID="64">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="65">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="66">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="67">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="68">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="69">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="70">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="71">0,255,1,81,2,0</FixtureVal>
+   <FixtureVal ID="72">0,255,1,85,2,0</FixtureVal>
+   <FixtureVal ID="73">0,255,1,106,2,0</FixtureVal>
+   <FixtureVal ID="74">0,255,1,164,2,0</FixtureVal>
+   <FixtureVal ID="75">0,255,1,216,2,0</FixtureVal>
+   <FixtureVal ID="76">0,255,1,236,2,0</FixtureVal>
+   <FixtureVal ID="77">0,255,1,240,2,0</FixtureVal>
+   <FixtureVal ID="78">0,255,1,236,2,0</FixtureVal>
+   <FixtureVal ID="79">0,255,1,216,2,0</FixtureVal>
+   <FixtureVal ID="80">0,255,1,164,2,0</FixtureVal>
+   <FixtureVal ID="81">0,255,1,106,2,0</FixtureVal>
+   <FixtureVal ID="82">0,255,1,85,2,0</FixtureVal>
+   <FixtureVal ID="83">0,255,1,81,2,0</FixtureVal>
+   <FixtureVal ID="84">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="85">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="86">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="87">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="88">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="89">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="90">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="91">0,255,1,81,2,0</FixtureVal>
+   <FixtureVal ID="92">0,255,1,85,2,0</FixtureVal>
+   <FixtureVal ID="93">0,255,1,106,2,0</FixtureVal>
+   <FixtureVal ID="94">0,255,1,164,2,0</FixtureVal>
+   <FixtureVal ID="95">0,255,1,216,2,0</FixtureVal>
+   <FixtureVal ID="96">0,255,1,236,2,0</FixtureVal>
+   <FixtureVal ID="97">0,255,1,240,2,0</FixtureVal>
+   <FixtureVal ID="98">0,255,1,236,2,0</FixtureVal>
+   <FixtureVal ID="99">0,255,1,216,2,0</FixtureVal>
+   <FixtureVal ID="100">0,255,1,164,2,0</FixtureVal>
+   <FixtureVal ID="101">0,255,1,106,2,0</FixtureVal>
+   <FixtureVal ID="102">0,255,1,85,2,0</FixtureVal>
+   <FixtureVal ID="103">0,255,1,81,2,0</FixtureVal>
+   <FixtureVal ID="104">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="105">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="106">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="107">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="108">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="109">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="110">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="111">0,255,1,81,2,0</FixtureVal>
+   <FixtureVal ID="112">0,255,1,85,2,0</FixtureVal>
+  </Function>
+  <Function ID="271" Type="Scene" Name="Warning Strip Amber March 4">
+   <Speed FadeIn="0" FadeOut="0" Duration="0"/>
+   <FixtureVal ID="43">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="44">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="45">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="46">0,255,1,81,2,0</FixtureVal>
+   <FixtureVal ID="47">0,255,1,85,2,0</FixtureVal>
+   <FixtureVal ID="48">0,255,1,106,2,0</FixtureVal>
+   <FixtureVal ID="49">0,255,1,164,2,0</FixtureVal>
+   <FixtureVal ID="50">0,255,1,216,2,0</FixtureVal>
+   <FixtureVal ID="51">0,255,1,236,2,0</FixtureVal>
+   <FixtureVal ID="52">0,255,1,240,2,0</FixtureVal>
+   <FixtureVal ID="53">0,255,1,236,2,0</FixtureVal>
+   <FixtureVal ID="54">0,255,1,216,2,0</FixtureVal>
+   <FixtureVal ID="55">0,255,1,164,2,0</FixtureVal>
+   <FixtureVal ID="56">0,255,1,106,2,0</FixtureVal>
+   <FixtureVal ID="57">0,255,1,85,2,0</FixtureVal>
+   <FixtureVal ID="58">0,255,1,81,2,0</FixtureVal>
+   <FixtureVal ID="59">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="60">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="61">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="62">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="63">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="64">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="65">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="66">0,255,1,81,2,0</FixtureVal>
+   <FixtureVal ID="67">0,255,1,85,2,0</FixtureVal>
+   <FixtureVal ID="68">0,255,1,106,2,0</FixtureVal>
+   <FixtureVal ID="69">0,255,1,164,2,0</FixtureVal>
+   <FixtureVal ID="70">0,255,1,216,2,0</FixtureVal>
+   <FixtureVal ID="71">0,255,1,236,2,0</FixtureVal>
+   <FixtureVal ID="72">0,255,1,240,2,0</FixtureVal>
+   <FixtureVal ID="73">0,255,1,236,2,0</FixtureVal>
+   <FixtureVal ID="74">0,255,1,216,2,0</FixtureVal>
+   <FixtureVal ID="75">0,255,1,164,2,0</FixtureVal>
+   <FixtureVal ID="76">0,255,1,106,2,0</FixtureVal>
+   <FixtureVal ID="77">0,255,1,85,2,0</FixtureVal>
+   <FixtureVal ID="78">0,255,1,81,2,0</FixtureVal>
+   <FixtureVal ID="79">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="80">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="81">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="82">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="83">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="84">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="85">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="86">0,255,1,81,2,0</FixtureVal>
+   <FixtureVal ID="87">0,255,1,85,2,0</FixtureVal>
+   <FixtureVal ID="88">0,255,1,106,2,0</FixtureVal>
+   <FixtureVal ID="89">0,255,1,164,2,0</FixtureVal>
+   <FixtureVal ID="90">0,255,1,216,2,0</FixtureVal>
+   <FixtureVal ID="91">0,255,1,236,2,0</FixtureVal>
+   <FixtureVal ID="92">0,255,1,240,2,0</FixtureVal>
+   <FixtureVal ID="93">0,255,1,236,2,0</FixtureVal>
+   <FixtureVal ID="94">0,255,1,216,2,0</FixtureVal>
+   <FixtureVal ID="95">0,255,1,164,2,0</FixtureVal>
+   <FixtureVal ID="96">0,255,1,106,2,0</FixtureVal>
+   <FixtureVal ID="97">0,255,1,85,2,0</FixtureVal>
+   <FixtureVal ID="98">0,255,1,81,2,0</FixtureVal>
+   <FixtureVal ID="99">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="100">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="101">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="102">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="103">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="104">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="105">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="106">0,255,1,81,2,0</FixtureVal>
+   <FixtureVal ID="107">0,255,1,85,2,0</FixtureVal>
+   <FixtureVal ID="108">0,255,1,106,2,0</FixtureVal>
+   <FixtureVal ID="109">0,255,1,164,2,0</FixtureVal>
+   <FixtureVal ID="110">0,255,1,216,2,0</FixtureVal>
+   <FixtureVal ID="111">0,255,1,236,2,0</FixtureVal>
+   <FixtureVal ID="112">0,255,1,240,2,0</FixtureVal>
+  </Function>
+  <Function ID="272" Type="Scene" Name="Warning Strip Amber March 5">
+   <Speed FadeIn="0" FadeOut="0" Duration="0"/>
+   <FixtureVal ID="43">0,255,1,106,2,0</FixtureVal>
+   <FixtureVal ID="44">0,255,1,164,2,0</FixtureVal>
+   <FixtureVal ID="45">0,255,1,216,2,0</FixtureVal>
+   <FixtureVal ID="46">0,255,1,236,2,0</FixtureVal>
+   <FixtureVal ID="47">0,255,1,240,2,0</FixtureVal>
+   <FixtureVal ID="48">0,255,1,236,2,0</FixtureVal>
+   <FixtureVal ID="49">0,255,1,216,2,0</FixtureVal>
+   <FixtureVal ID="50">0,255,1,164,2,0</FixtureVal>
+   <FixtureVal ID="51">0,255,1,106,2,0</FixtureVal>
+   <FixtureVal ID="52">0,255,1,85,2,0</FixtureVal>
+   <FixtureVal ID="53">0,255,1,81,2,0</FixtureVal>
+   <FixtureVal ID="54">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="55">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="56">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="57">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="58">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="59">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="60">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="61">0,255,1,81,2,0</FixtureVal>
+   <FixtureVal ID="62">0,255,1,85,2,0</FixtureVal>
+   <FixtureVal ID="63">0,255,1,106,2,0</FixtureVal>
+   <FixtureVal ID="64">0,255,1,164,2,0</FixtureVal>
+   <FixtureVal ID="65">0,255,1,216,2,0</FixtureVal>
+   <FixtureVal ID="66">0,255,1,236,2,0</FixtureVal>
+   <FixtureVal ID="67">0,255,1,240,2,0</FixtureVal>
+   <FixtureVal ID="68">0,255,1,236,2,0</FixtureVal>
+   <FixtureVal ID="69">0,255,1,216,2,0</FixtureVal>
+   <FixtureVal ID="70">0,255,1,164,2,0</FixtureVal>
+   <FixtureVal ID="71">0,255,1,106,2,0</FixtureVal>
+   <FixtureVal ID="72">0,255,1,85,2,0</FixtureVal>
+   <FixtureVal ID="73">0,255,1,81,2,0</FixtureVal>
+   <FixtureVal ID="74">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="75">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="76">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="77">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="78">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="79">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="80">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="81">0,255,1,81,2,0</FixtureVal>
+   <FixtureVal ID="82">0,255,1,85,2,0</FixtureVal>
+   <FixtureVal ID="83">0,255,1,106,2,0</FixtureVal>
+   <FixtureVal ID="84">0,255,1,164,2,0</FixtureVal>
+   <FixtureVal ID="85">0,255,1,216,2,0</FixtureVal>
+   <FixtureVal ID="86">0,255,1,236,2,0</FixtureVal>
+   <FixtureVal ID="87">0,255,1,240,2,0</FixtureVal>
+   <FixtureVal ID="88">0,255,1,236,2,0</FixtureVal>
+   <FixtureVal ID="89">0,255,1,216,2,0</FixtureVal>
+   <FixtureVal ID="90">0,255,1,164,2,0</FixtureVal>
+   <FixtureVal ID="91">0,255,1,106,2,0</FixtureVal>
+   <FixtureVal ID="92">0,255,1,85,2,0</FixtureVal>
+   <FixtureVal ID="93">0,255,1,81,2,0</FixtureVal>
+   <FixtureVal ID="94">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="95">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="96">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="97">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="98">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="99">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="100">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="101">0,255,1,81,2,0</FixtureVal>
+   <FixtureVal ID="102">0,255,1,85,2,0</FixtureVal>
+   <FixtureVal ID="103">0,255,1,106,2,0</FixtureVal>
+   <FixtureVal ID="104">0,255,1,164,2,0</FixtureVal>
+   <FixtureVal ID="105">0,255,1,216,2,0</FixtureVal>
+   <FixtureVal ID="106">0,255,1,236,2,0</FixtureVal>
+   <FixtureVal ID="107">0,255,1,240,2,0</FixtureVal>
+   <FixtureVal ID="108">0,255,1,236,2,0</FixtureVal>
+   <FixtureVal ID="109">0,255,1,216,2,0</FixtureVal>
+   <FixtureVal ID="110">0,255,1,164,2,0</FixtureVal>
+   <FixtureVal ID="111">0,255,1,106,2,0</FixtureVal>
+   <FixtureVal ID="112">0,255,1,85,2,0</FixtureVal>
+  </Function>
+  <Function ID="273" Type="Scene" Name="Warning Strip Amber March 6">
+   <Speed FadeIn="0" FadeOut="0" Duration="0"/>
+   <FixtureVal ID="43">0,255,1,236,2,0</FixtureVal>
+   <FixtureVal ID="44">0,255,1,216,2,0</FixtureVal>
+   <FixtureVal ID="45">0,255,1,164,2,0</FixtureVal>
+   <FixtureVal ID="46">0,255,1,106,2,0</FixtureVal>
+   <FixtureVal ID="47">0,255,1,85,2,0</FixtureVal>
+   <FixtureVal ID="48">0,255,1,81,2,0</FixtureVal>
+   <FixtureVal ID="49">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="50">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="51">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="52">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="53">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="54">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="55">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="56">0,255,1,81,2,0</FixtureVal>
+   <FixtureVal ID="57">0,255,1,85,2,0</FixtureVal>
+   <FixtureVal ID="58">0,255,1,106,2,0</FixtureVal>
+   <FixtureVal ID="59">0,255,1,164,2,0</FixtureVal>
+   <FixtureVal ID="60">0,255,1,216,2,0</FixtureVal>
+   <FixtureVal ID="61">0,255,1,236,2,0</FixtureVal>
+   <FixtureVal ID="62">0,255,1,240,2,0</FixtureVal>
+   <FixtureVal ID="63">0,255,1,236,2,0</FixtureVal>
+   <FixtureVal ID="64">0,255,1,216,2,0</FixtureVal>
+   <FixtureVal ID="65">0,255,1,164,2,0</FixtureVal>
+   <FixtureVal ID="66">0,255,1,106,2,0</FixtureVal>
+   <FixtureVal ID="67">0,255,1,85,2,0</FixtureVal>
+   <FixtureVal ID="68">0,255,1,81,2,0</FixtureVal>
+   <FixtureVal ID="69">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="70">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="71">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="72">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="73">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="74">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="75">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="76">0,255,1,81,2,0</FixtureVal>
+   <FixtureVal ID="77">0,255,1,85,2,0</FixtureVal>
+   <FixtureVal ID="78">0,255,1,106,2,0</FixtureVal>
+   <FixtureVal ID="79">0,255,1,164,2,0</FixtureVal>
+   <FixtureVal ID="80">0,255,1,216,2,0</FixtureVal>
+   <FixtureVal ID="81">0,255,1,236,2,0</FixtureVal>
+   <FixtureVal ID="82">0,255,1,240,2,0</FixtureVal>
+   <FixtureVal ID="83">0,255,1,236,2,0</FixtureVal>
+   <FixtureVal ID="84">0,255,1,216,2,0</FixtureVal>
+   <FixtureVal ID="85">0,255,1,164,2,0</FixtureVal>
+   <FixtureVal ID="86">0,255,1,106,2,0</FixtureVal>
+   <FixtureVal ID="87">0,255,1,85,2,0</FixtureVal>
+   <FixtureVal ID="88">0,255,1,81,2,0</FixtureVal>
+   <FixtureVal ID="89">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="90">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="91">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="92">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="93">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="94">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="95">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="96">0,255,1,81,2,0</FixtureVal>
+   <FixtureVal ID="97">0,255,1,85,2,0</FixtureVal>
+   <FixtureVal ID="98">0,255,1,106,2,0</FixtureVal>
+   <FixtureVal ID="99">0,255,1,164,2,0</FixtureVal>
+   <FixtureVal ID="100">0,255,1,216,2,0</FixtureVal>
+   <FixtureVal ID="101">0,255,1,236,2,0</FixtureVal>
+   <FixtureVal ID="102">0,255,1,240,2,0</FixtureVal>
+   <FixtureVal ID="103">0,255,1,236,2,0</FixtureVal>
+   <FixtureVal ID="104">0,255,1,216,2,0</FixtureVal>
+   <FixtureVal ID="105">0,255,1,164,2,0</FixtureVal>
+   <FixtureVal ID="106">0,255,1,106,2,0</FixtureVal>
+   <FixtureVal ID="107">0,255,1,85,2,0</FixtureVal>
+   <FixtureVal ID="108">0,255,1,81,2,0</FixtureVal>
+   <FixtureVal ID="109">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="110">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="111">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="112">0,255,1,80,2,0</FixtureVal>
+  </Function>
+  <Function ID="274" Type="Scene" Name="Warning Strip Amber March 7">
+   <Speed FadeIn="0" FadeOut="0" Duration="0"/>
+   <FixtureVal ID="43">0,255,1,81,2,0</FixtureVal>
+   <FixtureVal ID="44">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="45">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="46">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="47">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="48">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="49">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="50">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="51">0,255,1,81,2,0</FixtureVal>
+   <FixtureVal ID="52">0,255,1,85,2,0</FixtureVal>
+   <FixtureVal ID="53">0,255,1,106,2,0</FixtureVal>
+   <FixtureVal ID="54">0,255,1,164,2,0</FixtureVal>
+   <FixtureVal ID="55">0,255,1,216,2,0</FixtureVal>
+   <FixtureVal ID="56">0,255,1,236,2,0</FixtureVal>
+   <FixtureVal ID="57">0,255,1,240,2,0</FixtureVal>
+   <FixtureVal ID="58">0,255,1,236,2,0</FixtureVal>
+   <FixtureVal ID="59">0,255,1,216,2,0</FixtureVal>
+   <FixtureVal ID="60">0,255,1,164,2,0</FixtureVal>
+   <FixtureVal ID="61">0,255,1,106,2,0</FixtureVal>
+   <FixtureVal ID="62">0,255,1,85,2,0</FixtureVal>
+   <FixtureVal ID="63">0,255,1,81,2,0</FixtureVal>
+   <FixtureVal ID="64">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="65">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="66">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="67">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="68">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="69">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="70">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="71">0,255,1,81,2,0</FixtureVal>
+   <FixtureVal ID="72">0,255,1,85,2,0</FixtureVal>
+   <FixtureVal ID="73">0,255,1,106,2,0</FixtureVal>
+   <FixtureVal ID="74">0,255,1,164,2,0</FixtureVal>
+   <FixtureVal ID="75">0,255,1,216,2,0</FixtureVal>
+   <FixtureVal ID="76">0,255,1,236,2,0</FixtureVal>
+   <FixtureVal ID="77">0,255,1,240,2,0</FixtureVal>
+   <FixtureVal ID="78">0,255,1,236,2,0</FixtureVal>
+   <FixtureVal ID="79">0,255,1,216,2,0</FixtureVal>
+   <FixtureVal ID="80">0,255,1,164,2,0</FixtureVal>
+   <FixtureVal ID="81">0,255,1,106,2,0</FixtureVal>
+   <FixtureVal ID="82">0,255,1,85,2,0</FixtureVal>
+   <FixtureVal ID="83">0,255,1,81,2,0</FixtureVal>
+   <FixtureVal ID="84">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="85">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="86">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="87">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="88">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="89">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="90">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="91">0,255,1,81,2,0</FixtureVal>
+   <FixtureVal ID="92">0,255,1,85,2,0</FixtureVal>
+   <FixtureVal ID="93">0,255,1,106,2,0</FixtureVal>
+   <FixtureVal ID="94">0,255,1,164,2,0</FixtureVal>
+   <FixtureVal ID="95">0,255,1,216,2,0</FixtureVal>
+   <FixtureVal ID="96">0,255,1,236,2,0</FixtureVal>
+   <FixtureVal ID="97">0,255,1,240,2,0</FixtureVal>
+   <FixtureVal ID="98">0,255,1,236,2,0</FixtureVal>
+   <FixtureVal ID="99">0,255,1,216,2,0</FixtureVal>
+   <FixtureVal ID="100">0,255,1,164,2,0</FixtureVal>
+   <FixtureVal ID="101">0,255,1,106,2,0</FixtureVal>
+   <FixtureVal ID="102">0,255,1,85,2,0</FixtureVal>
+   <FixtureVal ID="103">0,255,1,81,2,0</FixtureVal>
+   <FixtureVal ID="104">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="105">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="106">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="107">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="108">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="109">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="110">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="111">0,255,1,81,2,0</FixtureVal>
+   <FixtureVal ID="112">0,255,1,85,2,0</FixtureVal>
+  </Function>
+  <Function ID="275" Type="Scene" Name="Warning Strip Amber March 8">
+   <Speed FadeIn="0" FadeOut="0" Duration="0"/>
+   <FixtureVal ID="43">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="44">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="45">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="46">0,255,1,81,2,0</FixtureVal>
+   <FixtureVal ID="47">0,255,1,85,2,0</FixtureVal>
+   <FixtureVal ID="48">0,255,1,106,2,0</FixtureVal>
+   <FixtureVal ID="49">0,255,1,164,2,0</FixtureVal>
+   <FixtureVal ID="50">0,255,1,216,2,0</FixtureVal>
+   <FixtureVal ID="51">0,255,1,236,2,0</FixtureVal>
+   <FixtureVal ID="52">0,255,1,240,2,0</FixtureVal>
+   <FixtureVal ID="53">0,255,1,236,2,0</FixtureVal>
+   <FixtureVal ID="54">0,255,1,216,2,0</FixtureVal>
+   <FixtureVal ID="55">0,255,1,164,2,0</FixtureVal>
+   <FixtureVal ID="56">0,255,1,106,2,0</FixtureVal>
+   <FixtureVal ID="57">0,255,1,85,2,0</FixtureVal>
+   <FixtureVal ID="58">0,255,1,81,2,0</FixtureVal>
+   <FixtureVal ID="59">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="60">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="61">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="62">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="63">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="64">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="65">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="66">0,255,1,81,2,0</FixtureVal>
+   <FixtureVal ID="67">0,255,1,85,2,0</FixtureVal>
+   <FixtureVal ID="68">0,255,1,106,2,0</FixtureVal>
+   <FixtureVal ID="69">0,255,1,164,2,0</FixtureVal>
+   <FixtureVal ID="70">0,255,1,216,2,0</FixtureVal>
+   <FixtureVal ID="71">0,255,1,236,2,0</FixtureVal>
+   <FixtureVal ID="72">0,255,1,240,2,0</FixtureVal>
+   <FixtureVal ID="73">0,255,1,236,2,0</FixtureVal>
+   <FixtureVal ID="74">0,255,1,216,2,0</FixtureVal>
+   <FixtureVal ID="75">0,255,1,164,2,0</FixtureVal>
+   <FixtureVal ID="76">0,255,1,106,2,0</FixtureVal>
+   <FixtureVal ID="77">0,255,1,85,2,0</FixtureVal>
+   <FixtureVal ID="78">0,255,1,81,2,0</FixtureVal>
+   <FixtureVal ID="79">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="80">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="81">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="82">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="83">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="84">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="85">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="86">0,255,1,81,2,0</FixtureVal>
+   <FixtureVal ID="87">0,255,1,85,2,0</FixtureVal>
+   <FixtureVal ID="88">0,255,1,106,2,0</FixtureVal>
+   <FixtureVal ID="89">0,255,1,164,2,0</FixtureVal>
+   <FixtureVal ID="90">0,255,1,216,2,0</FixtureVal>
+   <FixtureVal ID="91">0,255,1,236,2,0</FixtureVal>
+   <FixtureVal ID="92">0,255,1,240,2,0</FixtureVal>
+   <FixtureVal ID="93">0,255,1,236,2,0</FixtureVal>
+   <FixtureVal ID="94">0,255,1,216,2,0</FixtureVal>
+   <FixtureVal ID="95">0,255,1,164,2,0</FixtureVal>
+   <FixtureVal ID="96">0,255,1,106,2,0</FixtureVal>
+   <FixtureVal ID="97">0,255,1,85,2,0</FixtureVal>
+   <FixtureVal ID="98">0,255,1,81,2,0</FixtureVal>
+   <FixtureVal ID="99">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="100">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="101">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="102">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="103">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="104">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="105">0,255,1,80,2,0</FixtureVal>
+   <FixtureVal ID="106">0,255,1,81,2,0</FixtureVal>
+   <FixtureVal ID="107">0,255,1,85,2,0</FixtureVal>
+   <FixtureVal ID="108">0,255,1,106,2,0</FixtureVal>
+   <FixtureVal ID="109">0,255,1,164,2,0</FixtureVal>
+   <FixtureVal ID="110">0,255,1,216,2,0</FixtureVal>
+   <FixtureVal ID="111">0,255,1,236,2,0</FixtureVal>
+   <FixtureVal ID="112">0,255,1,240,2,0</FixtureVal>
   </Function>
   <Monitor DisplayMode="0" ShowLabels="0">
    <Font>Arial,12,-1,5,400,0,0,0,0,0,0,0,0,0,0,1</Font>

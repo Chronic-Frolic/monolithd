@@ -78,25 +78,25 @@ functions = ["ambient_ram", "ambient_eye", "ambient_strip"]
 # controller_fault_* are registered for Phase 5 (the watchdog); nothing wires them yet.
 [[functions]]
 name = "warning_eye"
-kind = "scene"
+kind = "chaser"
 id = 117
-children = []
+children = [260, 261, 262, 263, 264, 265, 266, 267]
 zones = ["rog_eye"]
 composable = true
 
 [[functions]]
 name = "fault_ram"
-kind = "scene"
+kind = "chaser"
 id = 118
-children = []
+children = [228, 229, 230, 231, 232, 233, 234, 235]
 zones = ["ram"]
 composable = true
 
 [[functions]]
 name = "fault_eye"
-kind = "scene"
+kind = "chaser"
 id = 119
-children = []
+children = [236, 237, 238, 239, 240, 241, 242, 243]
 zones = ["rog_eye"]
 composable = true
 
@@ -126,9 +126,9 @@ composable = true
 
 [[functions]]
 name = "fault_strip"
-kind = "scene"
+kind = "chaser"
 id = 126
-children = []
+children = [244, 245, 246, 247, 248, 249, 250, 251]
 zones = ["strip"]
 composable = true
 
@@ -149,17 +149,17 @@ composable = true
 
 [[functions]]
 name = "warning_ram"
-kind = "scene"
+kind = "chaser"
 id = 200
-children = []
+children = [252, 253, 254, 255, 256, 257, 258, 259]
 zones = ["ram"]
 composable = true
 
 [[functions]]
 name = "warning_strip"
-kind = "scene"
+kind = "chaser"
 id = 201
-children = []
+children = [268, 269, 270, 271, 272, 273, 274, 275]
 zones = ["strip"]
 composable = true
 
