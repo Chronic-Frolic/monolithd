@@ -10006,257 +10006,725 @@
    <FixtureVal ID="111">0,255,1,255,2,255</FixtureVal>
    <FixtureVal ID="112">0,255,1,255,2,255</FixtureVal>
   </Function>
-  <Function ID="161" Type="Scene" Name="Pre-Sleep RAM Moonlight Bright">
+  <Function ID="161" Type="Scene" Name="Pre-Sleep RAM Ice Drift 1">
    <Speed FadeIn="0" FadeOut="0" Duration="0"/>
-   <FixtureVal ID="0">0,0,1,18,2,170</FixtureVal>
-   <FixtureVal ID="1">0,0,1,18,2,170</FixtureVal>
-   <FixtureVal ID="2">0,0,1,18,2,170</FixtureVal>
-   <FixtureVal ID="3">0,0,1,18,2,170</FixtureVal>
-   <FixtureVal ID="4">0,0,1,18,2,170</FixtureVal>
-   <FixtureVal ID="5">0,0,1,18,2,170</FixtureVal>
-   <FixtureVal ID="6">0,0,1,18,2,170</FixtureVal>
-   <FixtureVal ID="7">0,0,1,18,2,170</FixtureVal>
-   <FixtureVal ID="8">0,0,1,18,2,170</FixtureVal>
-   <FixtureVal ID="9">0,0,1,18,2,170</FixtureVal>
-   <FixtureVal ID="10">0,0,1,18,2,170</FixtureVal>
-   <FixtureVal ID="11">0,0,1,18,2,170</FixtureVal>
-   <FixtureVal ID="12">0,0,1,18,2,170</FixtureVal>
-   <FixtureVal ID="13">0,0,1,18,2,170</FixtureVal>
-   <FixtureVal ID="14">0,0,1,18,2,170</FixtureVal>
-   <FixtureVal ID="15">0,0,1,18,2,170</FixtureVal>
-   <FixtureVal ID="16">0,0,1,18,2,170</FixtureVal>
-   <FixtureVal ID="17">0,0,1,18,2,170</FixtureVal>
-   <FixtureVal ID="18">0,0,1,18,2,170</FixtureVal>
-   <FixtureVal ID="19">0,0,1,18,2,170</FixtureVal>
-   <FixtureVal ID="20">0,0,1,18,2,170</FixtureVal>
-   <FixtureVal ID="21">0,0,1,18,2,170</FixtureVal>
-   <FixtureVal ID="22">0,0,1,18,2,170</FixtureVal>
-   <FixtureVal ID="23">0,0,1,18,2,170</FixtureVal>
-   <FixtureVal ID="24">0,0,1,18,2,170</FixtureVal>
-   <FixtureVal ID="25">0,0,1,18,2,170</FixtureVal>
-   <FixtureVal ID="26">0,0,1,18,2,170</FixtureVal>
-   <FixtureVal ID="27">0,0,1,18,2,170</FixtureVal>
-   <FixtureVal ID="28">0,0,1,18,2,170</FixtureVal>
-   <FixtureVal ID="29">0,0,1,18,2,170</FixtureVal>
-   <FixtureVal ID="30">0,0,1,18,2,170</FixtureVal>
-   <FixtureVal ID="31">0,0,1,18,2,170</FixtureVal>
+   <FixtureVal ID="0">0,62,1,217,2,255</FixtureVal>
+   <FixtureVal ID="1">0,79,1,219,2,255</FixtureVal>
+   <FixtureVal ID="2">0,95,1,221,2,255</FixtureVal>
+   <FixtureVal ID="3">0,110,1,224,2,255</FixtureVal>
+   <FixtureVal ID="4">0,125,1,227,2,255</FixtureVal>
+   <FixtureVal ID="5">0,140,1,229,2,255</FixtureVal>
+   <FixtureVal ID="6">0,155,1,232,2,255</FixtureVal>
+   <FixtureVal ID="7">0,170,1,235,2,255</FixtureVal>
+   <FixtureVal ID="8">0,28,1,213,2,255</FixtureVal>
+   <FixtureVal ID="9">0,11,1,211,2,255</FixtureVal>
+   <FixtureVal ID="10">0,0,1,206,2,255</FixtureVal>
+   <FixtureVal ID="11">0,0,1,195,2,255</FixtureVal>
+   <FixtureVal ID="12">0,0,1,184,2,255</FixtureVal>
+   <FixtureVal ID="13">0,0,1,172,2,255</FixtureVal>
+   <FixtureVal ID="14">0,0,1,161,2,255</FixtureVal>
+   <FixtureVal ID="15">0,0,1,150,2,255</FixtureVal>
+   <FixtureVal ID="16">0,0,1,161,2,255</FixtureVal>
+   <FixtureVal ID="17">0,0,1,172,2,255</FixtureVal>
+   <FixtureVal ID="18">0,0,1,184,2,255</FixtureVal>
+   <FixtureVal ID="19">0,0,1,195,2,255</FixtureVal>
+   <FixtureVal ID="20">0,0,1,206,2,255</FixtureVal>
+   <FixtureVal ID="21">0,11,1,211,2,255</FixtureVal>
+   <FixtureVal ID="22">0,28,1,213,2,255</FixtureVal>
+   <FixtureVal ID="23">0,45,1,215,2,255</FixtureVal>
+   <FixtureVal ID="24">0,155,1,232,2,255</FixtureVal>
+   <FixtureVal ID="25">0,140,1,229,2,255</FixtureVal>
+   <FixtureVal ID="26">0,125,1,227,2,255</FixtureVal>
+   <FixtureVal ID="27">0,110,1,224,2,255</FixtureVal>
+   <FixtureVal ID="28">0,95,1,221,2,255</FixtureVal>
+   <FixtureVal ID="29">0,79,1,219,2,255</FixtureVal>
+   <FixtureVal ID="30">0,62,1,217,2,255</FixtureVal>
+   <FixtureVal ID="31">0,45,1,215,2,255</FixtureVal>
   </Function>
-  <Function ID="162" Type="Scene" Name="Pre-Sleep RAM Moonlight Dim">
+  <Function ID="162" Type="Scene" Name="Pre-Sleep RAM Ice Drift 2">
    <Speed FadeIn="0" FadeOut="0" Duration="0"/>
-   <FixtureVal ID="0">0,0,1,8,2,90</FixtureVal>
-   <FixtureVal ID="1">0,0,1,8,2,90</FixtureVal>
-   <FixtureVal ID="2">0,0,1,8,2,90</FixtureVal>
-   <FixtureVal ID="3">0,0,1,8,2,90</FixtureVal>
-   <FixtureVal ID="4">0,0,1,8,2,90</FixtureVal>
-   <FixtureVal ID="5">0,0,1,8,2,90</FixtureVal>
-   <FixtureVal ID="6">0,0,1,8,2,90</FixtureVal>
-   <FixtureVal ID="7">0,0,1,8,2,90</FixtureVal>
-   <FixtureVal ID="8">0,0,1,8,2,90</FixtureVal>
-   <FixtureVal ID="9">0,0,1,8,2,90</FixtureVal>
-   <FixtureVal ID="10">0,0,1,8,2,90</FixtureVal>
-   <FixtureVal ID="11">0,0,1,8,2,90</FixtureVal>
-   <FixtureVal ID="12">0,0,1,8,2,90</FixtureVal>
-   <FixtureVal ID="13">0,0,1,8,2,90</FixtureVal>
-   <FixtureVal ID="14">0,0,1,8,2,90</FixtureVal>
-   <FixtureVal ID="15">0,0,1,8,2,90</FixtureVal>
-   <FixtureVal ID="16">0,0,1,8,2,90</FixtureVal>
-   <FixtureVal ID="17">0,0,1,8,2,90</FixtureVal>
-   <FixtureVal ID="18">0,0,1,8,2,90</FixtureVal>
-   <FixtureVal ID="19">0,0,1,8,2,90</FixtureVal>
-   <FixtureVal ID="20">0,0,1,8,2,90</FixtureVal>
-   <FixtureVal ID="21">0,0,1,8,2,90</FixtureVal>
-   <FixtureVal ID="22">0,0,1,8,2,90</FixtureVal>
-   <FixtureVal ID="23">0,0,1,8,2,90</FixtureVal>
-   <FixtureVal ID="24">0,0,1,8,2,90</FixtureVal>
-   <FixtureVal ID="25">0,0,1,8,2,90</FixtureVal>
-   <FixtureVal ID="26">0,0,1,8,2,90</FixtureVal>
-   <FixtureVal ID="27">0,0,1,8,2,90</FixtureVal>
-   <FixtureVal ID="28">0,0,1,8,2,90</FixtureVal>
-   <FixtureVal ID="29">0,0,1,8,2,90</FixtureVal>
-   <FixtureVal ID="30">0,0,1,8,2,90</FixtureVal>
-   <FixtureVal ID="31">0,0,1,8,2,90</FixtureVal>
+   <FixtureVal ID="0">0,0,1,191,2,255</FixtureVal>
+   <FixtureVal ID="1">0,0,1,202,2,255</FixtureVal>
+   <FixtureVal ID="2">0,6,1,211,2,255</FixtureVal>
+   <FixtureVal ID="3">0,22,1,212,2,255</FixtureVal>
+   <FixtureVal ID="4">0,39,1,214,2,255</FixtureVal>
+   <FixtureVal ID="5">0,56,1,216,2,255</FixtureVal>
+   <FixtureVal ID="6">0,73,1,218,2,255</FixtureVal>
+   <FixtureVal ID="7">0,90,1,220,2,255</FixtureVal>
+   <FixtureVal ID="8">0,115,1,225,2,255</FixtureVal>
+   <FixtureVal ID="9">0,100,1,222,2,255</FixtureVal>
+   <FixtureVal ID="10">0,84,1,219,2,255</FixtureVal>
+   <FixtureVal ID="11">0,67,1,218,2,255</FixtureVal>
+   <FixtureVal ID="12">0,51,1,216,2,255</FixtureVal>
+   <FixtureVal ID="13">0,34,1,214,2,255</FixtureVal>
+   <FixtureVal ID="14">0,17,1,212,2,255</FixtureVal>
+   <FixtureVal ID="15">0,0,1,210,2,255</FixtureVal>
+   <FixtureVal ID="16">0,0,1,199,2,255</FixtureVal>
+   <FixtureVal ID="17">0,0,1,188,2,255</FixtureVal>
+   <FixtureVal ID="18">0,0,1,176,2,255</FixtureVal>
+   <FixtureVal ID="19">0,0,1,165,2,255</FixtureVal>
+   <FixtureVal ID="20">0,0,1,154,2,255</FixtureVal>
+   <FixtureVal ID="21">0,0,1,158,2,255</FixtureVal>
+   <FixtureVal ID="22">0,0,1,169,2,255</FixtureVal>
+   <FixtureVal ID="23">0,0,1,180,2,255</FixtureVal>
+   <FixtureVal ID="24">0,105,1,223,2,255</FixtureVal>
+   <FixtureVal ID="25">0,120,1,226,2,255</FixtureVal>
+   <FixtureVal ID="26">0,135,1,228,2,255</FixtureVal>
+   <FixtureVal ID="27">0,150,1,231,2,255</FixtureVal>
+   <FixtureVal ID="28">0,165,1,234,2,255</FixtureVal>
+   <FixtureVal ID="29">0,160,1,233,2,255</FixtureVal>
+   <FixtureVal ID="30">0,145,1,230,2,255</FixtureVal>
+   <FixtureVal ID="31">0,130,1,228,2,255</FixtureVal>
   </Function>
-  <Function ID="163" Type="Chaser" Name="Pre-Sleep RAM Moonlight Breath">
-   <Speed FadeIn="3500" FadeOut="3500" Duration="4000"/>
+  <Function ID="163" Type="Scene" Name="Pre-Sleep RAM Ice Drift 3">
+   <Speed FadeIn="0" FadeOut="0" Duration="0"/>
+   <FixtureVal ID="0">0,0,1,169,2,255</FixtureVal>
+   <FixtureVal ID="1">0,0,1,157,2,255</FixtureVal>
+   <FixtureVal ID="2">0,0,1,154,2,255</FixtureVal>
+   <FixtureVal ID="3">0,0,1,165,2,255</FixtureVal>
+   <FixtureVal ID="4">0,0,1,176,2,255</FixtureVal>
+   <FixtureVal ID="5">0,0,1,188,2,255</FixtureVal>
+   <FixtureVal ID="6">0,0,1,199,2,255</FixtureVal>
+   <FixtureVal ID="7">0,0,1,210,2,255</FixtureVal>
+   <FixtureVal ID="8">0,145,1,230,2,255</FixtureVal>
+   <FixtureVal ID="9">0,160,1,233,2,255</FixtureVal>
+   <FixtureVal ID="10">0,165,1,234,2,255</FixtureVal>
+   <FixtureVal ID="11">0,150,1,231,2,255</FixtureVal>
+   <FixtureVal ID="12">0,135,1,228,2,255</FixtureVal>
+   <FixtureVal ID="13">0,120,1,226,2,255</FixtureVal>
+   <FixtureVal ID="14">0,105,1,223,2,255</FixtureVal>
+   <FixtureVal ID="15">0,90,1,220,2,255</FixtureVal>
+   <FixtureVal ID="16">0,73,1,218,2,255</FixtureVal>
+   <FixtureVal ID="17">0,56,1,216,2,255</FixtureVal>
+   <FixtureVal ID="18">0,39,1,214,2,255</FixtureVal>
+   <FixtureVal ID="19">0,22,1,212,2,255</FixtureVal>
+   <FixtureVal ID="20">0,6,1,211,2,255</FixtureVal>
+   <FixtureVal ID="21">0,0,1,202,2,255</FixtureVal>
+   <FixtureVal ID="22">0,0,1,191,2,255</FixtureVal>
+   <FixtureVal ID="23">0,0,1,180,2,255</FixtureVal>
+   <FixtureVal ID="24">0,17,1,212,2,255</FixtureVal>
+   <FixtureVal ID="25">0,34,1,214,2,255</FixtureVal>
+   <FixtureVal ID="26">0,51,1,216,2,255</FixtureVal>
+   <FixtureVal ID="27">0,68,1,218,2,255</FixtureVal>
+   <FixtureVal ID="28">0,84,1,219,2,255</FixtureVal>
+   <FixtureVal ID="29">0,100,1,222,2,255</FixtureVal>
+   <FixtureVal ID="30">0,115,1,225,2,255</FixtureVal>
+   <FixtureVal ID="31">0,130,1,228,2,255</FixtureVal>
+  </Function>
+  <Function ID="164" Type="Scene" Name="Pre-Sleep RAM Ice Drift 4">
+   <Speed FadeIn="0" FadeOut="0" Duration="0"/>
+   <FixtureVal ID="0">0,28,1,213,2,255</FixtureVal>
+   <FixtureVal ID="1">0,11,1,211,2,255</FixtureVal>
+   <FixtureVal ID="2">0,0,1,206,2,255</FixtureVal>
+   <FixtureVal ID="3">0,0,1,195,2,255</FixtureVal>
+   <FixtureVal ID="4">0,0,1,184,2,255</FixtureVal>
+   <FixtureVal ID="5">0,0,1,172,2,255</FixtureVal>
+   <FixtureVal ID="6">0,0,1,161,2,255</FixtureVal>
+   <FixtureVal ID="7">0,0,1,150,2,255</FixtureVal>
+   <FixtureVal ID="8">0,62,1,217,2,255</FixtureVal>
+   <FixtureVal ID="9">0,79,1,219,2,255</FixtureVal>
+   <FixtureVal ID="10">0,95,1,221,2,255</FixtureVal>
+   <FixtureVal ID="11">0,110,1,224,2,255</FixtureVal>
+   <FixtureVal ID="12">0,125,1,227,2,255</FixtureVal>
+   <FixtureVal ID="13">0,140,1,229,2,255</FixtureVal>
+   <FixtureVal ID="14">0,155,1,232,2,255</FixtureVal>
+   <FixtureVal ID="15">0,170,1,235,2,255</FixtureVal>
+   <FixtureVal ID="16">0,155,1,232,2,255</FixtureVal>
+   <FixtureVal ID="17">0,140,1,229,2,255</FixtureVal>
+   <FixtureVal ID="18">0,125,1,227,2,255</FixtureVal>
+   <FixtureVal ID="19">0,110,1,224,2,255</FixtureVal>
+   <FixtureVal ID="20">0,95,1,221,2,255</FixtureVal>
+   <FixtureVal ID="21">0,79,1,219,2,255</FixtureVal>
+   <FixtureVal ID="22">0,62,1,217,2,255</FixtureVal>
+   <FixtureVal ID="23">0,45,1,215,2,255</FixtureVal>
+   <FixtureVal ID="24">0,0,1,161,2,255</FixtureVal>
+   <FixtureVal ID="25">0,0,1,172,2,255</FixtureVal>
+   <FixtureVal ID="26">0,0,1,184,2,255</FixtureVal>
+   <FixtureVal ID="27">0,0,1,195,2,255</FixtureVal>
+   <FixtureVal ID="28">0,0,1,206,2,255</FixtureVal>
+   <FixtureVal ID="29">0,11,1,211,2,255</FixtureVal>
+   <FixtureVal ID="30">0,28,1,213,2,255</FixtureVal>
+   <FixtureVal ID="31">0,45,1,215,2,255</FixtureVal>
+  </Function>
+  <Function ID="165" Type="Scene" Name="Pre-Sleep RAM Ice Drift 5">
+   <Speed FadeIn="0" FadeOut="0" Duration="0"/>
+   <FixtureVal ID="0">0,115,1,225,2,255</FixtureVal>
+   <FixtureVal ID="1">0,100,1,222,2,255</FixtureVal>
+   <FixtureVal ID="2">0,84,1,219,2,255</FixtureVal>
+   <FixtureVal ID="3">0,67,1,218,2,255</FixtureVal>
+   <FixtureVal ID="4">0,51,1,216,2,255</FixtureVal>
+   <FixtureVal ID="5">0,34,1,214,2,255</FixtureVal>
+   <FixtureVal ID="6">0,17,1,212,2,255</FixtureVal>
+   <FixtureVal ID="7">0,0,1,210,2,255</FixtureVal>
+   <FixtureVal ID="8">0,0,1,191,2,255</FixtureVal>
+   <FixtureVal ID="9">0,0,1,202,2,255</FixtureVal>
+   <FixtureVal ID="10">0,6,1,211,2,255</FixtureVal>
+   <FixtureVal ID="11">0,22,1,212,2,255</FixtureVal>
+   <FixtureVal ID="12">0,39,1,214,2,255</FixtureVal>
+   <FixtureVal ID="13">0,56,1,216,2,255</FixtureVal>
+   <FixtureVal ID="14">0,73,1,218,2,255</FixtureVal>
+   <FixtureVal ID="15">0,90,1,220,2,255</FixtureVal>
+   <FixtureVal ID="16">0,105,1,223,2,255</FixtureVal>
+   <FixtureVal ID="17">0,120,1,226,2,255</FixtureVal>
+   <FixtureVal ID="18">0,135,1,228,2,255</FixtureVal>
+   <FixtureVal ID="19">0,150,1,231,2,255</FixtureVal>
+   <FixtureVal ID="20">0,165,1,234,2,255</FixtureVal>
+   <FixtureVal ID="21">0,160,1,233,2,255</FixtureVal>
+   <FixtureVal ID="22">0,145,1,230,2,255</FixtureVal>
+   <FixtureVal ID="23">0,130,1,228,2,255</FixtureVal>
+   <FixtureVal ID="24">0,0,1,199,2,255</FixtureVal>
+   <FixtureVal ID="25">0,0,1,187,2,255</FixtureVal>
+   <FixtureVal ID="26">0,0,1,176,2,255</FixtureVal>
+   <FixtureVal ID="27">0,0,1,165,2,255</FixtureVal>
+   <FixtureVal ID="28">0,0,1,154,2,255</FixtureVal>
+   <FixtureVal ID="29">0,0,1,158,2,255</FixtureVal>
+   <FixtureVal ID="30">0,0,1,169,2,255</FixtureVal>
+   <FixtureVal ID="31">0,0,1,180,2,255</FixtureVal>
+  </Function>
+  <Function ID="166" Type="Scene" Name="Pre-Sleep RAM Ice Drift 6">
+   <Speed FadeIn="0" FadeOut="0" Duration="0"/>
+   <FixtureVal ID="0">0,145,1,230,2,255</FixtureVal>
+   <FixtureVal ID="1">0,160,1,233,2,255</FixtureVal>
+   <FixtureVal ID="2">0,165,1,234,2,255</FixtureVal>
+   <FixtureVal ID="3">0,150,1,231,2,255</FixtureVal>
+   <FixtureVal ID="4">0,135,1,228,2,255</FixtureVal>
+   <FixtureVal ID="5">0,120,1,226,2,255</FixtureVal>
+   <FixtureVal ID="6">0,105,1,223,2,255</FixtureVal>
+   <FixtureVal ID="7">0,90,1,220,2,255</FixtureVal>
+   <FixtureVal ID="8">0,0,1,169,2,255</FixtureVal>
+   <FixtureVal ID="9">0,0,1,158,2,255</FixtureVal>
+   <FixtureVal ID="10">0,0,1,154,2,255</FixtureVal>
+   <FixtureVal ID="11">0,0,1,165,2,255</FixtureVal>
+   <FixtureVal ID="12">0,0,1,176,2,255</FixtureVal>
+   <FixtureVal ID="13">0,0,1,188,2,255</FixtureVal>
+   <FixtureVal ID="14">0,0,1,199,2,255</FixtureVal>
+   <FixtureVal ID="15">0,0,1,210,2,255</FixtureVal>
+   <FixtureVal ID="16">0,17,1,212,2,255</FixtureVal>
+   <FixtureVal ID="17">0,34,1,214,2,255</FixtureVal>
+   <FixtureVal ID="18">0,51,1,216,2,255</FixtureVal>
+   <FixtureVal ID="19">0,67,1,218,2,255</FixtureVal>
+   <FixtureVal ID="20">0,84,1,219,2,255</FixtureVal>
+   <FixtureVal ID="21">0,100,1,222,2,255</FixtureVal>
+   <FixtureVal ID="22">0,115,1,225,2,255</FixtureVal>
+   <FixtureVal ID="23">0,130,1,228,2,255</FixtureVal>
+   <FixtureVal ID="24">0,73,1,218,2,255</FixtureVal>
+   <FixtureVal ID="25">0,56,1,216,2,255</FixtureVal>
+   <FixtureVal ID="26">0,39,1,214,2,255</FixtureVal>
+   <FixtureVal ID="27">0,23,1,212,2,255</FixtureVal>
+   <FixtureVal ID="28">0,6,1,211,2,255</FixtureVal>
+   <FixtureVal ID="29">0,0,1,203,2,255</FixtureVal>
+   <FixtureVal ID="30">0,0,1,191,2,255</FixtureVal>
+   <FixtureVal ID="31">0,0,1,180,2,255</FixtureVal>
+  </Function>
+  <Function ID="167" Type="Chaser" Name="Pre-Sleep RAM Ice Drift">
+   <Speed FadeIn="2500" FadeOut="2500" Duration="2500"/>
    <Direction>Forward</Direction>
    <RunOrder>Loop</RunOrder>
-   <SpeedModes FadeIn="Default" FadeOut="Default" Duration="Common"/>
+   <SpeedModes FadeIn="Common" FadeOut="Common" Duration="Common"/>
    <Step Number="0" FadeIn="0" Hold="0" FadeOut="0">161</Step>
    <Step Number="1" FadeIn="0" Hold="0" FadeOut="0">162</Step>
+   <Step Number="2" FadeIn="0" Hold="0" FadeOut="0">163</Step>
+   <Step Number="3" FadeIn="0" Hold="0" FadeOut="0">164</Step>
+   <Step Number="4" FadeIn="0" Hold="0" FadeOut="0">165</Step>
+   <Step Number="5" FadeIn="0" Hold="0" FadeOut="0">166</Step>
   </Function>
-  <Function ID="164" Type="Scene" Name="Pre-Sleep Eye Moonlight Bright">
+  <Function ID="168" Type="Scene" Name="Pre-Sleep Eye Ice Drift 1">
    <Speed FadeIn="0" FadeOut="0" Duration="0"/>
-   <FixtureVal ID="40">0,0,1,18,2,170</FixtureVal>
-   <FixtureVal ID="41">0,0,1,18,2,170</FixtureVal>
-   <FixtureVal ID="42">0,0,1,18,2,170</FixtureVal>
+   <FixtureVal ID="40">0,0,1,150,2,255</FixtureVal>
+   <FixtureVal ID="41">0,90,1,220,2,255</FixtureVal>
+   <FixtureVal ID="42">0,90,1,220,2,255</FixtureVal>
   </Function>
-  <Function ID="165" Type="Scene" Name="Pre-Sleep Eye Moonlight Dim">
+  <Function ID="169" Type="Scene" Name="Pre-Sleep Eye Ice Drift 2">
    <Speed FadeIn="0" FadeOut="0" Duration="0"/>
-   <FixtureVal ID="40">0,0,1,8,2,90</FixtureVal>
-   <FixtureVal ID="41">0,0,1,8,2,90</FixtureVal>
-   <FixtureVal ID="42">0,0,1,8,2,90</FixtureVal>
+   <FixtureVal ID="40">0,0,1,210,2,255</FixtureVal>
+   <FixtureVal ID="41">0,170,1,235,2,255</FixtureVal>
+   <FixtureVal ID="42">0,0,1,210,2,255</FixtureVal>
   </Function>
-  <Function ID="166" Type="Chaser" Name="Pre-Sleep Eye Moonlight Breath">
-   <Speed FadeIn="3500" FadeOut="3500" Duration="4000"/>
+  <Function ID="170" Type="Scene" Name="Pre-Sleep Eye Ice Drift 3">
+   <Speed FadeIn="0" FadeOut="0" Duration="0"/>
+   <FixtureVal ID="40">0,90,1,220,2,255</FixtureVal>
+   <FixtureVal ID="41">0,90,1,220,2,255</FixtureVal>
+   <FixtureVal ID="42">0,0,1,150,2,255</FixtureVal>
+  </Function>
+  <Function ID="171" Type="Scene" Name="Pre-Sleep Eye Ice Drift 4">
+   <Speed FadeIn="0" FadeOut="0" Duration="0"/>
+   <FixtureVal ID="40">0,170,1,235,2,255</FixtureVal>
+   <FixtureVal ID="41">0,0,1,210,2,255</FixtureVal>
+   <FixtureVal ID="42">0,0,1,210,2,255</FixtureVal>
+  </Function>
+  <Function ID="172" Type="Scene" Name="Pre-Sleep Eye Ice Drift 5">
+   <Speed FadeIn="0" FadeOut="0" Duration="0"/>
+   <FixtureVal ID="40">0,90,1,220,2,255</FixtureVal>
+   <FixtureVal ID="41">0,0,1,150,2,255</FixtureVal>
+   <FixtureVal ID="42">0,90,1,220,2,255</FixtureVal>
+  </Function>
+  <Function ID="173" Type="Scene" Name="Pre-Sleep Eye Ice Drift 6">
+   <Speed FadeIn="0" FadeOut="0" Duration="0"/>
+   <FixtureVal ID="40">0,0,1,210,2,255</FixtureVal>
+   <FixtureVal ID="41">0,0,1,210,2,255</FixtureVal>
+   <FixtureVal ID="42">0,170,1,235,2,255</FixtureVal>
+  </Function>
+  <Function ID="174" Type="Chaser" Name="Pre-Sleep Eye Ice Drift">
+   <Speed FadeIn="2500" FadeOut="2500" Duration="2500"/>
    <Direction>Forward</Direction>
    <RunOrder>Loop</RunOrder>
-   <SpeedModes FadeIn="Default" FadeOut="Default" Duration="Common"/>
-   <Step Number="0" FadeIn="0" Hold="0" FadeOut="0">164</Step>
-   <Step Number="1" FadeIn="0" Hold="0" FadeOut="0">165</Step>
+   <SpeedModes FadeIn="Common" FadeOut="Common" Duration="Common"/>
+   <Step Number="0" FadeIn="0" Hold="0" FadeOut="0">168</Step>
+   <Step Number="1" FadeIn="0" Hold="0" FadeOut="0">169</Step>
+   <Step Number="2" FadeIn="0" Hold="0" FadeOut="0">170</Step>
+   <Step Number="3" FadeIn="0" Hold="0" FadeOut="0">171</Step>
+   <Step Number="4" FadeIn="0" Hold="0" FadeOut="0">172</Step>
+   <Step Number="5" FadeIn="0" Hold="0" FadeOut="0">173</Step>
   </Function>
-  <Function ID="167" Type="Scene" Name="Pre-Sleep Strip Moonlight Bright">
+  <Function ID="175" Type="Scene" Name="Pre-Sleep Strip Ice Drift 1">
    <Speed FadeIn="0" FadeOut="0" Duration="0"/>
-   <FixtureVal ID="43">0,0,1,18,2,170</FixtureVal>
-   <FixtureVal ID="44">0,0,1,18,2,170</FixtureVal>
-   <FixtureVal ID="45">0,0,1,18,2,170</FixtureVal>
-   <FixtureVal ID="46">0,0,1,18,2,170</FixtureVal>
-   <FixtureVal ID="47">0,0,1,18,2,170</FixtureVal>
-   <FixtureVal ID="48">0,0,1,18,2,170</FixtureVal>
-   <FixtureVal ID="49">0,0,1,18,2,170</FixtureVal>
-   <FixtureVal ID="50">0,0,1,18,2,170</FixtureVal>
-   <FixtureVal ID="51">0,0,1,18,2,170</FixtureVal>
-   <FixtureVal ID="52">0,0,1,18,2,170</FixtureVal>
-   <FixtureVal ID="53">0,0,1,18,2,170</FixtureVal>
-   <FixtureVal ID="54">0,0,1,18,2,170</FixtureVal>
-   <FixtureVal ID="55">0,0,1,18,2,170</FixtureVal>
-   <FixtureVal ID="56">0,0,1,18,2,170</FixtureVal>
-   <FixtureVal ID="57">0,0,1,18,2,170</FixtureVal>
-   <FixtureVal ID="58">0,0,1,18,2,170</FixtureVal>
-   <FixtureVal ID="59">0,0,1,18,2,170</FixtureVal>
-   <FixtureVal ID="60">0,0,1,18,2,170</FixtureVal>
-   <FixtureVal ID="61">0,0,1,18,2,170</FixtureVal>
-   <FixtureVal ID="62">0,0,1,18,2,170</FixtureVal>
-   <FixtureVal ID="63">0,0,1,18,2,170</FixtureVal>
-   <FixtureVal ID="64">0,0,1,18,2,170</FixtureVal>
-   <FixtureVal ID="65">0,0,1,18,2,170</FixtureVal>
-   <FixtureVal ID="66">0,0,1,18,2,170</FixtureVal>
-   <FixtureVal ID="67">0,0,1,18,2,170</FixtureVal>
-   <FixtureVal ID="68">0,0,1,18,2,170</FixtureVal>
-   <FixtureVal ID="69">0,0,1,18,2,170</FixtureVal>
-   <FixtureVal ID="70">0,0,1,18,2,170</FixtureVal>
-   <FixtureVal ID="71">0,0,1,18,2,170</FixtureVal>
-   <FixtureVal ID="72">0,0,1,18,2,170</FixtureVal>
-   <FixtureVal ID="73">0,0,1,18,2,170</FixtureVal>
-   <FixtureVal ID="74">0,0,1,18,2,170</FixtureVal>
-   <FixtureVal ID="75">0,0,1,18,2,170</FixtureVal>
-   <FixtureVal ID="76">0,0,1,18,2,170</FixtureVal>
-   <FixtureVal ID="77">0,0,1,18,2,170</FixtureVal>
-   <FixtureVal ID="78">0,0,1,18,2,170</FixtureVal>
-   <FixtureVal ID="79">0,0,1,18,2,170</FixtureVal>
-   <FixtureVal ID="80">0,0,1,18,2,170</FixtureVal>
-   <FixtureVal ID="81">0,0,1,18,2,170</FixtureVal>
-   <FixtureVal ID="82">0,0,1,18,2,170</FixtureVal>
-   <FixtureVal ID="83">0,0,1,18,2,170</FixtureVal>
-   <FixtureVal ID="84">0,0,1,18,2,170</FixtureVal>
-   <FixtureVal ID="85">0,0,1,18,2,170</FixtureVal>
-   <FixtureVal ID="86">0,0,1,18,2,170</FixtureVal>
-   <FixtureVal ID="87">0,0,1,18,2,170</FixtureVal>
-   <FixtureVal ID="88">0,0,1,18,2,170</FixtureVal>
-   <FixtureVal ID="89">0,0,1,18,2,170</FixtureVal>
-   <FixtureVal ID="90">0,0,1,18,2,170</FixtureVal>
-   <FixtureVal ID="91">0,0,1,18,2,170</FixtureVal>
-   <FixtureVal ID="92">0,0,1,18,2,170</FixtureVal>
-   <FixtureVal ID="93">0,0,1,18,2,170</FixtureVal>
-   <FixtureVal ID="94">0,0,1,18,2,170</FixtureVal>
-   <FixtureVal ID="95">0,0,1,18,2,170</FixtureVal>
-   <FixtureVal ID="96">0,0,1,18,2,170</FixtureVal>
-   <FixtureVal ID="97">0,0,1,18,2,170</FixtureVal>
-   <FixtureVal ID="98">0,0,1,18,2,170</FixtureVal>
-   <FixtureVal ID="99">0,0,1,18,2,170</FixtureVal>
-   <FixtureVal ID="100">0,0,1,18,2,170</FixtureVal>
-   <FixtureVal ID="101">0,0,1,18,2,170</FixtureVal>
-   <FixtureVal ID="102">0,0,1,18,2,170</FixtureVal>
-   <FixtureVal ID="103">0,0,1,18,2,170</FixtureVal>
-   <FixtureVal ID="104">0,0,1,18,2,170</FixtureVal>
-   <FixtureVal ID="105">0,0,1,18,2,170</FixtureVal>
-   <FixtureVal ID="106">0,0,1,18,2,170</FixtureVal>
-   <FixtureVal ID="107">0,0,1,18,2,170</FixtureVal>
-   <FixtureVal ID="108">0,0,1,18,2,170</FixtureVal>
-   <FixtureVal ID="109">0,0,1,18,2,170</FixtureVal>
-   <FixtureVal ID="110">0,0,1,18,2,170</FixtureVal>
-   <FixtureVal ID="111">0,0,1,18,2,170</FixtureVal>
-   <FixtureVal ID="112">0,0,1,18,2,170</FixtureVal>
+   <FixtureVal ID="43">0,0,1,155,2,255</FixtureVal>
+   <FixtureVal ID="44">0,0,1,160,2,255</FixtureVal>
+   <FixtureVal ID="45">0,0,1,165,2,255</FixtureVal>
+   <FixtureVal ID="46">0,0,1,171,2,255</FixtureVal>
+   <FixtureVal ID="47">0,0,1,176,2,255</FixtureVal>
+   <FixtureVal ID="48">0,0,1,181,2,255</FixtureVal>
+   <FixtureVal ID="49">0,0,1,186,2,255</FixtureVal>
+   <FixtureVal ID="50">0,0,1,191,2,255</FixtureVal>
+   <FixtureVal ID="51">0,0,1,196,2,255</FixtureVal>
+   <FixtureVal ID="52">0,0,1,201,2,255</FixtureVal>
+   <FixtureVal ID="53">0,0,1,207,2,255</FixtureVal>
+   <FixtureVal ID="54">0,3,1,210,2,255</FixtureVal>
+   <FixtureVal ID="55">0,10,1,211,2,255</FixtureVal>
+   <FixtureVal ID="56">0,18,1,212,2,255</FixtureVal>
+   <FixtureVal ID="57">0,26,1,213,2,255</FixtureVal>
+   <FixtureVal ID="58">0,33,1,214,2,255</FixtureVal>
+   <FixtureVal ID="59">0,41,1,215,2,255</FixtureVal>
+   <FixtureVal ID="60">0,49,1,215,2,255</FixtureVal>
+   <FixtureVal ID="61">0,57,1,216,2,255</FixtureVal>
+   <FixtureVal ID="62">0,64,1,217,2,255</FixtureVal>
+   <FixtureVal ID="63">0,72,1,218,2,255</FixtureVal>
+   <FixtureVal ID="64">0,80,1,219,2,255</FixtureVal>
+   <FixtureVal ID="65">0,87,1,220,2,255</FixtureVal>
+   <FixtureVal ID="66">0,95,1,221,2,255</FixtureVal>
+   <FixtureVal ID="67">0,101,1,222,2,255</FixtureVal>
+   <FixtureVal ID="68">0,108,1,223,2,255</FixtureVal>
+   <FixtureVal ID="69">0,115,1,225,2,255</FixtureVal>
+   <FixtureVal ID="70">0,122,1,226,2,255</FixtureVal>
+   <FixtureVal ID="71">0,129,1,227,2,255</FixtureVal>
+   <FixtureVal ID="72">0,136,1,229,2,255</FixtureVal>
+   <FixtureVal ID="73">0,143,1,230,2,255</FixtureVal>
+   <FixtureVal ID="74">0,149,1,231,2,255</FixtureVal>
+   <FixtureVal ID="75">0,156,1,232,2,255</FixtureVal>
+   <FixtureVal ID="76">0,163,1,234,2,255</FixtureVal>
+   <FixtureVal ID="77">0,170,1,235,2,255</FixtureVal>
+   <FixtureVal ID="78">0,163,1,234,2,255</FixtureVal>
+   <FixtureVal ID="79">0,156,1,232,2,255</FixtureVal>
+   <FixtureVal ID="80">0,149,1,231,2,255</FixtureVal>
+   <FixtureVal ID="81">0,143,1,230,2,255</FixtureVal>
+   <FixtureVal ID="82">0,136,1,229,2,255</FixtureVal>
+   <FixtureVal ID="83">0,129,1,227,2,255</FixtureVal>
+   <FixtureVal ID="84">0,122,1,226,2,255</FixtureVal>
+   <FixtureVal ID="85">0,115,1,225,2,255</FixtureVal>
+   <FixtureVal ID="86">0,108,1,223,2,255</FixtureVal>
+   <FixtureVal ID="87">0,101,1,222,2,255</FixtureVal>
+   <FixtureVal ID="88">0,95,1,221,2,255</FixtureVal>
+   <FixtureVal ID="89">0,87,1,220,2,255</FixtureVal>
+   <FixtureVal ID="90">0,80,1,219,2,255</FixtureVal>
+   <FixtureVal ID="91">0,72,1,218,2,255</FixtureVal>
+   <FixtureVal ID="92">0,64,1,217,2,255</FixtureVal>
+   <FixtureVal ID="93">0,57,1,216,2,255</FixtureVal>
+   <FixtureVal ID="94">0,49,1,215,2,255</FixtureVal>
+   <FixtureVal ID="95">0,41,1,215,2,255</FixtureVal>
+   <FixtureVal ID="96">0,33,1,214,2,255</FixtureVal>
+   <FixtureVal ID="97">0,26,1,213,2,255</FixtureVal>
+   <FixtureVal ID="98">0,18,1,212,2,255</FixtureVal>
+   <FixtureVal ID="99">0,10,1,211,2,255</FixtureVal>
+   <FixtureVal ID="100">0,3,1,210,2,255</FixtureVal>
+   <FixtureVal ID="101">0,0,1,207,2,255</FixtureVal>
+   <FixtureVal ID="102">0,0,1,201,2,255</FixtureVal>
+   <FixtureVal ID="103">0,0,1,196,2,255</FixtureVal>
+   <FixtureVal ID="104">0,0,1,191,2,255</FixtureVal>
+   <FixtureVal ID="105">0,0,1,186,2,255</FixtureVal>
+   <FixtureVal ID="106">0,0,1,181,2,255</FixtureVal>
+   <FixtureVal ID="107">0,0,1,176,2,255</FixtureVal>
+   <FixtureVal ID="108">0,0,1,171,2,255</FixtureVal>
+   <FixtureVal ID="109">0,0,1,165,2,255</FixtureVal>
+   <FixtureVal ID="110">0,0,1,160,2,255</FixtureVal>
+   <FixtureVal ID="111">0,0,1,155,2,255</FixtureVal>
+   <FixtureVal ID="112">0,0,1,150,2,255</FixtureVal>
   </Function>
-  <Function ID="168" Type="Scene" Name="Pre-Sleep Strip Moonlight Dim">
+  <Function ID="176" Type="Scene" Name="Pre-Sleep Strip Ice Drift 2">
    <Speed FadeIn="0" FadeOut="0" Duration="0"/>
-   <FixtureVal ID="43">0,0,1,8,2,90</FixtureVal>
-   <FixtureVal ID="44">0,0,1,8,2,90</FixtureVal>
-   <FixtureVal ID="45">0,0,1,8,2,90</FixtureVal>
-   <FixtureVal ID="46">0,0,1,8,2,90</FixtureVal>
-   <FixtureVal ID="47">0,0,1,8,2,90</FixtureVal>
-   <FixtureVal ID="48">0,0,1,8,2,90</FixtureVal>
-   <FixtureVal ID="49">0,0,1,8,2,90</FixtureVal>
-   <FixtureVal ID="50">0,0,1,8,2,90</FixtureVal>
-   <FixtureVal ID="51">0,0,1,8,2,90</FixtureVal>
-   <FixtureVal ID="52">0,0,1,8,2,90</FixtureVal>
-   <FixtureVal ID="53">0,0,1,8,2,90</FixtureVal>
-   <FixtureVal ID="54">0,0,1,8,2,90</FixtureVal>
-   <FixtureVal ID="55">0,0,1,8,2,90</FixtureVal>
-   <FixtureVal ID="56">0,0,1,8,2,90</FixtureVal>
-   <FixtureVal ID="57">0,0,1,8,2,90</FixtureVal>
-   <FixtureVal ID="58">0,0,1,8,2,90</FixtureVal>
-   <FixtureVal ID="59">0,0,1,8,2,90</FixtureVal>
-   <FixtureVal ID="60">0,0,1,8,2,90</FixtureVal>
-   <FixtureVal ID="61">0,0,1,8,2,90</FixtureVal>
-   <FixtureVal ID="62">0,0,1,8,2,90</FixtureVal>
-   <FixtureVal ID="63">0,0,1,8,2,90</FixtureVal>
-   <FixtureVal ID="64">0,0,1,8,2,90</FixtureVal>
-   <FixtureVal ID="65">0,0,1,8,2,90</FixtureVal>
-   <FixtureVal ID="66">0,0,1,8,2,90</FixtureVal>
-   <FixtureVal ID="67">0,0,1,8,2,90</FixtureVal>
-   <FixtureVal ID="68">0,0,1,8,2,90</FixtureVal>
-   <FixtureVal ID="69">0,0,1,8,2,90</FixtureVal>
-   <FixtureVal ID="70">0,0,1,8,2,90</FixtureVal>
-   <FixtureVal ID="71">0,0,1,8,2,90</FixtureVal>
-   <FixtureVal ID="72">0,0,1,8,2,90</FixtureVal>
-   <FixtureVal ID="73">0,0,1,8,2,90</FixtureVal>
-   <FixtureVal ID="74">0,0,1,8,2,90</FixtureVal>
-   <FixtureVal ID="75">0,0,1,8,2,90</FixtureVal>
-   <FixtureVal ID="76">0,0,1,8,2,90</FixtureVal>
-   <FixtureVal ID="77">0,0,1,8,2,90</FixtureVal>
-   <FixtureVal ID="78">0,0,1,8,2,90</FixtureVal>
-   <FixtureVal ID="79">0,0,1,8,2,90</FixtureVal>
-   <FixtureVal ID="80">0,0,1,8,2,90</FixtureVal>
-   <FixtureVal ID="81">0,0,1,8,2,90</FixtureVal>
-   <FixtureVal ID="82">0,0,1,8,2,90</FixtureVal>
-   <FixtureVal ID="83">0,0,1,8,2,90</FixtureVal>
-   <FixtureVal ID="84">0,0,1,8,2,90</FixtureVal>
-   <FixtureVal ID="85">0,0,1,8,2,90</FixtureVal>
-   <FixtureVal ID="86">0,0,1,8,2,90</FixtureVal>
-   <FixtureVal ID="87">0,0,1,8,2,90</FixtureVal>
-   <FixtureVal ID="88">0,0,1,8,2,90</FixtureVal>
-   <FixtureVal ID="89">0,0,1,8,2,90</FixtureVal>
-   <FixtureVal ID="90">0,0,1,8,2,90</FixtureVal>
-   <FixtureVal ID="91">0,0,1,8,2,90</FixtureVal>
-   <FixtureVal ID="92">0,0,1,8,2,90</FixtureVal>
-   <FixtureVal ID="93">0,0,1,8,2,90</FixtureVal>
-   <FixtureVal ID="94">0,0,1,8,2,90</FixtureVal>
-   <FixtureVal ID="95">0,0,1,8,2,90</FixtureVal>
-   <FixtureVal ID="96">0,0,1,8,2,90</FixtureVal>
-   <FixtureVal ID="97">0,0,1,8,2,90</FixtureVal>
-   <FixtureVal ID="98">0,0,1,8,2,90</FixtureVal>
-   <FixtureVal ID="99">0,0,1,8,2,90</FixtureVal>
-   <FixtureVal ID="100">0,0,1,8,2,90</FixtureVal>
-   <FixtureVal ID="101">0,0,1,8,2,90</FixtureVal>
-   <FixtureVal ID="102">0,0,1,8,2,90</FixtureVal>
-   <FixtureVal ID="103">0,0,1,8,2,90</FixtureVal>
-   <FixtureVal ID="104">0,0,1,8,2,90</FixtureVal>
-   <FixtureVal ID="105">0,0,1,8,2,90</FixtureVal>
-   <FixtureVal ID="106">0,0,1,8,2,90</FixtureVal>
-   <FixtureVal ID="107">0,0,1,8,2,90</FixtureVal>
-   <FixtureVal ID="108">0,0,1,8,2,90</FixtureVal>
-   <FixtureVal ID="109">0,0,1,8,2,90</FixtureVal>
-   <FixtureVal ID="110">0,0,1,8,2,90</FixtureVal>
-   <FixtureVal ID="111">0,0,1,8,2,90</FixtureVal>
-   <FixtureVal ID="112">0,0,1,8,2,90</FixtureVal>
+   <FixtureVal ID="43">0,0,1,205,2,255</FixtureVal>
+   <FixtureVal ID="44">0,0,1,200,2,255</FixtureVal>
+   <FixtureVal ID="45">0,0,1,195,2,255</FixtureVal>
+   <FixtureVal ID="46">0,0,1,189,2,255</FixtureVal>
+   <FixtureVal ID="47">0,0,1,184,2,255</FixtureVal>
+   <FixtureVal ID="48">0,0,1,179,2,255</FixtureVal>
+   <FixtureVal ID="49">0,0,1,174,2,255</FixtureVal>
+   <FixtureVal ID="50">0,0,1,169,2,255</FixtureVal>
+   <FixtureVal ID="51">0,0,1,164,2,255</FixtureVal>
+   <FixtureVal ID="52">0,0,1,159,2,255</FixtureVal>
+   <FixtureVal ID="53">0,0,1,153,2,255</FixtureVal>
+   <FixtureVal ID="54">0,0,1,152,2,255</FixtureVal>
+   <FixtureVal ID="55">0,0,1,157,2,255</FixtureVal>
+   <FixtureVal ID="56">0,0,1,162,2,255</FixtureVal>
+   <FixtureVal ID="57">0,0,1,167,2,255</FixtureVal>
+   <FixtureVal ID="58">0,0,1,172,2,255</FixtureVal>
+   <FixtureVal ID="59">0,0,1,177,2,255</FixtureVal>
+   <FixtureVal ID="60">0,0,1,183,2,255</FixtureVal>
+   <FixtureVal ID="61">0,0,1,188,2,255</FixtureVal>
+   <FixtureVal ID="62">0,0,1,193,2,255</FixtureVal>
+   <FixtureVal ID="63">0,0,1,198,2,255</FixtureVal>
+   <FixtureVal ID="64">0,0,1,203,2,255</FixtureVal>
+   <FixtureVal ID="65">0,0,1,208,2,255</FixtureVal>
+   <FixtureVal ID="66">0,5,1,211,2,255</FixtureVal>
+   <FixtureVal ID="67">0,13,1,211,2,255</FixtureVal>
+   <FixtureVal ID="68">0,21,1,212,2,255</FixtureVal>
+   <FixtureVal ID="69">0,28,1,213,2,255</FixtureVal>
+   <FixtureVal ID="70">0,36,1,214,2,255</FixtureVal>
+   <FixtureVal ID="71">0,44,1,215,2,255</FixtureVal>
+   <FixtureVal ID="72">0,51,1,216,2,255</FixtureVal>
+   <FixtureVal ID="73">0,59,1,217,2,255</FixtureVal>
+   <FixtureVal ID="74">0,67,1,217,2,255</FixtureVal>
+   <FixtureVal ID="75">0,75,1,218,2,255</FixtureVal>
+   <FixtureVal ID="76">0,82,1,219,2,255</FixtureVal>
+   <FixtureVal ID="77">0,90,1,220,2,255</FixtureVal>
+   <FixtureVal ID="78">0,97,1,221,2,255</FixtureVal>
+   <FixtureVal ID="79">0,104,1,223,2,255</FixtureVal>
+   <FixtureVal ID="80">0,111,1,224,2,255</FixtureVal>
+   <FixtureVal ID="81">0,117,1,225,2,255</FixtureVal>
+   <FixtureVal ID="82">0,124,1,226,2,255</FixtureVal>
+   <FixtureVal ID="83">0,131,1,228,2,255</FixtureVal>
+   <FixtureVal ID="84">0,138,1,229,2,255</FixtureVal>
+   <FixtureVal ID="85">0,145,1,230,2,255</FixtureVal>
+   <FixtureVal ID="86">0,152,1,232,2,255</FixtureVal>
+   <FixtureVal ID="87">0,159,1,233,2,255</FixtureVal>
+   <FixtureVal ID="88">0,165,1,234,2,255</FixtureVal>
+   <FixtureVal ID="89">0,168,1,235,2,255</FixtureVal>
+   <FixtureVal ID="90">0,161,1,233,2,255</FixtureVal>
+   <FixtureVal ID="91">0,154,1,232,2,255</FixtureVal>
+   <FixtureVal ID="92">0,147,1,231,2,255</FixtureVal>
+   <FixtureVal ID="93">0,140,1,229,2,255</FixtureVal>
+   <FixtureVal ID="94">0,133,1,228,2,255</FixtureVal>
+   <FixtureVal ID="95">0,127,1,227,2,255</FixtureVal>
+   <FixtureVal ID="96">0,120,1,226,2,255</FixtureVal>
+   <FixtureVal ID="97">0,113,1,224,2,255</FixtureVal>
+   <FixtureVal ID="98">0,106,1,223,2,255</FixtureVal>
+   <FixtureVal ID="99">0,99,1,222,2,255</FixtureVal>
+   <FixtureVal ID="100">0,92,1,220,2,255</FixtureVal>
+   <FixtureVal ID="101">0,85,1,219,2,255</FixtureVal>
+   <FixtureVal ID="102">0,77,1,219,2,255</FixtureVal>
+   <FixtureVal ID="103">0,69,1,218,2,255</FixtureVal>
+   <FixtureVal ID="104">0,62,1,217,2,255</FixtureVal>
+   <FixtureVal ID="105">0,54,1,216,2,255</FixtureVal>
+   <FixtureVal ID="106">0,46,1,215,2,255</FixtureVal>
+   <FixtureVal ID="107">0,39,1,214,2,255</FixtureVal>
+   <FixtureVal ID="108">0,31,1,213,2,255</FixtureVal>
+   <FixtureVal ID="109">0,23,1,213,2,255</FixtureVal>
+   <FixtureVal ID="110">0,15,1,212,2,255</FixtureVal>
+   <FixtureVal ID="111">0,8,1,211,2,255</FixtureVal>
+   <FixtureVal ID="112">0,0,1,210,2,255</FixtureVal>
   </Function>
-  <Function ID="169" Type="Chaser" Name="Pre-Sleep Strip Moonlight Breath">
-   <Speed FadeIn="3500" FadeOut="3500" Duration="4000"/>
+  <Function ID="177" Type="Scene" Name="Pre-Sleep Strip Ice Drift 3">
+   <Speed FadeIn="0" FadeOut="0" Duration="0"/>
+   <FixtureVal ID="43">0,82,1,219,2,255</FixtureVal>
+   <FixtureVal ID="44">0,75,1,218,2,255</FixtureVal>
+   <FixtureVal ID="45">0,67,1,217,2,255</FixtureVal>
+   <FixtureVal ID="46">0,59,1,217,2,255</FixtureVal>
+   <FixtureVal ID="47">0,51,1,216,2,255</FixtureVal>
+   <FixtureVal ID="48">0,44,1,215,2,255</FixtureVal>
+   <FixtureVal ID="49">0,36,1,214,2,255</FixtureVal>
+   <FixtureVal ID="50">0,28,1,213,2,255</FixtureVal>
+   <FixtureVal ID="51">0,21,1,212,2,255</FixtureVal>
+   <FixtureVal ID="52">0,13,1,211,2,255</FixtureVal>
+   <FixtureVal ID="53">0,5,1,211,2,255</FixtureVal>
+   <FixtureVal ID="54">0,0,1,208,2,255</FixtureVal>
+   <FixtureVal ID="55">0,0,1,203,2,255</FixtureVal>
+   <FixtureVal ID="56">0,0,1,198,2,255</FixtureVal>
+   <FixtureVal ID="57">0,0,1,193,2,255</FixtureVal>
+   <FixtureVal ID="58">0,0,1,188,2,255</FixtureVal>
+   <FixtureVal ID="59">0,0,1,183,2,255</FixtureVal>
+   <FixtureVal ID="60">0,0,1,177,2,255</FixtureVal>
+   <FixtureVal ID="61">0,0,1,172,2,255</FixtureVal>
+   <FixtureVal ID="62">0,0,1,167,2,255</FixtureVal>
+   <FixtureVal ID="63">0,0,1,162,2,255</FixtureVal>
+   <FixtureVal ID="64">0,0,1,157,2,255</FixtureVal>
+   <FixtureVal ID="65">0,0,1,152,2,255</FixtureVal>
+   <FixtureVal ID="66">0,0,1,153,2,255</FixtureVal>
+   <FixtureVal ID="67">0,0,1,159,2,255</FixtureVal>
+   <FixtureVal ID="68">0,0,1,164,2,255</FixtureVal>
+   <FixtureVal ID="69">0,0,1,169,2,255</FixtureVal>
+   <FixtureVal ID="70">0,0,1,174,2,255</FixtureVal>
+   <FixtureVal ID="71">0,0,1,179,2,255</FixtureVal>
+   <FixtureVal ID="72">0,0,1,184,2,255</FixtureVal>
+   <FixtureVal ID="73">0,0,1,189,2,255</FixtureVal>
+   <FixtureVal ID="74">0,0,1,195,2,255</FixtureVal>
+   <FixtureVal ID="75">0,0,1,200,2,255</FixtureVal>
+   <FixtureVal ID="76">0,0,1,205,2,255</FixtureVal>
+   <FixtureVal ID="77">0,0,1,210,2,255</FixtureVal>
+   <FixtureVal ID="78">0,8,1,211,2,255</FixtureVal>
+   <FixtureVal ID="79">0,15,1,212,2,255</FixtureVal>
+   <FixtureVal ID="80">0,23,1,213,2,255</FixtureVal>
+   <FixtureVal ID="81">0,31,1,213,2,255</FixtureVal>
+   <FixtureVal ID="82">0,39,1,214,2,255</FixtureVal>
+   <FixtureVal ID="83">0,46,1,215,2,255</FixtureVal>
+   <FixtureVal ID="84">0,54,1,216,2,255</FixtureVal>
+   <FixtureVal ID="85">0,62,1,217,2,255</FixtureVal>
+   <FixtureVal ID="86">0,69,1,218,2,255</FixtureVal>
+   <FixtureVal ID="87">0,77,1,219,2,255</FixtureVal>
+   <FixtureVal ID="88">0,85,1,219,2,255</FixtureVal>
+   <FixtureVal ID="89">0,92,1,220,2,255</FixtureVal>
+   <FixtureVal ID="90">0,99,1,222,2,255</FixtureVal>
+   <FixtureVal ID="91">0,106,1,223,2,255</FixtureVal>
+   <FixtureVal ID="92">0,113,1,224,2,255</FixtureVal>
+   <FixtureVal ID="93">0,120,1,226,2,255</FixtureVal>
+   <FixtureVal ID="94">0,127,1,227,2,255</FixtureVal>
+   <FixtureVal ID="95">0,133,1,228,2,255</FixtureVal>
+   <FixtureVal ID="96">0,140,1,229,2,255</FixtureVal>
+   <FixtureVal ID="97">0,147,1,231,2,255</FixtureVal>
+   <FixtureVal ID="98">0,154,1,232,2,255</FixtureVal>
+   <FixtureVal ID="99">0,161,1,233,2,255</FixtureVal>
+   <FixtureVal ID="100">0,168,1,235,2,255</FixtureVal>
+   <FixtureVal ID="101">0,165,1,234,2,255</FixtureVal>
+   <FixtureVal ID="102">0,159,1,233,2,255</FixtureVal>
+   <FixtureVal ID="103">0,152,1,232,2,255</FixtureVal>
+   <FixtureVal ID="104">0,145,1,230,2,255</FixtureVal>
+   <FixtureVal ID="105">0,138,1,229,2,255</FixtureVal>
+   <FixtureVal ID="106">0,131,1,228,2,255</FixtureVal>
+   <FixtureVal ID="107">0,124,1,226,2,255</FixtureVal>
+   <FixtureVal ID="108">0,117,1,225,2,255</FixtureVal>
+   <FixtureVal ID="109">0,111,1,224,2,255</FixtureVal>
+   <FixtureVal ID="110">0,104,1,223,2,255</FixtureVal>
+   <FixtureVal ID="111">0,97,1,221,2,255</FixtureVal>
+   <FixtureVal ID="112">0,90,1,220,2,255</FixtureVal>
+  </Function>
+  <Function ID="178" Type="Scene" Name="Pre-Sleep Strip Ice Drift 4">
+   <Speed FadeIn="0" FadeOut="0" Duration="0"/>
+   <FixtureVal ID="43">0,163,1,234,2,255</FixtureVal>
+   <FixtureVal ID="44">0,156,1,232,2,255</FixtureVal>
+   <FixtureVal ID="45">0,149,1,231,2,255</FixtureVal>
+   <FixtureVal ID="46">0,143,1,230,2,255</FixtureVal>
+   <FixtureVal ID="47">0,136,1,229,2,255</FixtureVal>
+   <FixtureVal ID="48">0,129,1,227,2,255</FixtureVal>
+   <FixtureVal ID="49">0,122,1,226,2,255</FixtureVal>
+   <FixtureVal ID="50">0,115,1,225,2,255</FixtureVal>
+   <FixtureVal ID="51">0,108,1,223,2,255</FixtureVal>
+   <FixtureVal ID="52">0,101,1,222,2,255</FixtureVal>
+   <FixtureVal ID="53">0,95,1,221,2,255</FixtureVal>
+   <FixtureVal ID="54">0,87,1,220,2,255</FixtureVal>
+   <FixtureVal ID="55">0,80,1,219,2,255</FixtureVal>
+   <FixtureVal ID="56">0,72,1,218,2,255</FixtureVal>
+   <FixtureVal ID="57">0,64,1,217,2,255</FixtureVal>
+   <FixtureVal ID="58">0,57,1,216,2,255</FixtureVal>
+   <FixtureVal ID="59">0,49,1,215,2,255</FixtureVal>
+   <FixtureVal ID="60">0,41,1,215,2,255</FixtureVal>
+   <FixtureVal ID="61">0,33,1,214,2,255</FixtureVal>
+   <FixtureVal ID="62">0,26,1,213,2,255</FixtureVal>
+   <FixtureVal ID="63">0,18,1,212,2,255</FixtureVal>
+   <FixtureVal ID="64">0,10,1,211,2,255</FixtureVal>
+   <FixtureVal ID="65">0,3,1,210,2,255</FixtureVal>
+   <FixtureVal ID="66">0,0,1,207,2,255</FixtureVal>
+   <FixtureVal ID="67">0,0,1,201,2,255</FixtureVal>
+   <FixtureVal ID="68">0,0,1,196,2,255</FixtureVal>
+   <FixtureVal ID="69">0,0,1,191,2,255</FixtureVal>
+   <FixtureVal ID="70">0,0,1,186,2,255</FixtureVal>
+   <FixtureVal ID="71">0,0,1,181,2,255</FixtureVal>
+   <FixtureVal ID="72">0,0,1,176,2,255</FixtureVal>
+   <FixtureVal ID="73">0,0,1,171,2,255</FixtureVal>
+   <FixtureVal ID="74">0,0,1,165,2,255</FixtureVal>
+   <FixtureVal ID="75">0,0,1,160,2,255</FixtureVal>
+   <FixtureVal ID="76">0,0,1,155,2,255</FixtureVal>
+   <FixtureVal ID="77">0,0,1,150,2,255</FixtureVal>
+   <FixtureVal ID="78">0,0,1,155,2,255</FixtureVal>
+   <FixtureVal ID="79">0,0,1,160,2,255</FixtureVal>
+   <FixtureVal ID="80">0,0,1,165,2,255</FixtureVal>
+   <FixtureVal ID="81">0,0,1,171,2,255</FixtureVal>
+   <FixtureVal ID="82">0,0,1,176,2,255</FixtureVal>
+   <FixtureVal ID="83">0,0,1,181,2,255</FixtureVal>
+   <FixtureVal ID="84">0,0,1,186,2,255</FixtureVal>
+   <FixtureVal ID="85">0,0,1,191,2,255</FixtureVal>
+   <FixtureVal ID="86">0,0,1,196,2,255</FixtureVal>
+   <FixtureVal ID="87">0,0,1,201,2,255</FixtureVal>
+   <FixtureVal ID="88">0,0,1,207,2,255</FixtureVal>
+   <FixtureVal ID="89">0,3,1,210,2,255</FixtureVal>
+   <FixtureVal ID="90">0,10,1,211,2,255</FixtureVal>
+   <FixtureVal ID="91">0,18,1,212,2,255</FixtureVal>
+   <FixtureVal ID="92">0,26,1,213,2,255</FixtureVal>
+   <FixtureVal ID="93">0,33,1,214,2,255</FixtureVal>
+   <FixtureVal ID="94">0,41,1,215,2,255</FixtureVal>
+   <FixtureVal ID="95">0,49,1,215,2,255</FixtureVal>
+   <FixtureVal ID="96">0,57,1,216,2,255</FixtureVal>
+   <FixtureVal ID="97">0,64,1,217,2,255</FixtureVal>
+   <FixtureVal ID="98">0,72,1,218,2,255</FixtureVal>
+   <FixtureVal ID="99">0,80,1,219,2,255</FixtureVal>
+   <FixtureVal ID="100">0,87,1,220,2,255</FixtureVal>
+   <FixtureVal ID="101">0,95,1,221,2,255</FixtureVal>
+   <FixtureVal ID="102">0,101,1,222,2,255</FixtureVal>
+   <FixtureVal ID="103">0,108,1,223,2,255</FixtureVal>
+   <FixtureVal ID="104">0,115,1,225,2,255</FixtureVal>
+   <FixtureVal ID="105">0,122,1,226,2,255</FixtureVal>
+   <FixtureVal ID="106">0,129,1,227,2,255</FixtureVal>
+   <FixtureVal ID="107">0,136,1,229,2,255</FixtureVal>
+   <FixtureVal ID="108">0,143,1,230,2,255</FixtureVal>
+   <FixtureVal ID="109">0,149,1,231,2,255</FixtureVal>
+   <FixtureVal ID="110">0,156,1,232,2,255</FixtureVal>
+   <FixtureVal ID="111">0,163,1,234,2,255</FixtureVal>
+   <FixtureVal ID="112">0,170,1,235,2,255</FixtureVal>
+  </Function>
+  <Function ID="179" Type="Scene" Name="Pre-Sleep Strip Ice Drift 5">
+   <Speed FadeIn="0" FadeOut="0" Duration="0"/>
+   <FixtureVal ID="43">0,97,1,221,2,255</FixtureVal>
+   <FixtureVal ID="44">0,104,1,223,2,255</FixtureVal>
+   <FixtureVal ID="45">0,111,1,224,2,255</FixtureVal>
+   <FixtureVal ID="46">0,117,1,225,2,255</FixtureVal>
+   <FixtureVal ID="47">0,124,1,226,2,255</FixtureVal>
+   <FixtureVal ID="48">0,131,1,228,2,255</FixtureVal>
+   <FixtureVal ID="49">0,138,1,229,2,255</FixtureVal>
+   <FixtureVal ID="50">0,145,1,230,2,255</FixtureVal>
+   <FixtureVal ID="51">0,152,1,232,2,255</FixtureVal>
+   <FixtureVal ID="52">0,159,1,233,2,255</FixtureVal>
+   <FixtureVal ID="53">0,165,1,234,2,255</FixtureVal>
+   <FixtureVal ID="54">0,168,1,235,2,255</FixtureVal>
+   <FixtureVal ID="55">0,161,1,233,2,255</FixtureVal>
+   <FixtureVal ID="56">0,154,1,232,2,255</FixtureVal>
+   <FixtureVal ID="57">0,147,1,231,2,255</FixtureVal>
+   <FixtureVal ID="58">0,140,1,229,2,255</FixtureVal>
+   <FixtureVal ID="59">0,133,1,228,2,255</FixtureVal>
+   <FixtureVal ID="60">0,127,1,227,2,255</FixtureVal>
+   <FixtureVal ID="61">0,120,1,226,2,255</FixtureVal>
+   <FixtureVal ID="62">0,113,1,224,2,255</FixtureVal>
+   <FixtureVal ID="63">0,106,1,223,2,255</FixtureVal>
+   <FixtureVal ID="64">0,99,1,222,2,255</FixtureVal>
+   <FixtureVal ID="65">0,92,1,220,2,255</FixtureVal>
+   <FixtureVal ID="66">0,85,1,219,2,255</FixtureVal>
+   <FixtureVal ID="67">0,77,1,219,2,255</FixtureVal>
+   <FixtureVal ID="68">0,69,1,218,2,255</FixtureVal>
+   <FixtureVal ID="69">0,62,1,217,2,255</FixtureVal>
+   <FixtureVal ID="70">0,54,1,216,2,255</FixtureVal>
+   <FixtureVal ID="71">0,46,1,215,2,255</FixtureVal>
+   <FixtureVal ID="72">0,39,1,214,2,255</FixtureVal>
+   <FixtureVal ID="73">0,31,1,213,2,255</FixtureVal>
+   <FixtureVal ID="74">0,23,1,213,2,255</FixtureVal>
+   <FixtureVal ID="75">0,15,1,212,2,255</FixtureVal>
+   <FixtureVal ID="76">0,8,1,211,2,255</FixtureVal>
+   <FixtureVal ID="77">0,0,1,210,2,255</FixtureVal>
+   <FixtureVal ID="78">0,0,1,205,2,255</FixtureVal>
+   <FixtureVal ID="79">0,0,1,200,2,255</FixtureVal>
+   <FixtureVal ID="80">0,0,1,195,2,255</FixtureVal>
+   <FixtureVal ID="81">0,0,1,189,2,255</FixtureVal>
+   <FixtureVal ID="82">0,0,1,184,2,255</FixtureVal>
+   <FixtureVal ID="83">0,0,1,179,2,255</FixtureVal>
+   <FixtureVal ID="84">0,0,1,174,2,255</FixtureVal>
+   <FixtureVal ID="85">0,0,1,169,2,255</FixtureVal>
+   <FixtureVal ID="86">0,0,1,164,2,255</FixtureVal>
+   <FixtureVal ID="87">0,0,1,159,2,255</FixtureVal>
+   <FixtureVal ID="88">0,0,1,153,2,255</FixtureVal>
+   <FixtureVal ID="89">0,0,1,152,2,255</FixtureVal>
+   <FixtureVal ID="90">0,0,1,157,2,255</FixtureVal>
+   <FixtureVal ID="91">0,0,1,162,2,255</FixtureVal>
+   <FixtureVal ID="92">0,0,1,167,2,255</FixtureVal>
+   <FixtureVal ID="93">0,0,1,172,2,255</FixtureVal>
+   <FixtureVal ID="94">0,0,1,177,2,255</FixtureVal>
+   <FixtureVal ID="95">0,0,1,183,2,255</FixtureVal>
+   <FixtureVal ID="96">0,0,1,188,2,255</FixtureVal>
+   <FixtureVal ID="97">0,0,1,193,2,255</FixtureVal>
+   <FixtureVal ID="98">0,0,1,198,2,255</FixtureVal>
+   <FixtureVal ID="99">0,0,1,203,2,255</FixtureVal>
+   <FixtureVal ID="100">0,0,1,208,2,255</FixtureVal>
+   <FixtureVal ID="101">0,5,1,211,2,255</FixtureVal>
+   <FixtureVal ID="102">0,13,1,211,2,255</FixtureVal>
+   <FixtureVal ID="103">0,21,1,212,2,255</FixtureVal>
+   <FixtureVal ID="104">0,28,1,213,2,255</FixtureVal>
+   <FixtureVal ID="105">0,36,1,214,2,255</FixtureVal>
+   <FixtureVal ID="106">0,44,1,215,2,255</FixtureVal>
+   <FixtureVal ID="107">0,51,1,216,2,255</FixtureVal>
+   <FixtureVal ID="108">0,59,1,217,2,255</FixtureVal>
+   <FixtureVal ID="109">0,67,1,217,2,255</FixtureVal>
+   <FixtureVal ID="110">0,75,1,218,2,255</FixtureVal>
+   <FixtureVal ID="111">0,82,1,219,2,255</FixtureVal>
+   <FixtureVal ID="112">0,90,1,220,2,255</FixtureVal>
+  </Function>
+  <Function ID="180" Type="Scene" Name="Pre-Sleep Strip Ice Drift 6">
+   <Speed FadeIn="0" FadeOut="0" Duration="0"/>
+   <FixtureVal ID="43">0,8,1,211,2,255</FixtureVal>
+   <FixtureVal ID="44">0,15,1,212,2,255</FixtureVal>
+   <FixtureVal ID="45">0,23,1,213,2,255</FixtureVal>
+   <FixtureVal ID="46">0,31,1,213,2,255</FixtureVal>
+   <FixtureVal ID="47">0,39,1,214,2,255</FixtureVal>
+   <FixtureVal ID="48">0,46,1,215,2,255</FixtureVal>
+   <FixtureVal ID="49">0,54,1,216,2,255</FixtureVal>
+   <FixtureVal ID="50">0,62,1,217,2,255</FixtureVal>
+   <FixtureVal ID="51">0,69,1,218,2,255</FixtureVal>
+   <FixtureVal ID="52">0,77,1,219,2,255</FixtureVal>
+   <FixtureVal ID="53">0,85,1,219,2,255</FixtureVal>
+   <FixtureVal ID="54">0,92,1,220,2,255</FixtureVal>
+   <FixtureVal ID="55">0,99,1,222,2,255</FixtureVal>
+   <FixtureVal ID="56">0,106,1,223,2,255</FixtureVal>
+   <FixtureVal ID="57">0,113,1,224,2,255</FixtureVal>
+   <FixtureVal ID="58">0,120,1,226,2,255</FixtureVal>
+   <FixtureVal ID="59">0,127,1,227,2,255</FixtureVal>
+   <FixtureVal ID="60">0,133,1,228,2,255</FixtureVal>
+   <FixtureVal ID="61">0,140,1,229,2,255</FixtureVal>
+   <FixtureVal ID="62">0,147,1,231,2,255</FixtureVal>
+   <FixtureVal ID="63">0,154,1,232,2,255</FixtureVal>
+   <FixtureVal ID="64">0,161,1,233,2,255</FixtureVal>
+   <FixtureVal ID="65">0,168,1,235,2,255</FixtureVal>
+   <FixtureVal ID="66">0,165,1,234,2,255</FixtureVal>
+   <FixtureVal ID="67">0,159,1,233,2,255</FixtureVal>
+   <FixtureVal ID="68">0,152,1,232,2,255</FixtureVal>
+   <FixtureVal ID="69">0,145,1,230,2,255</FixtureVal>
+   <FixtureVal ID="70">0,138,1,229,2,255</FixtureVal>
+   <FixtureVal ID="71">0,131,1,228,2,255</FixtureVal>
+   <FixtureVal ID="72">0,124,1,226,2,255</FixtureVal>
+   <FixtureVal ID="73">0,117,1,225,2,255</FixtureVal>
+   <FixtureVal ID="74">0,111,1,224,2,255</FixtureVal>
+   <FixtureVal ID="75">0,104,1,223,2,255</FixtureVal>
+   <FixtureVal ID="76">0,97,1,221,2,255</FixtureVal>
+   <FixtureVal ID="77">0,90,1,220,2,255</FixtureVal>
+   <FixtureVal ID="78">0,82,1,219,2,255</FixtureVal>
+   <FixtureVal ID="79">0,75,1,218,2,255</FixtureVal>
+   <FixtureVal ID="80">0,67,1,217,2,255</FixtureVal>
+   <FixtureVal ID="81">0,59,1,217,2,255</FixtureVal>
+   <FixtureVal ID="82">0,51,1,216,2,255</FixtureVal>
+   <FixtureVal ID="83">0,44,1,215,2,255</FixtureVal>
+   <FixtureVal ID="84">0,36,1,214,2,255</FixtureVal>
+   <FixtureVal ID="85">0,28,1,213,2,255</FixtureVal>
+   <FixtureVal ID="86">0,21,1,212,2,255</FixtureVal>
+   <FixtureVal ID="87">0,13,1,211,2,255</FixtureVal>
+   <FixtureVal ID="88">0,5,1,211,2,255</FixtureVal>
+   <FixtureVal ID="89">0,0,1,208,2,255</FixtureVal>
+   <FixtureVal ID="90">0,0,1,203,2,255</FixtureVal>
+   <FixtureVal ID="91">0,0,1,198,2,255</FixtureVal>
+   <FixtureVal ID="92">0,0,1,193,2,255</FixtureVal>
+   <FixtureVal ID="93">0,0,1,188,2,255</FixtureVal>
+   <FixtureVal ID="94">0,0,1,183,2,255</FixtureVal>
+   <FixtureVal ID="95">0,0,1,177,2,255</FixtureVal>
+   <FixtureVal ID="96">0,0,1,172,2,255</FixtureVal>
+   <FixtureVal ID="97">0,0,1,167,2,255</FixtureVal>
+   <FixtureVal ID="98">0,0,1,162,2,255</FixtureVal>
+   <FixtureVal ID="99">0,0,1,157,2,255</FixtureVal>
+   <FixtureVal ID="100">0,0,1,152,2,255</FixtureVal>
+   <FixtureVal ID="101">0,0,1,153,2,255</FixtureVal>
+   <FixtureVal ID="102">0,0,1,159,2,255</FixtureVal>
+   <FixtureVal ID="103">0,0,1,164,2,255</FixtureVal>
+   <FixtureVal ID="104">0,0,1,169,2,255</FixtureVal>
+   <FixtureVal ID="105">0,0,1,174,2,255</FixtureVal>
+   <FixtureVal ID="106">0,0,1,179,2,255</FixtureVal>
+   <FixtureVal ID="107">0,0,1,184,2,255</FixtureVal>
+   <FixtureVal ID="108">0,0,1,189,2,255</FixtureVal>
+   <FixtureVal ID="109">0,0,1,195,2,255</FixtureVal>
+   <FixtureVal ID="110">0,0,1,200,2,255</FixtureVal>
+   <FixtureVal ID="111">0,0,1,205,2,255</FixtureVal>
+   <FixtureVal ID="112">0,0,1,210,2,255</FixtureVal>
+  </Function>
+  <Function ID="181" Type="Chaser" Name="Pre-Sleep Strip Ice Drift">
+   <Speed FadeIn="2500" FadeOut="2500" Duration="2500"/>
    <Direction>Forward</Direction>
    <RunOrder>Loop</RunOrder>
-   <SpeedModes FadeIn="Default" FadeOut="Default" Duration="Common"/>
-   <Step Number="0" FadeIn="0" Hold="0" FadeOut="0">167</Step>
-   <Step Number="1" FadeIn="0" Hold="0" FadeOut="0">168</Step>
+   <SpeedModes FadeIn="Common" FadeOut="Common" Duration="Common"/>
+   <Step Number="0" FadeIn="0" Hold="0" FadeOut="0">175</Step>
+   <Step Number="1" FadeIn="0" Hold="0" FadeOut="0">176</Step>
+   <Step Number="2" FadeIn="0" Hold="0" FadeOut="0">177</Step>
+   <Step Number="3" FadeIn="0" Hold="0" FadeOut="0">178</Step>
+   <Step Number="4" FadeIn="0" Hold="0" FadeOut="0">179</Step>
+   <Step Number="5" FadeIn="0" Hold="0" FadeOut="0">180</Step>
   </Function>
   <Monitor DisplayMode="0" ShowLabels="0">
    <Font>Arial,12,-1,5,400,0,0,0,0,0,0,0,0,0,0,1</Font>

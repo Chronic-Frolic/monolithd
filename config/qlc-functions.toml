@@ -208,29 +208,30 @@ composable = true
 # and `progress strip 0` (all strip white) when matching white points by eye. It can
 # run beside them: it owns only the eye zone.
 # Pre-sleep cue (2026-09-26): shown for the last minutes before an automatic suspend.
-# Prototype look ("moonlight blue" breath, ~8 s) authored at the owner's request;
-# re-author it as State — Pre-Sleep in the intake template.
+# Prototype look ("ice drift": full-brightness ice colors flowing along each zone,
+# about 15 s a loop) authored at the owner's request; re-author it as State — Pre-Sleep
+# in the intake template.
 [[functions]]
 name = "pre_sleep_ram"
 kind = "chaser"
-id = 163
-children = [161, 162]
+id = 167
+children = [161, 162, 163, 164, 165, 166]
 zones = ["ram"]
 composable = true
 
 [[functions]]
 name = "pre_sleep_eye"
 kind = "chaser"
-id = 166
-children = [164, 165]
+id = 174
+children = [168, 169, 170, 171, 172, 173]
 zones = ["rog_eye"]
 composable = true
 
 [[functions]]
 name = "pre_sleep_strip"
 kind = "chaser"
-id = 169
-children = [167, 168]
+id = 181
+children = [175, 176, 177, 178, 179, 180]
 zones = ["strip"]
 composable = true
 
