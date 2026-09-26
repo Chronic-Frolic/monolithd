@@ -17,12 +17,14 @@
 //! already-running controller's own loop for the length of the sleep transition.
 
 use crate::controller::zone_suffix;
-use crate::{controller, gateway};
+use crate::registry::Registry;
+use crate::{config, controller, gateway, paths, registry};
+use serde::Deserialize;
 use serde_json::{json, Value};
 use std::os::unix::fs::{DirBuilderExt, PermissionsExt};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::Stdio;
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::{Child, Command};
@@ -35,7 +37,71 @@ const RESUME_GRACE: Duration = Duration::from_secs(15);
 /// before it is relaunched, mirroring the old watchdog's respawn backoff.
 const RESPAWN_BACKOFF: Duration = Duration::from_secs(2);
 const HEALTH_CHECK_TIMEOUT: Duration = Duration::from_secs(3);
-const FAULT_ZONES: [&str; 3] = ["ram", "rog_eye", "strip"];
+
+// ---------------------------------------------------------------- config/watchdog.toml
+
+/// `watchdog.toml`: the zones the watchdog takes over, with `controller_fault_<zone>`
+/// while the controller is down and `quiet_<zone>` around sleep. Its own file, not a
+/// key in `controller.toml`, so a broken controller policy cannot also blind the one
+/// process that shows it is broken (owner decision 2026-09-26).
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct WatchdogConfig {
+    version: u32,
+    zones: Vec<String>,
+}
+
+pub fn parse_config(text: &str) -> Result<Vec<String>, String> {
+    let config: WatchdogConfig = toml::from_str(text).map_err(|error| error.to_string())?;
+    if config.version != 1 {
+        return Err(format!("version {} is unsupported (expected 1)", config.version));
+    }
+    Ok(config.zones)
+}
+
+/// Every disagreement with the registry: each zone must be real, listed once, and have
+/// both looks the watchdog selects.
+pub fn check_zones(zones: &[String], registry: &Registry) -> Vec<String> {
+    let mut problems = Vec::new();
+    controller::check_state_zones(&mut problems, "zones", zones, "controller_fault", registry);
+    controller::check_state_zones(&mut problems, "zones", zones, "quiet", registry);
+    problems.dedup();
+    problems
+}
+
+/// The zones in use, set once at start.
+static ZONES: OnceLock<Vec<String>> = OnceLock::new();
+
+/// The watchdog's zones and any problem finding them. Never fatal: the watchdog must run
+/// even when configuration is broken, since it is what shows that something is.
+fn load_zones(root: &Path) -> (Vec<String>, Option<String>) {
+    let path = root.join("watchdog.toml");
+    let configured = std::fs::read_to_string(&path).map_err(|error| error.to_string()).and_then(|text| parse_config(&text)).map_err(|error| format!("{}: {error}", path.display()));
+    let registry = config::load_layout(&root.join("scene-layout.toml")).and_then(|layout| registry::load_and_validate(&root.join("qlc-functions.toml"), &layout).map(|(registry, _)| registry));
+    let available = config::load_layout(&root.join("scene-layout.toml")).map(|layout| layout.zones.iter().filter(|(_, zone)| zone.available).map(|(name, _)| name.clone()).collect());
+    choose_zones(configured, registry, available)
+}
+
+/// If `watchdog.toml` is unreadable, or names a zone the registry cannot show, use every
+/// available zone in `scene-layout.toml`. If the registry itself cannot be loaded, use
+/// the file's zones unchecked.
+fn choose_zones(configured: Result<Vec<String>, String>, registry: Result<Registry, String>, available: Result<Vec<String>, String>) -> (Vec<String>, Option<String>) {
+    let fallback = |problem: String| match &available {
+        Ok(zones) => (zones.clone(), Some(format!("{problem}; using every available zone instead: {}", zones.join(", ")))),
+        Err(error) => (Vec::new(), Some(format!("{problem}; and no fallback ({error}), so no zone can show a Controller Fault"))),
+    };
+    let zones = match configured {
+        Ok(zones) => zones,
+        Err(problem) => return fallback(problem),
+    };
+    match registry {
+        Err(error) => (zones, Some(format!("zones not checked against the registry: {error}"))),
+        Ok(registry) => match check_zones(&zones, &registry).into_iter().next() {
+            None => (zones, None),
+            Some(problem) => fallback(format!("watchdog.toml: {problem}")),
+        },
+    }
+}
 
 fn runtime_directory() -> Result<PathBuf, String> {
     let runtime = std::env::var_os("XDG_RUNTIME_DIR").ok_or("XDG_RUNTIME_DIR is not set")?;
@@ -109,6 +175,8 @@ struct SharedState {
     suspended: bool,
     fault_active: bool,
     last_error: Option<String>,
+    /// A problem with `watchdog.toml`, reported until the watchdog restarts.
+    config_problem: Option<String>,
     /// Whether the block-mode sleep inhibitor is currently held because a job is
     /// active. Reflects the inhibitor's actual state, not just "is a job running",
     /// so a failure to acquire it is visible here rather than silently assumed ok.
@@ -117,7 +185,7 @@ struct SharedState {
 
 impl Default for SharedState {
     fn default() -> Self {
-        Self { suspended: false, fault_active: false, last_error: None, jobs_blocking_sleep: false }
+        Self { suspended: false, fault_active: false, last_error: None, config_problem: None, jobs_blocking_sleep: false }
     }
 }
 
@@ -142,6 +210,7 @@ fn write_heartbeat_to(path: &std::path::Path, state: &SharedState) {
         "suspended": state.suspended,
         "controller_fault_active": state.fault_active,
         "last_error": state.last_error,
+        "config_problem": state.config_problem,
         "jobs_blocking_sleep": state.jobs_blocking_sleep,
     });
     let temporary = directory.join(format!(".watchdog-status.{}.tmp", std::process::id()));
@@ -158,7 +227,8 @@ fn write_heartbeat_to(path: &std::path::Path, state: &SharedState) {
 /// instead of staggering one at a time, the same one-zone-at-a-time pattern found
 /// live 2026-09-22 and already fixed in the controller's own fault/warning/quiet layer.
 async fn preempt_all_zones(prefix: &str) -> Result<(), String> {
-    let functions: Vec<String> = FAULT_ZONES.iter().map(|zone| format!("{prefix}_{}", zone_suffix(zone))).collect();
+    let zones = ZONES.get().map(Vec::as_slice).unwrap_or_default();
+    let functions: Vec<String> = zones.iter().map(|zone| format!("{prefix}_{}", zone_suffix(zone))).collect();
     let request = json!({ "op": "preempt_set", "functions": functions });
     match gateway::call(&request).await {
         Ok(reply) if reply["ok"] == Value::Bool(true) => Ok(()),
@@ -471,7 +541,14 @@ async fn sleep_loop(state: Arc<Mutex<SharedState>>, delay: Arc<Mutex<Inhibitor>>
 }
 
 pub async fn run() -> Result<(), String> {
-    let state = Arc::new(Mutex::new(SharedState::default()));
+    eprintln!("monolithd watchdog: {}", paths::describe());
+    let (zones, problem) = load_zones(&paths::config_dir());
+    match &problem {
+        Some(problem) => eprintln!("monolithd watchdog: CONFIG PROBLEM: {problem}"),
+        None => eprintln!("monolithd watchdog: zones {}", zones.join(", ")),
+    }
+    let _ = ZONES.set(zones);
+    let state = Arc::new(Mutex::new(SharedState { config_problem: problem, ..SharedState::default() }));
     write_heartbeat(&*state.lock().await);
     eprintln!("monolithd watchdog: watching controller health (every {} s) and sleep/wake", HEALTH_INTERVAL.as_secs());
     let delay = Arc::new(Mutex::new(Inhibitor::new("delay", "Monolith-Event-Watchdog", "RGB suspend handoff")));
@@ -609,13 +686,13 @@ mod tests {
         let directory = std::env::temp_dir().join(format!("monolithd-watchdog-test-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&directory);
         let path = directory.join("watchdog-status.json");
-        let state = SharedState { suspended: true, fault_active: true, last_error: Some("boom".to_owned()), jobs_blocking_sleep: true };
+        let state = SharedState { suspended: true, fault_active: true, last_error: Some("boom".to_owned()), config_problem: Some("bad zone".to_owned()), jobs_blocking_sleep: true };
         write_heartbeat_to(&path, &state);
         assert_eq!(std::fs::metadata(&path).unwrap().permissions().mode() & 0o777, 0o600);
         let body: Value = serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
         assert_eq!(
-            (body["suspended"].clone(), body["controller_fault_active"].clone(), body["last_error"].clone(), body["jobs_blocking_sleep"].clone()),
-            (json!(true), json!(true), json!("boom"), json!(true))
+            (body["suspended"].clone(), body["controller_fault_active"].clone(), body["last_error"].clone(), body["config_problem"].clone(), body["jobs_blocking_sleep"].clone()),
+            (json!(true), json!(true), json!("boom"), json!("bad zone"), json!(true))
         );
         assert!(body["updated_at"].as_u64().unwrap() > 0);
         assert!(std::fs::read_dir(&directory).unwrap().filter_map(Result::ok).all(|entry| !entry.file_name().to_string_lossy().contains(".tmp")), "no leftover temp file");
@@ -624,5 +701,63 @@ mod tests {
         write_heartbeat_to(&path, &state);
         assert_eq!(std::fs::read_dir(&directory).unwrap().filter_map(Result::ok).count(), 1);
         let _ = std::fs::remove_dir_all(&directory);
+    }
+
+    fn shipped_registry() -> Registry {
+        let root = crate::paths::config_dir();
+        let layout = config::load_layout(&root.join("scene-layout.toml")).unwrap();
+        registry::load_and_validate(&root.join("qlc-functions.toml"), &layout).unwrap().0
+    }
+
+    #[test]
+    fn the_shipped_watchdog_config_names_todays_three_zones_and_they_check_out() {
+        let root = crate::paths::config_dir();
+        let zones = parse_config(&std::fs::read_to_string(root.join("watchdog.toml")).unwrap()).unwrap();
+        assert_eq!(zones, vec!["ram", "rog_eye", "strip"]);
+        assert_eq!(check_zones(&zones, &shipped_registry()), Vec::<String>::new());
+        assert_eq!(load_zones(&root), (zones, None));
+    }
+
+    #[test]
+    fn an_unknown_or_repeated_zone_is_rejected() {
+        let registry = shipped_registry();
+        let zones = |names: &[&str]| names.iter().map(|name| name.to_string()).collect::<Vec<_>>();
+        assert_eq!(check_zones(&zones(&["ram", "nowhere"]), &registry), vec!["zones: unknown zone nowhere".to_owned()]);
+        assert!(check_zones(&zones(&["ram", "ram"]), &registry).iter().any(|problem| problem.contains("listed twice")));
+        assert!(!check_zones(&[], &registry).is_empty(), "an empty list is a problem");
+    }
+
+    #[test]
+    fn malformed_watchdog_configs_are_rejected() {
+        assert!(parse_config("version = 1\nzones = [\"ram\"]\n").is_ok());
+        assert!(parse_config("version = 2\nzones = [\"ram\"]\n").is_err());
+        assert!(parse_config("version = 1\n").is_err(), "zones is required");
+        assert!(parse_config("version = 1\nzones = [\"ram\"]\ntypo = 1\n").is_err());
+    }
+
+    #[test]
+    fn a_broken_watchdog_config_falls_back_to_every_available_zone() {
+        let zones = |names: &[&str]| names.iter().map(|name| name.to_string()).collect::<Vec<_>>();
+        let available = || Ok(zones(&["ram", "rog_eye", "strip"]));
+        let (chosen, problem) = choose_zones(Ok(zones(&["ram", "nowhere"])), Ok(shipped_registry()), available());
+        assert_eq!(chosen, zones(&["ram", "rog_eye", "strip"]));
+        assert!(problem.unwrap().contains("unknown zone nowhere; using every available zone instead"));
+        let (chosen, problem) = choose_zones(Err("watchdog.toml: missing".to_owned()), Ok(shipped_registry()), available());
+        assert_eq!((chosen.len(), problem.unwrap().starts_with("watchdog.toml: missing")), (3, true));
+        let (chosen, problem) = choose_zones(Ok(zones(&["ram"])), Err("no registry".to_owned()), available());
+        assert_eq!(chosen, zones(&["ram"]), "without a registry the file is trusted, and the problem reported");
+        assert!(problem.unwrap().contains("not checked"));
+        let (chosen, problem) = choose_zones(Err("bad".to_owned()), Err("no registry".to_owned()), Err("no layout".to_owned()));
+        assert!(chosen.is_empty());
+        assert!(problem.unwrap().contains("no zone can show a Controller Fault"));
+    }
+
+    #[test]
+    fn the_available_zones_leave_out_the_unmapped_gpu_bracket() {
+        let (_, problem) = load_zones(&crate::paths::config_dir());
+        assert_eq!(problem, None);
+        let layout = config::load_layout(&crate::paths::config_dir().join("scene-layout.toml")).unwrap();
+        let available: Vec<&String> = layout.zones.iter().filter(|(_, zone)| zone.available).map(|(name, _)| name).collect();
+        assert_eq!(available, ["ram", "rog_eye", "strip"]);
     }
 }

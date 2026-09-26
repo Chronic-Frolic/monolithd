@@ -40,20 +40,33 @@ fn validate_registry(path: Option<String>) -> Result<(), String> {
         Err(error) => problems.push(error),
     }
     match registry::load_and_validate(&path, &layout) {
-        Ok((registry, _)) => match controller::load_config(&root.join("controller.toml")) {
-            Ok(config) => {
-                let found = controller::check_config(&config, &registry);
-                if found.is_empty() {
-                    println!("controller policy: ambient {}, progress zones {:?}, hold {} s", config.default_ambient, config.progress_zones, config.complete_hold_seconds);
+        Ok((registry, _)) => {
+            match controller::load_config(&root.join("controller.toml")) {
+                Ok(config) => {
+                    let found = controller::check_config(&config, &registry);
+                    if found.is_empty() {
+                        println!("controller policy: ambient {}, progress zones {:?}, hold {} s", config.default_ambient, config.progress_zones, config.complete_hold_seconds);
+                    }
+                    problems.extend(found);
                 }
-                problems.extend(found);
+                Err(error) => problems.push(error),
             }
-            Err(error) => problems.push(error),
-        },
+            let watchdog_path = root.join("watchdog.toml");
+            match std::fs::read_to_string(&watchdog_path).map_err(|error| error.to_string()).and_then(|text| watchdog::parse_config(&text)) {
+                Ok(zones) => {
+                    let found = watchdog::check_zones(&zones, &registry);
+                    if found.is_empty() {
+                        println!("watchdog zones: {}", zones.join(", "));
+                    }
+                    problems.extend(found.into_iter().map(|problem| format!("watchdog.toml: {problem}")));
+                }
+                Err(error) => problems.push(format!("{}: {error}", watchdog_path.display())),
+            }
+        }
         Err(error) => problems.push(error),
     }
     if problems.is_empty() {
-        println!("registry, calibration and controller policy OK");
+        println!("registry, calibration, controller and watchdog policy OK");
         return Ok(());
     }
     for problem in &problems { eprintln!("  - {problem}"); }

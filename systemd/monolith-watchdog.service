@@ -4,6 +4,7 @@ Description=Monolith Event Watchdog (controller health and sleep/wake)
 After=monolith-controller.service monolith-lighting-stack.service
 
 [Service]
+Environment=MONOLITHD_CONFIG_DIR=%h/monolithd/config
 Type=simple
 ExecStart=%h/monolithd/target/release/monolithd watchdog
 Restart=on-failure

@@ -1,0 +1,11 @@
+# Watchdog policy: the zones the watchdog takes over. While the controller is down it
+# shows controller_fault_<zone> on them; around sleep it shows quiet_<zone>. Every zone
+# needs both looks registered in qlc-functions.toml.
+#
+# Read once when the watchdog starts; restart monolith-watchdog to change it. A problem
+# here never stops the watchdog: it falls back to every available zone in
+# scene-layout.toml and reports the problem in its status file and journal.
+
+version = 1
+
+zones = ["ram", "rog_eye", "strip"]

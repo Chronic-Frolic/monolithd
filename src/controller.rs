@@ -104,7 +104,7 @@ pub fn check_config(config: &ControllerConfig, registry: &Registry) -> Vec<Strin
 
 /// Shared validation for `warning_zones`/`working_zones`: non-empty, no duplicates,
 /// every zone real, every zone has the matching `<prefix>_<zone>` asset registered.
-fn check_state_zones(problems: &mut Vec<String>, field: &str, zones: &[String], prefix: &str, registry: &Registry) {
+pub fn check_state_zones(problems: &mut Vec<String>, field: &str, zones: &[String], prefix: &str, registry: &Registry) {
     if zones.is_empty() {
         problems.push(format!("{field} is empty"));
     }

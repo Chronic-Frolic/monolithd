@@ -121,6 +121,8 @@ sockets in `$XDG_RUNTIME_DIR/monolith-events/`, the Python venv and backups in
 - `controller.toml`: controller policy: the default ambient set, the order in which jobs
   take progress zones, and how long a finished job holds its bar (15 s).
 - `reporters.toml`: one bar per service or one per item, and the btrfs mounts to watch.
+- `watchdog.toml`: the zones the watchdog takes over, with the Controller Fault look while
+  the controller is down and the quiet look around sleep.
 - `sleep.toml`: the quiet period before the machine would suspend.
 
 ## Commands
