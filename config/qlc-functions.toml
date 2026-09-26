@@ -72,6 +72,12 @@ composable = true
 name = "deep_violet"
 functions = ["ambient_ram", "ambient_eye", "ambient_strip"]
 
+# "Fire" (2026-09-26): a second base look, built like violet plasma in ember reds and
+# oranges; switch with `monolithd event ambient fire`.
+[[ambient_sets]]
+name = "fire"
+functions = ["fire_ram", "fire_eye", "fire_strip"]
+
 # State-preemption assets (Phase 4, 2026-09-21). Static, no animation. Composable and
 # single-zone, so the gateway needs no special casing: warning/fault/quiet each own a zone
 # exactly like an ambient Function does, just at a higher priority the controller enforces.
@@ -232,6 +238,31 @@ name = "pre_sleep_strip"
 kind = "chaser"
 id = 181
 children = [175, 176, 177, 178, 179, 180]
+zones = ["strip"]
+composable = true
+
+# Fire ambient set, per zone.
+[[functions]]
+name = "fire_ram"
+kind = "chaser"
+id = 276
+children = [277, 278, 279, 280, 281, 282, 283, 284, 285, 286, 287, 288, 289, 290, 291, 292]
+zones = ["ram"]
+composable = true
+
+[[functions]]
+name = "fire_eye"
+kind = "chaser"
+id = 293
+children = [294, 295, 296, 297, 298, 299, 300, 301, 302, 303, 304, 305, 306, 307, 308, 309]
+zones = ["rog_eye"]
+composable = true
+
+[[functions]]
+name = "fire_strip"
+kind = "chaser"
+id = 310
+children = [311, 312, 313, 314, 315, 316, 317, 318, 319, 320, 321, 322, 323, 324, 325, 326]
 zones = ["strip"]
 composable = true
 

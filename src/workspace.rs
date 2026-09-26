@@ -37,6 +37,7 @@ struct ContractEntry {
 
 const CONTRACT: &[ContractEntry] = &[
     ContractEntry { intake_name: "Base Ambient", targets: &[("ram", "ambient_ram"), ("rog_eye", "ambient_eye"), ("strip", "ambient_strip")] },
+    ContractEntry { intake_name: "Base Ambient — Fire", targets: &[("ram", "fire_ram"), ("rog_eye", "fire_eye"), ("strip", "fire_strip")] },
     ContractEntry { intake_name: "State — Fault", targets: &[("ram", "fault_ram"), ("rog_eye", "fault_eye"), ("strip", "fault_strip")] },
     ContractEntry { intake_name: "State — Warning", targets: &[("ram", "warning_ram"), ("rog_eye", "warning_eye"), ("strip", "warning_strip")] },
     ContractEntry { intake_name: "State — Working", targets: &[("ram", "working_ram"), ("rog_eye", "working_eye"), ("strip", "working_strip")] },
