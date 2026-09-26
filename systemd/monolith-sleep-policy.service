@@ -9,8 +9,8 @@ After=monolith-controller.service
 
 [Service]
 Type=simple
-Environment=MONOLITHD_CONFIG_DIR=/home/chronic_frolic/monolithd/config
-ExecStart=/home/chronic_frolic/monolithd/target/release/monolithd sleep-policy
+Environment=MONOLITHD_CONFIG_DIR=%h/monolithd/config
+ExecStart=%h/monolithd/target/release/monolithd sleep-policy
 Restart=on-failure
 RestartSec=5
 NoNewPrivileges=yes

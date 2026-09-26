@@ -3,10 +3,12 @@
 # QLC+ scene engine -> E1.31 -> Rust adapter -> OpenRGB SDK -> LEDs.
 set -u -o pipefail
 
-openrgb_appimage=/home/chronic_frolic/AppImages/openrgb-1.0.appimage
-qlc_appimage=/home/chronic_frolic/AppImages/qlcplus-5.2.2-x86_64.AppImage
-workspace=/home/chronic_frolic/monolithd/qlcplus/monolith-lighting.qxw
-adapter=/home/chronic_frolic/monolithd/target/release/monolithd
+# Paths follow this checkout; MONOLITHD_OPENRGB and MONOLITHD_QLCPLUS override the AppImages.
+repo=$(cd "$(dirname "$(readlink -f "$0")")/.." && pwd)
+openrgb_appimage=${MONOLITHD_OPENRGB:-$HOME/AppImages/openrgb-1.0.appimage}
+qlc_appimage=${MONOLITHD_QLCPLUS:-$HOME/AppImages/qlcplus-5.2.2-x86_64.AppImage}
+workspace=$repo/qlcplus/monolith-lighting.qxw
+adapter=$repo/target/release/monolithd
 
 children=()
 

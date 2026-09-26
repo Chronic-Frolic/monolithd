@@ -26,10 +26,12 @@
 #   monolith-author-mode.sh status
 set -u -o pipefail
 
-openrgb_appimage=/home/chronic_frolic/AppImages/openrgb-1.0.appimage
-qlc_appimage=/home/chronic_frolic/AppImages/qlcplus-5.2.2-x86_64.AppImage
-adapter=/home/chronic_frolic/monolithd/target/release/monolithd
-default_workspace="/home/chronic_frolic/monolithd/qlcplus/intake/Monolithd Intake Template.qxw"
+# Paths follow this checkout; MONOLITHD_OPENRGB and MONOLITHD_QLCPLUS override the AppImages.
+repo=$(cd "$(dirname "$(readlink -f "$0")")/.." && pwd)
+openrgb_appimage=${MONOLITHD_OPENRGB:-$HOME/AppImages/openrgb-1.0.appimage}
+qlc_appimage=${MONOLITHD_QLCPLUS:-$HOME/AppImages/qlcplus-5.2.2-x86_64.AppImage}
+adapter=$repo/target/release/monolithd
+default_workspace="$repo/qlcplus/intake/Monolithd Intake Template.qxw"
 openrgb_unit=monolith-author-openrgb
 receiver_unit=monolith-author-receiver
 

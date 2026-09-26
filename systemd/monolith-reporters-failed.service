@@ -6,4 +6,4 @@ Description=Raise a Fault because the Monolith reporters keep failing
 
 [Service]
 Type=oneshot
-ExecStart=/home/chronic_frolic/monolithd/target/release/monolithd event fault-raise reporters:down fault the Monolith reporters keep failing and systemd stopped restarting them
+ExecStart=%h/monolithd/target/release/monolithd event fault-raise reporters:down fault the Monolith reporters keep failing and systemd stopped restarting them

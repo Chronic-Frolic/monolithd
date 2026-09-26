@@ -12,7 +12,7 @@
 # cannot reach, so this pauses the stack, runs the standalone OpenRGB SDK server (its
 # normal unit, which conflicts with the stack), and always restores the stack on exit.
 set -u
-binary=/home/chronic_frolic/monolithd/target/release/monolithd
+binary="$(cd "$(dirname "$(readlink -f "$0")")/.." && pwd)/target/release/monolithd"
 
 restore() {
     systemctl --user stop openrgb-sdk.service
