@@ -5,6 +5,8 @@
 //! `get_input_idle_notification` counts only real input and ignores idle inhibitors held by
 //! video players and similar apps; version 1's `get_idle_notification` is the fallback.
 //! KWin 6 advertises version 2 (measured 2026-09-25 on White Monolith).
+//! gamescope (Gaming Mode) does not offer `ext_idle_notifier_v1` at all (measured
+//! 2026-09-26: 22 globals, none of them this one).
 
 use std::path::{Path, PathBuf};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
@@ -85,6 +87,8 @@ fn read_string(args: &[u8], offset: usize) -> Option<(String, usize)> {
 }
 
 /// Compositor sockets in the runtime directory: KDE's `wayland-N`, gamescope's `gamescope-N`.
+/// Only a number may follow the dash: gamescope also keeps `gamescope-0-ei` (libei),
+/// `gamescope-stats` and their lock files there, none of them Wayland.
 pub fn sockets(runtime: &Path) -> Vec<PathBuf> {
     let mut found: Vec<PathBuf> = std::fs::read_dir(runtime)
         .into_iter()
@@ -93,7 +97,8 @@ pub fn sockets(runtime: &Path) -> Vec<PathBuf> {
         .map(|entry| entry.path())
         .filter(|path| {
             let name = path.file_name().and_then(|name| name.to_str()).unwrap_or("");
-            (name.starts_with("wayland-") || name.starts_with("gamescope-")) && !name.ends_with(".lock")
+            let number = name.strip_prefix("wayland-").or_else(|| name.strip_prefix("gamescope-"));
+            number.is_some_and(|number| !number.is_empty() && number.bytes().all(|byte| byte.is_ascii_digit()))
         })
         .collect();
     found.sort();
@@ -217,7 +222,7 @@ mod tests {
     fn finds_kde_and_gamescope_sockets_but_not_locks() {
         let directory = std::env::temp_dir().join(format!("wayland-sockets-{}", std::process::id()));
         std::fs::create_dir_all(&directory).unwrap();
-        for name in ["wayland-0", "wayland-0.lock", "gamescope-0", "pipewire-0", "bus"] {
+        for name in ["wayland-0", "wayland-0.lock", "gamescope-0", "gamescope-0.lock", "gamescope-0-ei", "gamescope-0-ei.lock", "gamescope-stats", "gamescope-stats.lck", "pipewire-0", "bus"] {
             std::fs::write(directory.join(name), b"").unwrap();
         }
         let names: Vec<String> = sockets(&directory).iter().map(|path| path.file_name().unwrap().to_string_lossy().into_owned()).collect();
