@@ -2,6 +2,9 @@
 name = "monolithd"
 version = "0.1.0"
 edition = "2024"
+description = "Lighting and machine-state daemon for a Linux HTPC: QLC+ looks chosen from jobs, faults and sleep state"
+license = "GPL-3.0-or-later"
+repository = "https://github.com/Chronic-Frolic/monolithd"
 publish = false
 
 [dependencies]
