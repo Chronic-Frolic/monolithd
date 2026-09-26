@@ -417,14 +417,52 @@ fn derive_fill_order(xml: &str, first_id: u32, total: u32) -> Result<Vec<Positio
     Ok(order)
 }
 
+/// A family's fill order: the stored one when the registry has it, else measured.
+fn fill_order(xml: &str, first_id: u32, total: u32, stored: &[u32]) -> Result<Vec<Position>, String> {
+    if stored.is_empty() {
+        return derive_fill_order(xml, first_id, total);
+    }
+    if stored.len() != total as usize {
+        return Err(format!("the stored fill order has {} positions for {total} steps", stored.len()));
+    }
+    Ok(stored.iter().map(|&fixture| (fixture, 0)).collect())
+}
+
+/// Every problem with the stored fill orders: missing, the wrong length, a repeated
+/// fixture, or (while the static steps it was measured from still exist) disagreeing with
+/// them. Once the steps are animated there is nothing left to measure against.
+pub fn check_fill_orders(xml: &str, registry: &Registry) -> Vec<String> {
+    let mut problems = Vec::new();
+    for family in &registry.progress {
+        let name = &family.name;
+        if family.order.is_empty() {
+            problems.push(format!("progress family {name} has no stored fill order"));
+            continue;
+        }
+        if family.order.len() != family.total as usize {
+            problems.push(format!("progress family {name}: the stored fill order has {} positions for {} steps", family.order.len(), family.total));
+        }
+        if family.order.iter().collect::<BTreeSet<_>>().len() != family.order.len() {
+            problems.push(format!("progress family {name}: the stored fill order repeats a fixture"));
+        }
+        if let Ok(measured) = derive_fill_order(xml, family.first_id, family.total) {
+            let stored: Vec<Position> = family.order.iter().map(|&fixture| (fixture, 0)).collect();
+            if measured != stored {
+                problems.push(format!("progress family {name}: the stored fill order disagrees with its static steps"));
+            }
+        }
+    }
+    problems
+}
+
 /// Rewrite a progress family's steps from two owner-authored keyframe Scenes --
 /// full per-pixel content, not flat colors -- swapping each position from its
 /// "Empty" to "Full" keyframe color at the position's own measured fill step. No
 /// interpolation: a discrete fill, matching the physical bar-fill look already in
 /// production (per the owner's choice, 2026-09-22), just recolored from
 /// QLC+-authored endpoints instead of a hand-picked flat color.
-fn apply_progress_family(xml: &str, first_id: u32, total: u32, empty_block: &str, full_block: &str, context: &str) -> Result<String, String> {
-    let order = derive_fill_order(xml, first_id, total)?;
+fn apply_progress_family(xml: &str, first_id: u32, total: u32, stored: &[u32], empty_block: &str, full_block: &str, context: &str) -> Result<String, String> {
+    let order = fill_order(xml, first_id, total, stored)?;
     let empty = parse_fixture_vals(empty_block)?;
     let full = parse_fixture_vals(full_block)?;
     if empty.len() != full.len() {
@@ -564,7 +602,7 @@ pub fn run(arguments: Vec<String>) -> Result<(), String> {
             .map_err(|_| format!("{context}: intake is missing {empty_name:?} -- every progress zone needs an Empty/Full keyframe pair"))?;
         let full_block = function_block_by_name(&intake_xml, &full_name)
             .map_err(|_| format!("{context}: intake is missing {full_name:?} -- every progress zone needs an Empty/Full keyframe pair"))?;
-        production = apply_progress_family(&production, progress.first_id, progress.total, empty_block, full_block, &context)?;
+        production = apply_progress_family(&production, progress.first_id, progress.total, &progress.order, empty_block, full_block, &context)?;
         touched.push(format!("  {} -> Functions {}-{} <- {empty_name:?} / {full_name:?}", context, progress.first_id, progress.first_id + progress.total));
     }
 
@@ -727,6 +765,31 @@ mod tests {
     }
 
     #[test]
+    fn the_shipped_fill_orders_are_stored_and_match_the_production_steps() {
+        let root = crate::paths::config_dir();
+        let layout = crate::config::load_layout(&root.join("scene-layout.toml")).unwrap();
+        let (registry, _) = registry::load_and_validate(&root.join("qlc-functions.toml"), &layout).unwrap();
+        let xml = std::fs::read_to_string(root.join(&registry.workspace)).unwrap();
+        assert_eq!(check_fill_orders(&xml, &registry), Vec::<String>::new());
+        assert!(registry.progress.iter().all(|family| !family.order.is_empty()));
+    }
+
+    #[test]
+    fn a_wrong_stored_order_is_caught() {
+        let xml = sample_progress_family((0, 255, 0));
+        let family = |order: Vec<u32>| format!("version = 1\nworkspace = \"x\"\n[zones]\n[[progress]]\nname = \"p\"\nzone = \"z\"\nlabel = \"P\"\nfirst_id = 0\ntotal = 3\norder = {order:?}\n");
+        let check = |order: Vec<u32>| {
+            let registry: Registry = toml::from_str(&family(order)).unwrap();
+            check_fill_orders(&xml, &registry)
+        };
+        assert_eq!(check(vec![0, 1, 2]), Vec::<String>::new());
+        assert!(check(vec![2, 1, 0])[0].contains("disagrees"), "measured against the static steps");
+        assert!(check(vec![0, 1])[0].contains("2 positions for 3 steps"));
+        assert!(check(vec![0, 1, 1]).iter().any(|problem| problem.contains("repeats")));
+        assert!(check(vec![])[0].contains("no stored fill order"));
+    }
+
+    #[test]
     fn derives_the_fill_order_from_real_production_data() {
         let xml = sample_progress_family((0, 255, 0));
         let order = derive_fill_order(&xml, 0, 3).unwrap();
@@ -762,7 +825,8 @@ mod tests {
             "   <FixtureVal ID=\"2\">0,150,1,0,2,255</FixtureVal>\n",
             "  </Function>\n"
         );
-        let result = apply_progress_family(&xml, 0, 3, empty, full, "test").unwrap();
+        let result = apply_progress_family(&xml, 0, 3, &[], empty, full, "test").unwrap();
+        assert_eq!(apply_progress_family(&xml, 0, 3, &[0, 1, 2], empty, full, "test").unwrap(), result, "a stored order gives the same result");
         // Step 0: every position still the Empty keyframe's own color.
         let step0 = function_block_by_id(&result, 0).unwrap();
         assert!(step0.contains("<FixtureVal ID=\"0\">0,50,1,0,2,255</FixtureVal>"));
@@ -782,7 +846,7 @@ mod tests {
         let xml = sample_progress_family((0, 255, 0));
         let empty = "  <Function ID=\"90\" Type=\"Scene\" Name=\"X\">\n   <Speed FadeIn=\"0\" FadeOut=\"0\" Duration=\"0\"/>\n   <FixtureVal ID=\"0\">0,255,1,255,2,255</FixtureVal>\n   <FixtureVal ID=\"1\">0,255,1,255,2,255</FixtureVal>\n   <FixtureVal ID=\"2\">0,255,1,255,2,255</FixtureVal>\n  </Function>\n";
         let full = "  <Function ID=\"91\" Type=\"Scene\" Name=\"Y\">\n   <Speed FadeIn=\"0\" FadeOut=\"0\" Duration=\"0\"/>\n   <FixtureVal ID=\"0\">0,0,1,255,2,0</FixtureVal>\n   <FixtureVal ID=\"1\">0,0,1,255,2,0</FixtureVal>\n   <FixtureVal ID=\"2\">0,0,1,255,2,0</FixtureVal>\n  </Function>\n";
-        let result = apply_progress_family(&xml, 0, 3, empty, full, "test").unwrap();
+        let result = apply_progress_family(&xml, 0, 3, &[], empty, full, "test").unwrap();
         assert_eq!(result, xml, "re-encoding the same colors already in production must reproduce byte-identical XML");
     }
 

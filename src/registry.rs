@@ -54,6 +54,12 @@ pub struct ProgressEntry {
     pub label: String,
     pub first_id: u32,
     pub total: u32,
+    /// The family's physical fill order: fixture IDs in the order they light (each fixture
+    /// is one LED). Stored since 2026-09-26 rather than measured from the static step
+    /// Scenes, which are to become animated; the intake and every look generator need this
+    /// geometry. Empty means "measure it from the static steps".
+    #[serde(default)]
+    pub order: Vec<u32>,
 }
 
 /// The zone functions that make up one ambient look, started together so they stay in phase.

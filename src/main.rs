@@ -40,6 +40,10 @@ fn validate_registry(path: Option<String>) -> Result<(), String> {
     }
     match registry::load_and_validate(&path, &layout) {
         Ok((registry, _)) => {
+            match std::fs::read_to_string(root.join(&registry.workspace)) {
+                Ok(xml) => problems.extend(workspace::check_fill_orders(&xml, &registry)),
+                Err(error) => problems.push(format!("read the workspace to check fill orders: {error}")),
+            }
             match controller::load_config(&root.join("controller.toml")) {
                 Ok(config) => {
                     let found = controller::check_config(&config, &registry);
