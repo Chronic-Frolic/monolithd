@@ -754,7 +754,10 @@ mod tests {
         let layout = crate::config::load_layout(&root.join("scene-layout.toml")).unwrap();
         let (registry, problems) = load_and_validate(&root.join("qlc-functions.toml"), &layout).unwrap();
         assert_eq!(problems, Vec::<String>::new());
-        assert_eq!([109, 112, 115].map(|id| registry.period_ms(id)), [Some(3600); 3]);
+        // One period shared by every zone keeps the zones in phase; its length is the
+        // owner's to author, so only the sharing is asserted.
+        let periods = [109, 112, 115].map(|id| registry.period_ms(id));
+        assert!(periods[0].is_some() && periods.iter().all(|period| *period == periods[0]), "{periods:?}");
         assert_eq!(registry.ambient_set("deep_violet").unwrap().functions.len(), 3);
         assert_eq!(registry.ambient_set_of("ambient_eye").unwrap().name, "deep_violet");
         assert!(registry.ambient_set_of("boot_proof").is_none());

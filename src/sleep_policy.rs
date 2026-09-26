@@ -671,9 +671,11 @@ mod tests {
     }
 
     #[test]
-    fn the_shipped_config_observes_until_the_owner_flips_the_switch() {
+    fn the_shipped_config_is_valid_and_the_switch_parses() {
+        // The switch itself is the owner's (on since the 2026-09-26 cutover); only validity
+        // is asserted here.
         let config = load_config().unwrap();
-        assert!(!config.suspend, "phase 3 cutover is the owner's step, in one sitting with Steam's and KDE's timers");
+        assert!(config.cue_minutes < config.quiet_minutes);
         assert!(toml::from_str::<SleepConfig>("version = 1\nquiet_minutes = 120\ncue_minutes = 5\nsuspend = true\n").unwrap().suspend);
         assert!(toml::from_str::<SleepConfig>("version = 1\nquiet_minutes = 120\ncue_minutes = 5\nsuspnd = true\n").is_err(), "a typo is rejected");
     }
