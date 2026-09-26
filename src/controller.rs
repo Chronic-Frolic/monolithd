@@ -641,6 +641,14 @@ impl<L: Link> Controller<L> {
                 self.remember(format!("{} refused, {reason}", action.describe()));
                 return;
             }
+            // The gateway schedules a rejoin with a long wait for its loop boundary; each
+            // reconcile until then asks again and hears "still scheduled", which is not news.
+            if reply["scheduled"] == Value::Bool(true) {
+                if reply["new"] == Value::Bool(true) {
+                    self.remember(format!("{} (scheduled in {} ms)", action.describe(), reply["aligned_wait_ms"]));
+                }
+                continue;
+            }
             self.remember(action.describe());
         }
     }

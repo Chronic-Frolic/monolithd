@@ -38,6 +38,8 @@ const DEFAULT_OVERLAP: Duration = Duration::from_millis(40);
 const MAX_OVERLAP: Duration = Duration::from_millis(1000);
 /// A rejoin never fires closer than this to the boundary it aims at, so it cannot land just before it.
 const ALIGN_MARGIN: Duration = Duration::from_millis(30);
+/// A rejoin whose aligned wait is at least this long is scheduled instead of waited out.
+const SCHEDULE_THRESHOLD: Duration = Duration::from_secs(1);
 
 /// One start (`true`) or stop (`false`) of a QLC+ Function.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -175,6 +177,9 @@ pub struct Gateway<Q> {
     epochs: StdMutex<BTreeMap<String, SetEpoch>>,
     confirm_polls: usize,
     confirm_interval: Duration,
+    /// Rejoins waiting for their loop boundary: function name -> when it is due.
+    scheduled: StdMutex<BTreeMap<String, Instant>>,
+    schedule_threshold: Duration,
 }
 
 impl<Q: Qlc> Gateway<Q> {
@@ -185,7 +190,25 @@ impl<Q: Qlc> Gateway<Q> {
             .flat_map(|registry| registry.zones.keys())
             .map(|name| (name.clone(), Mutex::new(ZoneState::default())))
             .collect();
-        Self { registry, problems, qlc, zones, calibration: None, output: None, epochs: StdMutex::new(BTreeMap::new()), confirm_polls: CONFIRM_POLLS, confirm_interval: CONFIRM_INTERVAL }
+        Self { registry, problems, qlc, zones, calibration: None, output: None, epochs: StdMutex::new(BTreeMap::new()), confirm_polls: CONFIRM_POLLS, confirm_interval: CONFIRM_INTERVAL, scheduled: StdMutex::new(BTreeMap::new()), schedule_threshold: SCHEDULE_THRESHOLD }
+    }
+
+    #[cfg(test)]
+    fn with_schedule_threshold(mut self, threshold: Duration) -> Self {
+        self.schedule_threshold = threshold;
+        self
+    }
+
+    /// Current owner of each zone, by Function ID.
+    async fn owner_ids(&self, zones: &[String]) -> Vec<Option<u32>> {
+        let mut owners = Vec::with_capacity(zones.len());
+        for zone in zones {
+            owners.push(match self.zones.get(zone) {
+                Some(state) => state.lock().await.owner.as_ref().map(|owner| owner.id),
+                None => None,
+            });
+        }
+        owners
     }
 
     /// Let `status` report the health of the receiver's OpenRGB output.
@@ -812,7 +835,7 @@ async fn serve<Q: Qlc + 'static>(gateway: Arc<Gateway<Q>>, listener: UnixListene
     }
 }
 
-async fn connection<Q: Qlc>(gateway: Arc<Gateway<Q>>, stream: UnixStream, owner_uid: u32) -> Result<(), String> {
+async fn connection<Q: Qlc + Send + Sync + 'static>(gateway: Arc<Gateway<Q>>, stream: UnixStream, owner_uid: u32) -> Result<(), String> {
     let peer = stream.peer_cred().map_err(|error| format!("peer credentials: {error}"))?;
     if peer.uid() != owner_uid {
         return Err(format!("rejected peer with uid {}", peer.uid()));
@@ -833,13 +856,66 @@ async fn connection<Q: Qlc>(gateway: Arc<Gateway<Q>>, stream: UnixStream, owner_
             return Ok(());
         }
         let reply = match serde_json::from_slice::<Request>(&line) {
-            Ok(request) => gateway.handle(request).await,
+            Ok(request) => gateway.handle_shared(request).await,
             Err(error) => json!({ "ok": false, "code": "bad_request", "error": error.to_string() }),
         };
         writer
             .write_all(format!("{reply}\n").as_bytes())
             .await
             .map_err(|error| format!("write reply: {error}"))?;
+    }
+}
+
+impl<Q: Qlc + Send + Sync + 'static> Gateway<Q> {
+    /// `handle`, except that a rejoin with a long aligned wait is scheduled.
+    pub async fn handle_shared(self: &Arc<Self>, request: Request) -> Value {
+        if let Request::Rejoin { function } = &request {
+            if let Some(reply) = self.schedule_rejoin(function).await {
+                return reply;
+            }
+        }
+        self.handle(request).await
+    }
+
+    /// A rejoin waits for its ambient set's next loop boundary to stay in phase. With slow
+    /// looks that wait is long (up to 20 s with violet plasma), and a caller held that long
+    /// looks dead: the controller answers nothing meanwhile and the watchdog, which allows
+    /// 3 s, raised a Controller Fault (found live 2026-09-26). So a long wait is scheduled:
+    /// the reply comes at once and a background task starts the Function exactly at the
+    /// boundary. Asking again while it is scheduled changes nothing. If a zone changes
+    /// hands during the wait (a fault, quiet, a progress bar), the rejoin is dropped rather
+    /// than overwriting it; the controller asks again if it still wants it. `None` means
+    /// "handle it inline" (short or no wait, or an invalid request `handle` will refuse).
+    async fn schedule_rejoin(self: &Arc<Self>, function: &str) -> Option<Value> {
+        let registry = self.control().ok()?;
+        let target = resolve_function(registry, function).ok()?;
+        registry.ambient_set_of(&target.name)?;
+        let now = Instant::now();
+        if let Some(due) = self.scheduled.lock().unwrap().get(&target.name) {
+            return Some(json!({ "ok": true, "changed": false, "scheduled": true, "new": false, "function": target.name, "aligned_wait_ms": due.saturating_duration_since(now).as_millis() as u64 }));
+        }
+        let wait = self.align_delay(registry, &target.name, now)?;
+        if wait < self.schedule_threshold {
+            return None;
+        }
+        let owners = self.owner_ids(&target.zones).await;
+        self.scheduled.lock().unwrap().insert(target.name.clone(), now + wait);
+        let gateway = Arc::clone(self);
+        let name = target.name.clone();
+        tokio::spawn(async move {
+            sleep(wait).await;
+            if gateway.owner_ids(&target.zones).await == owners {
+                if let Some(registry) = gateway.registry.as_ref() {
+                    if let Err(Failure { code, message }) = gateway.activate(registry, &target, true, Transition::default(), DEFAULT_OVERLAP, false).await {
+                        eprintln!("monolithd gateway: scheduled rejoin of {} failed: {code}: {message}", target.name);
+                    }
+                }
+            } else {
+                eprintln!("monolithd gateway: scheduled rejoin of {} dropped: its zones changed hands while it waited", target.name);
+            }
+            gateway.scheduled.lock().unwrap().remove(&target.name);
+        });
+        Some(json!({ "ok": true, "changed": false, "scheduled": true, "new": true, "function": name, "aligned_wait_ms": wait.as_millis() as u64 }))
     }
 }
 
@@ -1557,6 +1633,41 @@ mod tests {
         let offset = rejoined.duration_since(set_started).as_millis() % 200;
         assert!(offset <= 15 || offset >= 185, "rejoin landed {offset} ms into a 200 ms cycle");
         assert_eq!(fake.running(), vec![109, 112]);
+    }
+
+    #[tokio::test]
+    async fn a_long_rejoin_wait_is_scheduled_and_still_lands_on_the_boundary() {
+        let fake = Fake::default();
+        let gateway = Arc::new(aligned_gateway(&fake, 200).with_schedule_threshold(Duration::from_millis(10)));
+        assert_eq!(gateway.handle(start_set(&["ambient_ram", "ambient_eye"])).await["ok"], true);
+        gateway.handle(progress("ram", 5)).await;
+        tokio::time::sleep(Duration::from_millis(70)).await;
+        let asked = Instant::now();
+        let reply = gateway.handle_shared(rejoin("ambient_ram")).await;
+        assert!(asked.elapsed() < Duration::from_millis(30), "the caller is not held for the wait");
+        assert_eq!((reply["ok"].clone(), reply["scheduled"].clone(), reply["new"].clone()), (json!(true), json!(true), json!(true)), "{reply}");
+        assert_eq!(gateway.handle_shared(rejoin("ambient_ram")).await["new"], false, "asking again schedules nothing new");
+        tokio::time::sleep(Duration::from_millis(250)).await;
+        let set_started = time_of(&fake, "start 112", 0);
+        let rejoined = time_of(&fake, "start 109", 1);
+        let offset = rejoined.duration_since(set_started).as_millis() % 200;
+        assert!(offset <= 15 || offset >= 185, "the scheduled rejoin landed {offset} ms into a 200 ms cycle");
+        assert_eq!(fake.running(), vec![109, 112]);
+        assert!(gateway.scheduled.lock().unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn a_scheduled_rejoin_is_dropped_if_its_zone_changes_hands_meanwhile() {
+        let fake = Fake::default();
+        let gateway = Arc::new(aligned_gateway(&fake, 200).with_schedule_threshold(Duration::from_millis(10)));
+        gateway.handle(start_set(&["ambient_ram", "ambient_eye"])).await;
+        gateway.handle(progress("ram", 5)).await;
+        tokio::time::sleep(Duration::from_millis(70)).await;
+        assert_eq!(gateway.handle_shared(rejoin("ambient_ram")).await["scheduled"], true);
+        gateway.handle(progress("ram", 6)).await;
+        tokio::time::sleep(Duration::from_millis(250)).await;
+        assert!(!fake.running().contains(&109), "the rejoin must not overwrite the zone's new owner: {:?}", fake.running());
+        assert!(gateway.scheduled.lock().unwrap().is_empty());
     }
 
     #[tokio::test]
