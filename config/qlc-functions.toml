@@ -207,6 +207,33 @@ composable = true
 # Function, so this is what it is compared against `progress ram 0` (all RAM white)
 # and `progress strip 0` (all strip white) when matching white points by eye. It can
 # run beside them: it owns only the eye zone.
+# Pre-sleep cue (2026-09-26): shown for the last minutes before an automatic suspend.
+# Prototype look ("moonlight blue" breath, ~8 s) authored at the owner's request;
+# re-author it as State — Pre-Sleep in the intake template.
+[[functions]]
+name = "pre_sleep_ram"
+kind = "chaser"
+id = 163
+children = [161, 162]
+zones = ["ram"]
+composable = true
+
+[[functions]]
+name = "pre_sleep_eye"
+kind = "chaser"
+id = 166
+children = [164, 165]
+zones = ["rog_eye"]
+composable = true
+
+[[functions]]
+name = "pre_sleep_strip"
+kind = "chaser"
+id = 169
+children = [167, 168]
+zones = ["strip"]
+composable = true
+
 [[functions]]
 name = "reference_white_eye"
 kind = "scene"
