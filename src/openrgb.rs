@@ -84,7 +84,9 @@ pub struct QlcOutput {
 impl QlcOutput {
     pub async fn connect() -> Result<Self, String> {
         let layout = config::load_layout(&crate::paths::config_dir().join("scene-layout.toml"))?;
-        let controllers = Client::connect(SDK_ADDRESS).await?.controllers().await?;
+        let client = Client::connect(SDK_ADDRESS).await?;
+        let controllers = client.controllers().await?;
+        eprintln!("monolithd output: OpenRGB SDK protocol {}, {} controllers", client.protocol(), controllers.len());
         let resolved = resolve(&layout, &controllers)?;
         if layout.qlc_e131.ram_controller_ids.len() != 4 { return Err("qlc_e131.ram_controller_ids must list four SDK IDs".to_owned()); }
         if layout.qlc_e131.board_universe != 5 { return Err("qlc_e131.board_universe must be 5".to_owned()); }
