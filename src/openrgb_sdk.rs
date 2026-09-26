@@ -609,25 +609,6 @@ mod tests {
         assert_eq!(received[9], (4, UPDATE_ZONE_LEDS, colors_body(Some(0), &[Color::new(10, 20, 30); 5])));
     }
 
-    /// Live, read-only: both clients must describe the running server identically.
-    /// Temporary, until openrgb2 is removed. Run inside the lighting stack's network
-    /// namespace (`nsenter -t <stack pid> -U -n --preserve-credentials`).
-    #[tokio::test]
-    #[ignore]
-    async fn live_matches_the_openrgb2_client() {
-        let ours = Client::connect("127.0.0.1:6742").await.unwrap().controllers().await.unwrap();
-        let theirs: Vec<openrgb2::Controller> = openrgb2::OpenRgbClient::connect_to("127.0.0.1:6742", 6).await.unwrap().get_all_controllers().await.unwrap().into_iter().collect();
-        assert_eq!(ours.len(), theirs.len());
-        for (a, b) in ours.iter().zip(&theirs) {
-            assert_eq!((a.id(), a.vendor(), a.location(), a.serial(), a.num_leds()), (b.id(), b.vendor(), b.location(), b.serial(), b.num_leds()));
-            let zones = |index| b.get_zone(index).map(|zone| zone.num_leds()).ok();
-            let count = a.description.zones.len();
-            assert_eq!(a.description.zones.iter().map(|zone| Some(zone.num_leds())).collect::<Vec<_>>(), (0..count).map(zones).collect::<Vec<_>>());
-            assert_eq!(zones(count), None, "openrgb2 sees no extra zone");
-            println!("controller {} {:?}: {} LEDs, zones {:?}, mode {:?}", a.id(), a.name(), a.num_leds(), a.description.zones, a.active_mode());
-        }
-    }
-
     /// Live: the server accepts our LED packets. Writes back the colors already showing,
     /// so nothing visible changes. Same namespace as above.
     #[tokio::test]

@@ -7,7 +7,6 @@ publish = false
 [dependencies]
 axum = { version = "0.8.9", default-features = false, features = ["http1", "json", "tokio"] }
 libc = "0.2.189"
-openrgb2 = "0.4.1"
 quick-xml = "0.42.0"
 sacn = { package = "x39-sacn", version = "0.2.1" }
 serde = { version = "1.0.229", features = ["derive"] }

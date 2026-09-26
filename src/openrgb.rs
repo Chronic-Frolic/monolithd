@@ -6,7 +6,7 @@
 
 use crate::config::{self, Calibration, Gain, Layout, Zone};
 use crate::e131::QlcFrame;
-use openrgb2::{Color, Controller, OpenRgbClient};
+use crate::openrgb_sdk::{Client, Color, Controller};
 
 const SDK_ADDRESS: &str = "127.0.0.1:6742";
 
@@ -51,13 +51,13 @@ fn resolve<'a>(layout: &Layout, controllers: &'a [Controller]) -> Result<Resolve
             && eye_zone.controller_serial.as_deref().is_none_or(|serial| controller.serial() == serial)
     }).ok_or_else(|| "configured ASUS ROG-eye controller is missing".to_owned())?;
     let index = eye_zone.zone_index.ok_or_else(|| "rog_eye.zone_index is required".to_owned())?;
-    let led_count = board.get_zone(index).map_err(|error| error.to_string())?.num_leds();
+    let led_count = board.get_zone(index)?.num_leds();
     if led_count < 3 { return Err(format!("ROG eye zone has {led_count} LEDs; expected at least 3")); }
 
     let strip_zone = configured_zone(layout, "strip")?;
     if strip_zone.kind != "zone" { return Err("strip must be a zone".to_owned()); }
     let strip_index = strip_zone.zone_index.ok_or_else(|| "strip.zone_index is required".to_owned())?;
-    let strip_led_count = board.get_zone(strip_index).map_err(|error| error.to_string())?.num_leds();
+    let strip_led_count = board.get_zone(strip_index)?.num_leds();
     let configured_strip_led_count = strip_zone.led_count.ok_or_else(|| "strip.led_count is required".to_owned())?;
     if strip_led_count != configured_strip_led_count {
         return Err(format!("strip has {strip_led_count} LEDs; expected {configured_strip_led_count}"));
@@ -84,8 +84,7 @@ pub struct QlcOutput {
 impl QlcOutput {
     pub async fn connect() -> Result<Self, String> {
         let layout = config::load_layout(&crate::paths::config_dir().join("scene-layout.toml"))?;
-        let client = OpenRgbClient::connect_to(SDK_ADDRESS, 6).await.map_err(|error| error.to_string())?;
-        let controllers = client.get_all_controllers().await.map_err(|error| error.to_string())?.into_iter().collect::<Vec<_>>();
+        let controllers = Client::connect(SDK_ADDRESS).await?.controllers().await?;
         let resolved = resolve(&layout, &controllers)?;
         if layout.qlc_e131.ram_controller_ids.len() != 4 { return Err("qlc_e131.ram_controller_ids must list four SDK IDs".to_owned()); }
         if layout.qlc_e131.board_universe != 5 { return Err("qlc_e131.board_universe must be 5".to_owned()); }
@@ -107,7 +106,7 @@ impl QlcOutput {
             if colors.len() != controller.num_leds() {
                 return Err(format!("QLC universe {} has {} RGB pixels; RAM SDK ID {controller_id} has {} LEDs", offset + 1, colors.len(), controller.num_leds()));
             }
-            controller.set_leds(colors).await.map_err(|error| error.to_string())?;
+            controller.set_leds(&colors).await?;
         }
 
         let board_slots = frame.universe(self.layout.qlc_e131.board_universe)?;
@@ -116,14 +115,14 @@ impl QlcOutput {
         if eye_led_count != eye_colors.len() {
             return Err(format!("ROG eye has {eye_led_count} logical LEDs; QLC board prefix has {}", eye_colors.len()));
         }
-        board.set_zone_leds(eye_zone, eye_colors).await.map_err(|error| error.to_string())?;
+        board.set_zone_leds(eye_zone, &eye_colors).await?;
 
         let strip_colors = dmx_colors(&board_slots[15..], calibration.gain("strip"))?;
         let (strip_board, strip_zone, strip_led_count) = resolved.strip;
         if strip_colors.len() != strip_led_count {
             return Err(format!("strip has {strip_led_count} LEDs; QLC board payload has {}", strip_colors.len()));
         }
-        strip_board.set_zone_leds(strip_zone, strip_colors).await.map_err(|error| error.to_string())
+        strip_board.set_zone_leds(strip_zone, &strip_colors).await
     }
 }
 
@@ -137,8 +136,8 @@ impl crate::supervisor::Output for QlcOutput {
 }
 
 async fn direct_mode(resolved: &Resolved<'_>) -> Result<(), String> {
-    for controller in &resolved.ram { controller.set_controllable_mode().await.map_err(|error| error.to_string())?; }
-    resolved.rog_eye.0.set_controllable_mode().await.map_err(|error| error.to_string())?;
+    for controller in &resolved.ram { controller.set_controllable_mode().await?; }
+    resolved.rog_eye.0.set_controllable_mode().await?;
     Ok(())
 }
 
@@ -175,21 +174,21 @@ pub async fn probe_header(numbers: std::ops::RangeInclusive<usize>, dwell: std::
     }
     let (off, white, green, blue) = (Color::new(0, 0, 0), Color::new(255, 255, 255), Color::new(0, 255, 0), Color::new(0, 0, 255));
     for number in numbers {
-        board.set_zone_leds(header_zone, single_led(count, number, white, off)).await.map_err(|error| error.to_string())?;
+        board.set_zone_leds(header_zone, &single_led(count, number, white, off)).await?;
         for (controller, level) in resolved.ram.iter().zip(stick_levels(number)) {
             let colors = (0..controller.num_leds()).map(|index| if index + level >= controller.num_leds() { green } else { off }).collect::<Vec<_>>();
-            controller.set_leds(colors).await.map_err(|error| error.to_string())?;
+            controller.set_leds(&colors).await?;
         }
         let blocks = eye_blocks(number);
         let eye = (0..eye_count).map(|index| if index < 3 && index < blocks { blue } else { off }).collect::<Vec<_>>();
-        board.set_zone_leds(eye_zone, eye).await.map_err(|error| error.to_string())?;
+        board.set_zone_leds(eye_zone, &eye).await?;
         println!("LED {number}");
         tokio::time::sleep(dwell).await;
     }
-    board.set_zone_leds(header_zone, vec![off; count]).await.map_err(|error| error.to_string())?;
-    board.set_zone_leds(eye_zone, vec![off; eye_count]).await.map_err(|error| error.to_string())?;
+    board.set_zone_leds(header_zone, &vec![off; count]).await?;
+    board.set_zone_leds(eye_zone, &vec![off; eye_count]).await?;
     for controller in &resolved.ram {
-        controller.set_all_leds(off).await.map_err(|error| error.to_string())?;
+        controller.set_all_leds(off).await?;
     }
     Ok(())
 }
@@ -201,8 +200,7 @@ async fn loop_until_discovered() -> Result<(Layout, Vec<Controller>), String> {
     for _ in 0..80 {
         let attempt = async {
             let layout = config::load_layout(&crate::paths::config_dir().join("scene-layout.toml"))?;
-            let client = OpenRgbClient::connect_to(SDK_ADDRESS, 6).await.map_err(|error| error.to_string())?;
-            let controllers: Vec<Controller> = client.get_all_controllers().await.map_err(|error| error.to_string())?.into_iter().collect();
+            let controllers = Client::connect(SDK_ADDRESS).await?.controllers().await?;
             resolve(&layout, &controllers)?;
             Ok::<_, String>((layout, controllers))
         };
