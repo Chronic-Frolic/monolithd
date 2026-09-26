@@ -50,7 +50,8 @@ A new reporter built into the daemon follows the same rules through `src/reporte
     src/        the Rust crate (one binary, many subcommands)
     config/     everything the binary reads at runtime (see below)
     qlcplus/    the production QLC+ workspace and the intake workspaces for authoring
-    systemd/    user units (lighting stack, controller, watchdog, reporters, sleep policy), author mode
+    systemd/    user units (lighting stack, controller, watchdog, reporters, sleep policy), author mode;
+                root/ holds the root scrub wrapper and its units
     python/     the read-only suspend-status tool and its test
     tools/      probe-header.sh and the intake template builder
     docs/       the controller protocol and the runbook
@@ -73,8 +74,12 @@ A new reporter built into the daemon follows the same rules through `src/reporte
   evdev (`ID_INPUT_JOYSTICK` devices only, never keyboards).
 - **Music detection** needs PipeWire with `pactl`. Streams from processes launched by
   Steam count as game audio, not music.
-- **Storage health** is btrfs only. It reads `/sys/fs/btrfs` and `btrfs scrub status`
-  unprivileged; starting scrubs is left to a root timer.
+- **Storage health** is btrfs only. Device errors and missing devices come from
+  `/sys/fs/btrfs`, unprivileged. Scrub progress and results need root: btrfs keeps them
+  in a root-only file. So scrubs run through the root wrapper in `systemd/root/`, which
+  mirrors their status to a world-readable file. Its header explains how to install it
+  as a root-owned copy. Without it, a watched mount shows a "scrub state unreadable"
+  warning once it has been scrubbed as root.
 - **The Steam reporter needs Steam's DevTools port**, 127.0.0.1:8080, which
   [Decky Loader](https://github.com/SteamDeckHomebrew/decky-loader) opens. That port has
   no authentication: any local process can drive the Steam client through it, including

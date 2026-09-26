@@ -3,10 +3,14 @@
 //! Everything here is read without root: mounts from `/proc/self/mountinfo`; each btrfs
 //! filesystem's devices, their error counters and whether one is missing (a degraded mirror)
 //! from `/sys/fs/btrfs/<fsid>/devinfo/<n>/{error_stats,missing}`; scrub state from
-//! `btrfs scrub status`, whose text format comes from btrfs-progs `cmds/scrub.c` (v7.1 has no
-//! JSON for it). Scrubs are started by a root timer; this only observes them. Whether a
-//! running scrub's progress is visible to an unprivileged user (through btrfs's status file,
-//! since the progress ioctl needs root) is still to be confirmed live.
+//! `btrfs scrub status` text, whose format comes from btrfs-progs `cmds/scrub.c` (v7.1 has no
+//! JSON for it). btrfs keeps scrub state in a root-only file (`/var/lib/btrfs/scrub.status.
+//! <fsid>`, mode 0600, measured 2026-09-26): after a filesystem's first root scrub, `btrfs
+//! scrub status` fails for everyone else. So scrubs run through the root wrapper
+//! `systemd/root/monolith-scrub.sh`, which mirrors the status text world-readable into
+//! `/var/lib/monolith-scrub/<fsid>.status`; this module reads that, falls back to `btrfs
+//! scrub status` (which works until the first root scrub), and raises a Warning when it can
+//! read neither, instead of silently showing no scrub.
 //!
 //! Owner decision 2026-09-25: a **Fault** only for data-integrity threats (a watched mount
 //! missing, a degraded mirror, uncorrectable scrub errors); a **Warning** for recoverable
@@ -26,6 +30,8 @@ pub struct Scrub {
     pub percent: Option<f64>,
     pub corrected: u64,
     pub uncorrectable: u64,
+    /// Why the scrub state could not be read; `None` when it could.
+    pub unreadable: Option<String>,
 }
 
 /// Parse `btrfs scrub status MOUNT` (btrfs-progs `_print_scrub_ss` and `print_scrub_summary`).
@@ -44,6 +50,31 @@ pub fn parse_scrub(text: &str) -> Scrub {
         }
     }
     scrub
+}
+
+/// Where the root scrub wrapper mirrors each filesystem's `btrfs scrub status`.
+pub const MIRROR_DIR: &str = "/var/lib/monolith-scrub";
+/// The wrapper rewrites the mirror every 5 s while a scrub runs.
+const MIRROR_STALE: Duration = Duration::from_secs(60);
+
+/// Scrub state from the wrapper's mirror, `age` since it was last written. A mirror that
+/// still says `running` but stopped updating (the machine went down mid-scrub, or the
+/// wrapper died) is unknown, not a bar that never ends.
+fn from_mirror(text: &str, age: Duration) -> Scrub {
+    let scrub = parse_scrub(text);
+    if scrub.status.as_deref() == Some("running") && age > MIRROR_STALE {
+        let why = format!("the scrub status mirror says running but has not been updated for {} s", age.as_secs());
+        return Scrub { unreadable: Some(why), ..Scrub::default() };
+    }
+    scrub
+}
+
+/// Scrub state from running `btrfs scrub status` directly: its output, or why it failed.
+fn from_command(result: Result<String, String>) -> Scrub {
+    match result {
+        Ok(text) => parse_scrub(&text),
+        Err(why) => Scrub { unreadable: Some(why), ..Scrub::default() },
+    }
 }
 
 /// The mount's source device and filesystem type from `/proc/self/mountinfo`.
@@ -148,6 +179,9 @@ pub fn findings(name: &str, observed: &Observed) -> Vec<Finding> {
     if observed.scrub.corrected > 0 {
         out.push(Finding::Warning { id: id("corrected"), reason: format!("{name}: the last scrub corrected {} error(s)", observed.scrub.corrected) });
     }
+    if let Some(why) = &observed.scrub.unreadable {
+        out.push(Finding::Warning { id: id("scrub-unreadable"), reason: format!("{name}: scrub state unreadable ({why}); scrub through monolith-scrub@ so its status is mirrored") });
+    }
     out
 }
 
@@ -158,8 +192,24 @@ pub async fn observe(mount: &str) -> Observed {
     if fstype != "btrfs" {
         return Observed { fstype: Some(fstype), ..Observed::default() };
     }
-    let devices = filesystem_dir(&source).map(|dir| devices(&dir)).unwrap_or_default();
-    let scrub = tokio::process::Command::new("btrfs").args(["scrub", "status", mount]).output().await.map(|output| parse_scrub(&String::from_utf8_lossy(&output.stdout))).unwrap_or_default();
+    let fs_dir = filesystem_dir(&source);
+    let devices = fs_dir.as_deref().map(devices).unwrap_or_default();
+    let mirror = fs_dir.as_ref().and_then(|dir| dir.file_name()).map(|fsid| Path::new(MIRROR_DIR).join(format!("{}.status", fsid.to_string_lossy()))).and_then(|path| {
+        let text = std::fs::read_to_string(&path).ok()?;
+        let age = std::fs::metadata(&path).ok()?.modified().ok()?.elapsed().unwrap_or_default();
+        Some((text, age))
+    });
+    let scrub = match mirror {
+        Some((text, age)) => from_mirror(&text, age),
+        None => from_command(match tokio::process::Command::new("btrfs").args(["scrub", "status", mount]).output().await {
+            Ok(output) if output.status.success() => Ok(String::from_utf8_lossy(&output.stdout).into_owned()),
+            Ok(output) => {
+                let error = String::from_utf8_lossy(&output.stderr).trim().to_owned();
+                Err(if error.is_empty() { format!("btrfs scrub status exited with {}", output.status) } else { error })
+            }
+            Err(error) => Err(format!("run btrfs: {error}")),
+        }),
+    };
     Observed { mounted_btrfs: true, fstype: Some(fstype), devices, scrub }
 }
 
@@ -272,7 +322,7 @@ mod tests {
     #[test]
     fn parses_never_running_and_finished_scrubs() {
         assert_eq!(parse_scrub(NEVER), Scrub::default());
-        assert_eq!(parse_scrub(RUNNING), Scrub { status: Some("running".into()), percent: Some(29.07), corrected: 0, uncorrectable: 0 });
+        assert_eq!(parse_scrub(RUNNING), Scrub { status: Some("running".into()), percent: Some(29.07), corrected: 0, uncorrectable: 0, unreadable: None });
         let finished = parse_scrub(FINISHED_WITH_ERRORS);
         assert_eq!((finished.status.as_deref(), finished.corrected, finished.uncorrectable), (Some("finished"), 4, 1));
     }
@@ -318,5 +368,32 @@ mod tests {
             (false, "storage:/storage/protected:device-errors".into()),
             (false, "storage:/storage/protected:corrected".into()),
         ]);
+    }
+
+    #[test]
+    fn the_mirror_is_read_unless_a_running_scrub_stopped_updating_it() {
+        let fresh = from_mirror(RUNNING, Duration::from_secs(4));
+        assert_eq!((fresh.status.as_deref(), fresh.percent, fresh.unreadable), (Some("running"), Some(29.07), None));
+        let stale = from_mirror(RUNNING, Duration::from_secs(600));
+        assert_eq!(stale.status, None, "no bar for a scrub that may be dead");
+        assert!(stale.unreadable.unwrap().contains("not been updated for 600 s"));
+        let old_result = from_mirror(FINISHED_WITH_ERRORS, Duration::from_secs(30 * 86_400));
+        assert_eq!((old_result.uncorrectable, old_result.unreadable), (1, None), "a finished result stays valid however old");
+    }
+
+    /// Measured 2026-09-26: after a root scrub, unprivileged `btrfs scrub status` exits 1.
+    #[test]
+    fn an_unreadable_scrub_state_is_a_warning_not_silence() {
+        let scrub = from_command(Err("WARNING: failed to open status file: Permission denied".into()));
+        assert_eq!((scrub.status.clone(), scrub.unreadable.is_some()), (None, true));
+        assert_eq!(from_command(Ok(NEVER.into())), Scrub::default(), "before the first root scrub, direct reads work");
+        let observed = Observed { mounted_btrfs: true, fstype: Some("btrfs".into()), devices: Vec::new(), scrub };
+        match findings("/var/home", &observed).as_slice() {
+            [Finding::Warning { id, reason }] => {
+                assert_eq!(id, "storage:/var/home:scrub-unreadable");
+                assert!(reason.contains("Permission denied"));
+            }
+            other => panic!("expected one warning, got {other:?}"),
+        }
     }
 }

@@ -1,0 +1,14 @@
+[Unit]
+Description=btrfs scrub of %f, mirrored for the monolithd storage reporter
+Documentation=https://github.com/Chronic-Frolic/monolithd
+RequiresMountsFor=%f
+
+# A root unit: install it to /etc/systemd/system with the script as a root-owned copy;
+# see systemd/root/monolith-scrub.sh.
+
+[Service]
+Type=exec
+ExecStart=/usr/bin/bash /usr/local/libexec/monolith-scrub %f
+KillMode=mixed
+Nice=19
+IOSchedulingClass=idle
