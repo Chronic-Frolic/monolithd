@@ -357,7 +357,20 @@ fn plan(view: &GatewayView, wants: &BTreeMap<String, Want>, state: &BTreeMap<Str
                     free_for_ambient.push(function.clone());
                 }
             }
-            (Want::Ambient { function }, Owner::Ambient | Owner::Progress) => rejoins.push(function.clone()),
+            (Want::Ambient { function }, Owner::Ambient | Owner::Progress) => {
+                if ambient_running {
+                    // The wanted set already runs elsewhere (a zone returning from a
+                    // progress bar, say): rejoin in phase with it.
+                    rejoins.push(function.clone());
+                } else {
+                    // Nothing of the wanted set runs yet, so this is a switch between
+                    // looks: every zone changes together in one preempt_set. Rejoining
+                    // zone by zone would align each to whichever started first and
+                    // stagger the switch by up to a whole loop (found live 2026-09-26,
+                    // violet plasma <-> fire).
+                    free_for_ambient.push(function.clone());
+                }
+            }
             (Want::Ambient { function }, Owner::Foreign(name)) => {
                 if ambient_running {
                     // A stable phase reference already runs elsewhere in the set: align
@@ -1072,6 +1085,27 @@ mod tests {
         zones = ["strip"]
         composable = true
         [[functions]]
+        name = "ember_ram"
+        kind = "chaser"
+        id = 211
+        children = []
+        zones = ["ram"]
+        composable = true
+        [[functions]]
+        name = "ember_eye"
+        kind = "chaser"
+        id = 212
+        children = []
+        zones = ["rog_eye"]
+        composable = true
+        [[functions]]
+        name = "ember_strip"
+        kind = "chaser"
+        id = 213
+        children = []
+        zones = ["strip"]
+        composable = true
+        [[functions]]
         name = "reference_white_eye"
         kind = "scene"
         id = 116
@@ -1158,6 +1192,9 @@ mod tests {
         [[ambient_sets]]
         name = "deep_violet"
         functions = ["ambient_ram", "ambient_eye", "ambient_strip"]
+        [[ambient_sets]]
+        name = "ember"
+        functions = ["ember_ram", "ember_eye", "ember_strip"]
         [[progress]]
         name = "progress_ram"
         zone = "ram"
@@ -1301,6 +1338,17 @@ mod tests {
         // boot_proof, non-composable, is stopped as part of the same preempt_set call
         // that starts the whole set — no separate Stop action is needed up front.
         assert_eq!(plan.actions, vec![Action::PreemptSet(vec!["ambient_ram".to_owned(), "ambient_eye".to_owned(), "ambient_strip".to_owned()])]);
+    }
+
+    #[test]
+    fn switching_between_looks_changes_every_zone_together() {
+        let mut controller = controller_with(&FakeLink::default());
+        controller.handle(ControllerRequest::AmbientSelect { set: "ember".into() }, Instant::now());
+        let plan = plan_for(&healthy(AMBIENT), &controller);
+        assert_eq!(plan.actions, vec![Action::PreemptSet(vec!["ember_ram".to_owned(), "ember_eye".to_owned(), "ember_strip".to_owned()])]);
+        // Half-switched (the gateway confirmed only the RAM): the rest rejoin it in phase.
+        let plan = plan_for(&healthy([Some("ember_ram"), Some("ambient_eye"), Some("ambient_strip")]), &controller);
+        assert_eq!(plan.actions, vec![Action::Rejoin("ember_eye".to_owned()), Action::Rejoin("ember_strip".to_owned())]);
     }
 
     #[test]
