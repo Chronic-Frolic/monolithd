@@ -25,14 +25,10 @@ poll_interval_ms = 1000
 warning_zones = ["ram", "rog_eye", "strip"]
 
 # Zones the automatic "a job is running somewhere" indicator claims. Same shape as
-# warning_zones. Kept at the eye only, the original default.
-#
-# Caution if you add "ram" or "strip" here: the indicator is "any job is active
-# anywhere", not "a job is active on this zone" -- it will cover a running progress
-# bar on that same zone with a flat indicator color for as long as any job anywhere
-# is active, which defeats the progress bar on that zone specifically. Fine for the
-# eye (never a progress zone); think it through before adding a progress zone here.
-working_zones = ["rog_eye"]
+# warning_zones. The whole machine since 2026-09-27 (owner): the working look is a
+# whole-machine look. A progress zone showing a job's own bar keeps the bar; the
+# indicator covers every other listed zone.
+working_zones = ["ram", "rog_eye", "strip"]
 
 # What an animated bar shows on its empty side: "base" (the ambient look itself, so the
 # bar is part of the base look) or "working" (the working look chosen below). The lit
