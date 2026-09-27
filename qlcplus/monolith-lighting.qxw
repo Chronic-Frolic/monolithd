@@ -176531,6 +176531,61 @@
     </Appearance>
     <Chaser>109</Chaser>
    </CueList>
+   <CueList Caption="Ambient cue ambient_eye" ID="9001">
+    <WindowState Visible="False" X="0" Y="0" Width="10" Height="10"/>
+    <Appearance>
+     <FrameStyle>None</FrameStyle>
+     <ForegroundColor>Default</ForegroundColor>
+     <BackgroundColor>Default</BackgroundColor>
+     <BackgroundImage>None</BackgroundImage>
+     <Font>Default</Font>
+    </Appearance>
+    <Chaser>112</Chaser>
+   </CueList>
+   <CueList Caption="Ambient cue ambient_strip" ID="9002">
+    <WindowState Visible="False" X="0" Y="0" Width="10" Height="10"/>
+    <Appearance>
+     <FrameStyle>None</FrameStyle>
+     <ForegroundColor>Default</ForegroundColor>
+     <BackgroundColor>Default</BackgroundColor>
+     <BackgroundImage>None</BackgroundImage>
+     <Font>Default</Font>
+    </Appearance>
+    <Chaser>115</Chaser>
+   </CueList>
+   <CueList Caption="Ambient cue fire_ram" ID="9003">
+    <WindowState Visible="False" X="0" Y="0" Width="10" Height="10"/>
+    <Appearance>
+     <FrameStyle>None</FrameStyle>
+     <ForegroundColor>Default</ForegroundColor>
+     <BackgroundColor>Default</BackgroundColor>
+     <BackgroundImage>None</BackgroundImage>
+     <Font>Default</Font>
+    </Appearance>
+    <Chaser>276</Chaser>
+   </CueList>
+   <CueList Caption="Ambient cue fire_eye" ID="9004">
+    <WindowState Visible="False" X="0" Y="0" Width="10" Height="10"/>
+    <Appearance>
+     <FrameStyle>None</FrameStyle>
+     <ForegroundColor>Default</ForegroundColor>
+     <BackgroundColor>Default</BackgroundColor>
+     <BackgroundImage>None</BackgroundImage>
+     <Font>Default</Font>
+    </Appearance>
+    <Chaser>293</Chaser>
+   </CueList>
+   <CueList Caption="Ambient cue fire_strip" ID="9005">
+    <WindowState Visible="False" X="0" Y="0" Width="10" Height="10"/>
+    <Appearance>
+     <FrameStyle>None</FrameStyle>
+     <ForegroundColor>Default</ForegroundColor>
+     <BackgroundColor>Default</BackgroundColor>
+     <BackgroundImage>None</BackgroundImage>
+     <Font>Default</Font>
+    </Appearance>
+    <Chaser>310</Chaser>
+   </CueList>
    <CueList Caption="Loop cue 2000" ID="10000">
     <WindowState Visible="False" X="0" Y="0" Width="10" Height="10"/>
     <Appearance>

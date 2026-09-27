@@ -9,6 +9,26 @@ version = 1
 function = "ambient_ram"
 cue_list = 9000
 
+[[cues]]
+function = "ambient_eye"
+cue_list = 9001
+
+[[cues]]
+function = "ambient_strip"
+cue_list = 9002
+
+[[cues]]
+function = "fire_ram"
+cue_list = 9003
+
+[[cues]]
+function = "fire_eye"
+cue_list = 9004
+
+[[cues]]
+function = "fire_strip"
+cue_list = 9005
+
 [[loops]]
 zone = "ram"
 role = "full"
