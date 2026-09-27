@@ -9,6 +9,7 @@
 //! own lock, and an operation takes the locks of the zones it touches in a
 //! fixed (alphabetical) order.
 
+use crate::animation::{self, Animation, Role};
 use crate::config::{CalibrationReport, Layout};
 use crate::qlc::{self, FunctionStatus};
 use crate::supervisor::OutputReport;
@@ -46,6 +47,28 @@ const SCHEDULE_THRESHOLD: Duration = Duration::from_secs(1);
 pub struct Command {
     pub id: u32,
     pub running: bool,
+    /// Start this Chaser at a step, through its Cue List, instead of from the beginning.
+    pub at: Option<CueStep>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct CueStep {
+    pub cue_list: u32,
+    pub step: u32,
+}
+
+impl Command {
+    pub fn start(id: u32) -> Self {
+        Self { id, running: true, at: None }
+    }
+
+    pub fn stop(id: u32) -> Self {
+        Self { id, running: false, at: None }
+    }
+
+    pub fn start_at(id: u32, cue_list: u32, step: u32) -> Self {
+        Self { id, running: true, at: Some(CueStep { cue_list, step }) }
+    }
 }
 
 /// The QLC+ operations the gateway needs. A trait so tests can substitute a fake.
@@ -67,8 +90,31 @@ pub trait Qlc: Send + Sync {
 
 impl Qlc for qlc::Client {
     async fn send(&self, commands: &[Command]) -> Result<(), String> {
-        let commands: Vec<(u32, bool)> = commands.iter().map(|command| (command.id, command.running)).collect();
-        self.send_batch(&commands).await
+        // PLAY on a Cue List whose Chaser is running pauses it, and a paused Chaser still
+        // reports Running, so that mistake would freeze LEDs with nothing noticing. Starts
+        // at a step go only to Chasers QLC+ reports stopped; one already running stays as is.
+        let cued: Vec<u32> = commands.iter().filter(|command| command.running && command.at.is_some()).map(|command| command.id).collect();
+        let running: BTreeSet<u32> = if cued.is_empty() {
+            BTreeSet::new()
+        } else {
+            let statuses = qlc::Client::statuses(self, &cued).await?;
+            cued.iter().zip(statuses).filter(|(_, status)| *status == FunctionStatus::Running).map(|(id, _)| *id).collect()
+        };
+        let ops: Vec<qlc::Op> = commands
+            .iter()
+            .filter_map(|command| match command.at {
+                Some(CueStep { cue_list, step }) if command.running => {
+                    if running.contains(&command.id) {
+                        eprintln!("monolithd gateway: Function {} is already running; not replaying it through Cue List {cue_list}, which would pause it", command.id);
+                        None
+                    } else {
+                        Some(qlc::Op::CueStart { cue_list, step })
+                    }
+                }
+                _ => Some(qlc::Op::Set { function: command.id, running: command.running }),
+            })
+            .collect();
+        self.send_ops(&ops).await
     }
     async fn status(&self, id: u32) -> Result<FunctionStatus, String> { qlc::Client::status(self, id).await }
     async fn statuses(&self, ids: &[u32]) -> Result<Vec<FunctionStatus>, String> { qlc::Client::statuses(self, ids).await }
@@ -128,6 +174,13 @@ pub enum Request {
         #[serde(default)]
         transition: Transition,
         overlap_ms: Option<u64>,
+        /// The base look (ambient set) showing: with animated loops for it, the bar is
+        /// animated (its Full side is this look's), else it is the static step Scene.
+        #[serde(default)]
+        look: Option<String>,
+        /// The Empty side: `base` (the look itself) or `working`. Default `base`.
+        #[serde(default)]
+        empty: Option<String>,
     },
 }
 
@@ -146,6 +199,48 @@ struct ZoneState {
     /// QLC+ did not confirm the last change; commands on this zone are refused
     /// until `status` re-syncs it.
     uncertain: bool,
+    /// An animated progress bar: the zone's owner is then reported as `family:step`
+    /// (so the controller sees what it asked for), and these per-LED loops run.
+    bar: Option<Bar>,
+}
+
+/// What an animated bar shows.
+#[derive(Clone, Debug, PartialEq)]
+struct BarTarget {
+    family: String,
+    completed: u32,
+    look: String,
+    empty_look: String,
+}
+
+/// An animated progress bar in place (see `animation.rs`).
+#[derive(Clone, Debug)]
+struct Bar {
+    target: BarTarget,
+    /// The loop Chaser running on each fixture, in the order of the zone's loop lists.
+    running: Vec<u32>,
+    /// The phase reference every loop was started against.
+    epoch: Instant,
+}
+
+/// A bar change waiting for its step boundary; a newer request replaces the target.
+struct PendingBar {
+    due: Instant,
+    epoch: Instant,
+    target: BarTarget,
+}
+
+/// The first `step`-long boundary after `now` (plus a margin), counted from `epoch`.
+fn next_boundary(epoch: Instant, now: Instant, step: Duration) -> Instant {
+    let elapsed = (now + ALIGN_MARGIN).saturating_duration_since(epoch);
+    let steps = elapsed.as_nanos().div_ceil(step.as_nanos().max(1));
+    epoch + Duration::from_nanos((steps * step.as_nanos()) as u64)
+}
+
+/// Which step of a `steps`-long loop of `step_ms` steps, started at `epoch`, begins at `at`.
+fn step_at(epoch: Instant, at: Instant, step_ms: u32, steps: u32) -> u32 {
+    let elapsed = at.saturating_duration_since(epoch).as_secs_f64() * 1000.0;
+    ((elapsed / f64::from(step_ms.max(1))).round() as u64 % u64::from(steps.max(1))) as u32
 }
 
 /// When a running ambient set's cycle began and which members are running, so a member
@@ -180,6 +275,10 @@ pub struct Gateway<Q> {
     /// Rejoins waiting for their loop boundary: function name -> when it is due.
     scheduled: StdMutex<BTreeMap<String, Instant>>,
     schedule_threshold: Duration,
+    /// Per-LED loops and Cue Lists for animated bars; `None` means static bars only.
+    animation: Option<Animation>,
+    /// Bar changes waiting for their step boundary, by zone.
+    pending_bars: StdMutex<BTreeMap<String, PendingBar>>,
 }
 
 impl<Q: Qlc> Gateway<Q> {
@@ -190,7 +289,7 @@ impl<Q: Qlc> Gateway<Q> {
             .flat_map(|registry| registry.zones.keys())
             .map(|name| (name.clone(), Mutex::new(ZoneState::default())))
             .collect();
-        Self { registry, problems, qlc, zones, calibration: None, output: None, epochs: StdMutex::new(BTreeMap::new()), confirm_polls: CONFIRM_POLLS, confirm_interval: CONFIRM_INTERVAL, scheduled: StdMutex::new(BTreeMap::new()), schedule_threshold: SCHEDULE_THRESHOLD }
+        Self { registry, problems, qlc, zones, calibration: None, output: None, epochs: StdMutex::new(BTreeMap::new()), confirm_polls: CONFIRM_POLLS, confirm_interval: CONFIRM_INTERVAL, scheduled: StdMutex::new(BTreeMap::new()), schedule_threshold: SCHEDULE_THRESHOLD, animation: None, pending_bars: StdMutex::new(BTreeMap::new()) }
     }
 
     #[cfg(test)]
@@ -199,16 +298,53 @@ impl<Q: Qlc> Gateway<Q> {
         self
     }
 
-    /// Current owner of each zone, by Function ID.
-    async fn owner_ids(&self, zones: &[String]) -> Vec<Option<u32>> {
+    /// Enable animated bars with these per-LED loops and Cue Lists.
+    pub fn with_animation(mut self, animation: Option<Animation>) -> Self {
+        self.animation = animation;
+        self
+    }
+
+    /// Current owner of each zone, by name.
+    async fn owner_names(&self, zones: &[String]) -> Vec<Option<String>> {
         let mut owners = Vec::with_capacity(zones.len());
         for zone in zones {
             owners.push(match self.zones.get(zone) {
-                Some(state) => state.lock().await.owner.as_ref().map(|owner| owner.id),
+                Some(state) => state.lock().await.owner.as_ref().map(|owner| owner.name.clone()),
                 None => None,
             });
         }
         owners
+    }
+
+    /// Forget bar changes waiting on these zones: something else now decides them.
+    fn cancel_pending_bars(&self, zones: &[String]) {
+        let mut pending = self.pending_bars.lock().unwrap();
+        for zone in zones {
+            pending.remove(zone);
+        }
+    }
+
+    /// The stops that clear these zones: every per-LED loop of a bar on them, and every
+    /// other owner once.
+    fn stops_for(held: &Held<'_>, zones: &[String], owners: &[Target]) -> Vec<Command> {
+        let mut seen = BTreeSet::new();
+        let mut stops = Vec::new();
+        for zone in zones {
+            if let Some(bar) = held.get(zone).and_then(|state| state.bar.as_ref()) {
+                for &id in &bar.running {
+                    if seen.insert(id) {
+                        stops.push(Command::stop(id));
+                    }
+                }
+            }
+        }
+        for owner in owners {
+            let is_bar = owner.zones.iter().any(|zone| held.get(zone).is_some_and(|state| state.bar.is_some()));
+            if !is_bar && seen.insert(owner.id) {
+                stops.push(Command::stop(owner.id));
+            }
+        }
+        stops
     }
 
     /// Let `status` report the health of the receiver's OpenRGB output.
@@ -330,7 +466,7 @@ impl<Q: Qlc> Gateway<Q> {
         match request {
             Request::Start { function } => {
                 let target = resolve_function(registry, &function)?;
-                self.activate(registry, &target, false, Transition::default(), DEFAULT_OVERLAP, false).await
+                self.activate(registry, &target, false, Transition::default(), DEFAULT_OVERLAP, false, None).await
             }
             Request::StartSet { functions } => {
                 let targets = functions.iter().map(|name| resolve_function(registry, name)).collect::<Result<Vec<_>, _>>()?;
@@ -338,11 +474,11 @@ impl<Q: Qlc> Gateway<Q> {
             }
             Request::Replace { function, transition, overlap_ms } => {
                 let target = resolve_function(registry, &function)?;
-                self.activate(registry, &target, true, transition, overlap(overlap_ms)?, false).await
+                self.activate(registry, &target, true, transition, overlap(overlap_ms)?, false, None).await
             }
-            Request::Progress { zone, completed, pattern, transition, overlap_ms } => {
+            Request::Progress { zone, completed, pattern, transition, overlap_ms, .. } => {
                 let target = resolve_progress(registry, &zone, completed, pattern.as_deref())?;
-                self.activate(registry, &target, true, transition, overlap(overlap_ms)?, false).await
+                self.activate(registry, &target, true, transition, overlap(overlap_ms)?, false, None).await
             }
             Request::Stop { function } => {
                 let target = resolve_function(registry, &function)?;
@@ -353,7 +489,7 @@ impl<Q: Qlc> Gateway<Q> {
                 if registry.ambient_set_of(&target.name).is_none() {
                     return fail("not_ambient", format!("{} is not a member of an ambient set", target.name));
                 }
-                self.activate(registry, &target, true, Transition::default(), DEFAULT_OVERLAP, true).await
+                self.activate(registry, &target, true, Transition::default(), DEFAULT_OVERLAP, true, None).await
             }
             Request::PreemptSet { functions } => {
                 let targets = functions.iter().map(|name| resolve_function(registry, name)).collect::<Result<Vec<_>, _>>()?;
@@ -371,19 +507,22 @@ impl<Q: Qlc> Gateway<Q> {
             if attempt > 0 {
                 sleep(self.confirm_interval).await;
             }
+            // One batched query a round: a bar change touches up to a hundred Functions.
+            let ids: Vec<u32> = pending.iter().map(|command| command.id).collect();
             let mut still = Vec::new();
-            for command in &pending {
-                let want = if command.running { FunctionStatus::Running } else { FunctionStatus::Stopped };
-                match self.qlc.status(command.id).await {
-                    Ok(status) if status == want => {}
-                    Ok(status) => {
-                        last = format!("Function {} reports {}", command.id, status.as_str());
-                        still.push(*command);
+            match self.qlc.statuses(&ids).await {
+                Ok(statuses) => {
+                    for (command, status) in pending.iter().zip(statuses) {
+                        let want = if command.running { FunctionStatus::Running } else { FunctionStatus::Stopped };
+                        if status != want {
+                            last = format!("Function {} reports {}", command.id, status.as_str());
+                            still.push(*command);
+                        }
                     }
-                    Err(error) => {
-                        last = error;
-                        still.push(*command);
-                    }
+                }
+                Err(error) => {
+                    last = error;
+                    still = pending.clone();
                 }
             }
             if still.is_empty() {
@@ -405,6 +544,7 @@ impl<Q: Qlc> Gateway<Q> {
                 if let Some(owner) = zone.owner.take() {
                     self.note_stopped(registry, &owner.name);
                 }
+                zone.bar = None;
                 zone.uncertain = true;
             }
         }
@@ -417,7 +557,10 @@ impl<Q: Qlc> Gateway<Q> {
         }
     }
 
-    async fn activate(&self, registry: &Registry, target: &Target, replace: bool, transition: Transition, overlap: Duration, align: bool) -> Result<Value, Failure> {
+    /// Start `target` on its zones, replacing their owners if `replace`. `at` starts it at a
+    /// step through its Cue List (a rejoin landing on a step boundary).
+    #[allow(clippy::too_many_arguments)]
+    async fn activate(&self, registry: &Registry, target: &Target, replace: bool, transition: Transition, overlap: Duration, align: bool, at: Option<CueStep>) -> Result<Value, Failure> {
         let mut held = self.lock_zones(&target.zones).await?;
         Self::check_free_of_uncertainty(&held)?;
 
@@ -452,8 +595,9 @@ impl<Q: Qlc> Gateway<Q> {
             sleep(wait).await;
         }
         let sent_at = Instant::now();
-        let stops: Vec<Command> = owners.iter().map(|owner| Command { id: owner.id, running: false }).collect();
-        let start = Command { id: target.id, running: true };
+        self.cancel_pending_bars(&target.zones);
+        let stops: Vec<Command> = Self::stops_for(&held, &target.zones, &owners);
+        let start = Command { id: target.id, running: true, at };
         let outcome = if stops.is_empty() {
             self.send_confirmed(&[start]).await
         } else {
@@ -489,6 +633,7 @@ impl<Q: Qlc> Gateway<Q> {
         self.note_started(registry, &target.name, sent_at);
         for zone in held.values_mut() {
             zone.owner = Some(target.clone());
+            zone.bar = None;
         }
         let released: Vec<&str> = owners.iter().map(|owner| owner.name.as_str()).collect();
         Ok(json!({
@@ -527,7 +672,7 @@ impl<Q: Qlc> Gateway<Q> {
             to_start.push(target);
         }
         if !to_start.is_empty() {
-            let commands: Vec<Command> = to_start.iter().map(|target| Command { id: target.id, running: true }).collect();
+            let commands: Vec<Command> = to_start.iter().map(|target| Command::start(target.id)).collect();
             let sent_at = Instant::now();
             if let Err(error) = self.send_confirmed(&commands).await {
                 for target in &to_start {
@@ -587,8 +732,9 @@ impl<Q: Qlc> Gateway<Q> {
             return Ok(json!({ "ok": true, "changed": false, "applied": Vec::<&str>::new(), "released": Vec::<&str>::new() }));
         }
 
-        let stops: Vec<Command> = owners.iter().map(|owner| Command { id: owner.id, running: false }).collect();
-        let starts: Vec<Command> = to_apply.iter().map(|target| Command { id: target.id, running: true }).collect();
+        self.cancel_pending_bars(&names);
+        let stops: Vec<Command> = Self::stops_for(&held, &names, &owners);
+        let starts: Vec<Command> = to_apply.iter().map(|target| Command::start(target.id)).collect();
         let all: Vec<Command> = stops.iter().copied().chain(starts.iter().copied()).collect();
         let sent_at = Instant::now();
         if let Err(error) = self.send_confirmed(&all).await {
@@ -607,6 +753,7 @@ impl<Q: Qlc> Gateway<Q> {
             for zone in &target.zones {
                 if let Some(entry) = held.get_mut(zone) {
                     entry.owner = Some((*target).clone());
+                    entry.bar = None;
                 }
             }
             self.note_started(registry, &target.name, sent_at);
@@ -619,7 +766,7 @@ impl<Q: Qlc> Gateway<Q> {
     async fn stop(&self, registry: &Registry, target: &Target) -> Result<Value, Failure> {
         let mut held = self.lock_zones(&target.zones).await?;
         Self::check_free_of_uncertainty(&held)?;
-        if let Err(error) = self.send_confirmed(&[Command { id: target.id, running: false }]).await {
+        if let Err(error) = self.send_confirmed(&[Command::stop(target.id)]).await {
             self.mark_uncertain(registry, &mut held, &target.zones);
             return fail("qlc_unconfirmed", format!("stopping {}: {error}", target.name));
         }
@@ -634,8 +781,22 @@ impl<Q: Qlc> Gateway<Q> {
         Ok(json!({ "ok": true, "changed": changed, "function": target.name, "id": target.id }))
     }
 
-    /// Re-derive an uncertain zone's owner from what QLC+ says is running.
+    /// Re-derive an uncertain zone's owner from what QLC+ says is running. Per-LED bar loops
+    /// left running cannot be pieced back into a bar, so they are stopped first; the
+    /// controller then asks for whatever it wants on the zone again.
     async fn resync(&self, registry: &Registry, held: &mut Held<'_>, zone: &str) {
+        if let Some(animation) = &self.animation {
+            let loops = animation.zone_chasers(zone);
+            match self.qlc.statuses(&loops).await {
+                Ok(statuses) => {
+                    let stray: Vec<Command> = loops.iter().zip(statuses).filter(|(_, status)| *status == FunctionStatus::Running).map(|(id, _)| Command::stop(*id)).collect();
+                    if !stray.is_empty() && self.send_confirmed(&stray).await.is_err() {
+                        return; // cannot tell; stay uncertain
+                    }
+                }
+                Err(_) => return,
+            }
+        }
         let mut candidates: Vec<u32> = registry
             .functions
             .iter()
@@ -703,7 +864,8 @@ impl<Q: Qlc> Gateway<Q> {
                 Some(owner) => (Value::from(owner.name.clone()), Value::from(owner.id), Value::from(reports.pop().unwrap_or_default())),
                 None => (Value::Null, Value::Null, Value::Null),
             };
-            zones.insert(name.clone(), json!({ "owner": owner, "function_id": id, "qlc": qlc, "uncertain": zone.uncertain }));
+            let bar = zone.bar.as_ref().map(|bar| json!({ "family": bar.target.family, "completed": bar.target.completed, "look": bar.target.look, "empty": bar.target.empty_look, "loops": bar.running.len() }));
+            zones.insert(name.clone(), json!({ "owner": owner, "function_id": id, "qlc": qlc, "uncertain": zone.uncertain, "bar": bar }));
         }
         if !held.values().any(|zone| zone.owner.is_some()) {
             // With nothing running there is no owner to ask, so probe QLC+ with any registered Function.
@@ -869,44 +1031,72 @@ async fn connection<Q: Qlc + Send + Sync + 'static>(gateway: Arc<Gateway<Q>>, st
 impl<Q: Qlc + Send + Sync + 'static> Gateway<Q> {
     /// `handle`, except that a rejoin with a long aligned wait is scheduled.
     pub async fn handle_shared(self: &Arc<Self>, request: Request) -> Value {
-        if let Request::Rejoin { function } = &request {
-            if let Some(reply) = self.schedule_rejoin(function).await {
-                return reply;
+        match &request {
+            Request::Rejoin { function } => {
+                if let Some(reply) = self.schedule_rejoin(function).await {
+                    return reply;
+                }
             }
+            Request::Progress { zone, completed, pattern, look, empty, .. } => {
+                if let Some(reply) = self.schedule_bar(zone, *completed, pattern.as_deref(), look.as_deref(), empty.as_deref()).await {
+                    return reply;
+                }
+                // Not animated: the static step Scene replaces whatever is there, a bar included.
+                self.cancel_pending_bars(std::slice::from_ref(zone));
+            }
+            _ => {}
         }
         self.handle(request).await
     }
 
-    /// A rejoin waits for its ambient set's next loop boundary to stay in phase. With slow
-    /// looks that wait is long (up to 20 s with violet plasma), and a caller held that long
-    /// looks dead: the controller answers nothing meanwhile and the watchdog, which allows
-    /// 3 s, raised a Controller Fault (found live 2026-09-26). So a long wait is scheduled:
-    /// the reply comes at once and a background task starts the Function exactly at the
-    /// boundary. Asking again while it is scheduled changes nothing. If a zone changes
-    /// hands during the wait (a fault, quiet, a progress bar), the rejoin is dropped rather
-    /// than overwriting it; the controller asks again if it still wants it. `None` means
-    /// "handle it inline" (short or no wait, or an invalid request `handle` will refuse).
+    /// A rejoin must land in phase with the members of its ambient set still running. If
+    /// the Function has a Cue List, it starts at the step the others are on at the next
+    /// step boundary (at most one step away). Otherwise it waits for the next loop
+    /// boundary (up to 20 s with violet plasma); a caller held that long looks dead (the
+    /// watchdog, allowing 3 s, raised a Controller Fault, found live 2026-09-26), so a long
+    /// wait is scheduled: the reply comes at once and a background task starts it. Asking
+    /// again while scheduled changes nothing. If a zone changes hands during the wait (a
+    /// fault, quiet, a progress bar), the rejoin is dropped rather than overwriting it; the
+    /// controller asks again if it still wants it. `None` means "handle it inline".
     async fn schedule_rejoin(self: &Arc<Self>, function: &str) -> Option<Value> {
         let registry = self.control().ok()?;
         let target = resolve_function(registry, function).ok()?;
-        registry.ambient_set_of(&target.name)?;
+        let set = registry.ambient_set_of(&target.name)?;
+        self.cancel_pending_bars(&target.zones);
         let now = Instant::now();
         if let Some(due) = self.scheduled.lock().unwrap().get(&target.name) {
             return Some(json!({ "ok": true, "changed": false, "scheduled": true, "new": false, "function": target.name, "aligned_wait_ms": due.saturating_duration_since(now).as_millis() as u64 }));
         }
-        let wait = self.align_delay(registry, &target.name, now)?;
-        if wait < self.schedule_threshold {
-            return None;
-        }
-        let owners = self.owner_ids(&target.zones).await;
+        let cue = self.animation.as_ref().and_then(|animation| animation.cue_for(&target.name));
+        let peer_epoch = {
+            let epochs = self.epochs.lock().unwrap();
+            epochs.get(&set.name).filter(|epoch| epoch.members.iter().any(|member| *member != target.name)).and_then(|epoch| epoch.t0)
+        };
+        let (wait, at) = match (cue, peer_epoch) {
+            (Some(cue_list), Some(epoch)) => {
+                let entry = registry.function(&target.name)?;
+                let steps = entry.children.len().max(1) as u32;
+                let step_ms = registry.period_ms(entry.id)? / steps;
+                let due = next_boundary(epoch, now, Duration::from_millis(u64::from(step_ms)));
+                (due.saturating_duration_since(now), Some(CueStep { cue_list, step: step_at(epoch, due, step_ms, steps) }))
+            }
+            _ => {
+                let wait = self.align_delay(registry, &target.name, now)?;
+                if wait < self.schedule_threshold {
+                    return None;
+                }
+                (wait, None)
+            }
+        };
+        let owners = self.owner_names(&target.zones).await;
         self.scheduled.lock().unwrap().insert(target.name.clone(), now + wait);
         let gateway = Arc::clone(self);
         let name = target.name.clone();
         tokio::spawn(async move {
             sleep(wait).await;
-            if gateway.owner_ids(&target.zones).await == owners {
+            if gateway.owner_names(&target.zones).await == owners {
                 if let Some(registry) = gateway.registry.as_ref() {
-                    if let Err(Failure { code, message }) = gateway.activate(registry, &target, true, Transition::default(), DEFAULT_OVERLAP, false).await {
+                    if let Err(Failure { code, message }) = gateway.activate(registry, &target, true, Transition::default(), DEFAULT_OVERLAP, false, at).await {
                         eprintln!("monolithd gateway: scheduled rejoin of {} failed: {code}: {message}", target.name);
                     }
                 }
@@ -916,6 +1106,134 @@ impl<Q: Qlc + Send + Sync + 'static> Gateway<Q> {
             gateway.scheduled.lock().unwrap().remove(&target.name);
         });
         Some(json!({ "ok": true, "changed": false, "scheduled": true, "new": true, "function": name, "aligned_wait_ms": wait.as_millis() as u64 }))
+    }
+
+    /// An animated bar (see `animation.rs`), when the zone has per-LED loops for this look
+    /// and Empty mode and the family's fill order covers exactly the zone's LEDs; `None`
+    /// means "use the static step Scene". Changes land on the next step boundary of the
+    /// running loops (at most one step away), scheduled so the caller is never held; while
+    /// one waits, a newer request replaces its target, so only the latest step is applied.
+    async fn schedule_bar(self: &Arc<Self>, zone: &str, completed: u32, pattern: Option<&str>, look: Option<&str>, empty: Option<&str>) -> Option<Value> {
+        let registry = self.control().ok()?;
+        let animation = self.animation.as_ref()?;
+        let look = look?;
+        let empty_look = if empty == Some("working") { animation::WORKING } else { look };
+        let full = animation.loops(zone, Role::Full, look)?;
+        let empty_set = animation.loops(zone, Role::Empty, empty_look)?;
+        let family = match pattern {
+            Some(name) => registry.progress_by_name(name).filter(|entry| entry.zone == zone)?,
+            None => registry.progress_for_zone(zone)?,
+        };
+        let covers = |fixtures: &[u32]| fixtures.iter().collect::<BTreeSet<_>>() == family.order.iter().collect::<BTreeSet<_>>();
+        if completed > family.total || full.fixtures != empty_set.fixtures || !covers(&full.fixtures) {
+            return None;
+        }
+        let target = BarTarget { family: family.name.clone(), completed, look: look.to_owned(), empty_look: empty_look.to_owned() };
+        let name = format!("{}:{completed}", family.name);
+        let now = Instant::now();
+        if let Some(pending) = self.pending_bars.lock().unwrap().get_mut(zone) {
+            pending.target = target;
+            return Some(json!({ "ok": true, "changed": false, "scheduled": true, "new": false, "function": name, "aligned_wait_ms": pending.due.saturating_duration_since(now).as_millis() as u64 }));
+        }
+        let epoch = {
+            let state = self.zones.get(zone)?.lock().await;
+            if state.uncertain || state.owner.as_ref().is_some_and(|owner| state.bar.is_none() && !Self::bar_may_replace(owner)) {
+                return None; // the static path applies (or refuses) it by the usual rules
+            }
+            match &state.bar {
+                Some(bar) if bar.target == target => return Some(json!({ "ok": true, "changed": false, "function": name })),
+                Some(bar) => bar.epoch,
+                None => self.epochs.lock().unwrap().get(look).and_then(|epoch| epoch.t0).unwrap_or(now),
+            }
+        };
+        // A boundary of the longer step is one of the shorter too (loops are generated so).
+        let step = Duration::from_millis(u64::from(full.step_ms.max(empty_set.step_ms)));
+        let due = next_boundary(epoch, now, step);
+        self.pending_bars.lock().unwrap().insert(zone.to_owned(), PendingBar { due, epoch, target });
+        let gateway = Arc::clone(self);
+        let zone_name = zone.to_owned();
+        tokio::spawn(async move {
+            tokio::time::sleep_until(due.into()).await;
+            gateway.apply_bar(&zone_name, due).await;
+        });
+        Some(json!({ "ok": true, "changed": false, "scheduled": true, "new": true, "function": name, "aligned_wait_ms": due.saturating_duration_since(now).as_millis() as u64 }))
+    }
+
+    /// A bar replaces its zone's owner directly, so only an owner `activate` would replace
+    /// without further ado: composable and confined to this one zone.
+    fn bar_may_replace(owner: &Target) -> bool {
+        owner.composable && owner.zones.len() == 1
+    }
+
+    /// Apply a zone's pending bar at its boundary `due`: swap only the loops of LEDs that
+    /// change side (or, for a new bar, stop the zone's owner and start every loop), each
+    /// at the step the running loops are on, in one batch.
+    async fn apply_bar(&self, zone: &str, due: Instant) {
+        let (Some(registry), Some(animation)) = (self.registry.as_ref(), self.animation.as_ref()) else { return };
+        // Lock first: whatever preempts the zone (a fault, a switch) cancels pending bars
+        // while holding the lock, so a bar still pending here has not been overtaken.
+        let Ok(mut held) = self.lock_zones(&[zone.to_owned()]).await else { return };
+        let pending = {
+            let mut pending = self.pending_bars.lock().unwrap();
+            match pending.get(zone) {
+                Some(entry) if entry.due == due => pending.remove(zone),
+                _ => None, // cancelled, or replaced by a later schedule with its own task
+            }
+        };
+        let Some(PendingBar { epoch, target, .. }) = pending else { return };
+        let (Some(full), Some(empty_set), Some(family)) =
+            (animation.loops(zone, Role::Full, &target.look), animation.loops(zone, Role::Empty, &target.empty_look), registry.progress_by_name(&target.family))
+        else {
+            return;
+        };
+        let lit: BTreeSet<u32> = family.order[..target.completed as usize].iter().copied().collect();
+        let desired: Vec<u32> = full.fixtures.iter().enumerate().map(|(index, fixture)| if lit.contains(fixture) { full.chasers[index] } else { empty_set.chasers[index] }).collect();
+        let Some(state) = held.get_mut(zone) else { return };
+        if state.uncertain || state.owner.as_ref().is_some_and(|owner| state.bar.is_none() && !Self::bar_may_replace(owner)) {
+            eprintln!("monolithd gateway: bar on {zone} dropped: the zone is unconfirmed or held by a Function a bar may not replace");
+            return;
+        }
+        let mut stops = Vec::new();
+        let mut changing = Vec::new();
+        let released = match &state.bar {
+            Some(bar) => {
+                for (index, (&now_running, &wanted)) in bar.running.iter().zip(&desired).enumerate() {
+                    if now_running != wanted {
+                        stops.push(Command::stop(now_running));
+                        changing.push(index);
+                    }
+                }
+                None
+            }
+            None => {
+                if let Some(owner) = &state.owner {
+                    stops.push(Command::stop(owner.id));
+                }
+                changing = (0..desired.len()).collect();
+                state.owner.clone()
+            }
+        };
+        let starts: Vec<Command> = changing
+            .iter()
+            .map(|&index| {
+                let (set, chaser) = if desired[index] == full.chasers[index] { (full, full.chasers[index]) } else { (empty_set, empty_set.chasers[index]) };
+                Command::start_at(chaser, set.cue_lists[index], step_at(epoch, due, set.step_ms, set.steps))
+            })
+            .collect();
+        let all: Vec<Command> = stops.into_iter().chain(starts).collect();
+        if !all.is_empty() {
+            if let Err(error) = self.send_confirmed(&all).await {
+                eprintln!("monolithd gateway: bar on {zone} unconfirmed: {error}");
+                self.mark_uncertain(registry, &mut held, &[zone.to_owned()]);
+                return;
+            }
+        }
+        if let Some(owner) = released {
+            self.note_stopped(registry, &owner.name);
+        }
+        let state = held.get_mut(zone).expect("held above");
+        state.owner = Some(Target { name: format!("{}:{}", target.family, target.completed), id: desired[0], zones: vec![zone.to_owned()], composable: true });
+        state.bar = Some(Bar { target, running: desired, epoch });
     }
 }
 
@@ -937,6 +1255,31 @@ pub async fn run<Q: Qlc + 'static>(gateway: Arc<Gateway<Q>>) {
     }
 }
 
+/// The animated-bar assets, if present and consistent with the workspace; any problem
+/// leaves bars static rather than half-animated.
+fn load_animation(registry: Option<&Registry>, registry_path: &Path) -> Option<Animation> {
+    let animation = match Animation::load() {
+        Ok(Some(animation)) => animation,
+        Ok(None) => return None,
+        Err(error) => {
+            eprintln!("monolithd gateway: animated bars off: {error}");
+            return None;
+        }
+    };
+    let registry = registry?;
+    let workspace = registry.workspace_path(registry_path);
+    let problems = match std::fs::read_to_string(&workspace) {
+        Ok(xml) => animation.check(&xml, registry),
+        Err(error) => vec![format!("read {}: {error}", workspace.display())],
+    };
+    if let Some(first) = problems.first() {
+        eprintln!("monolithd gateway: animated bars off, {} problem(s); first: {first}", problems.len());
+        return None;
+    }
+    eprintln!("monolithd gateway: animated bars on ({} loop sets, {} cue lists for ambients)", animation.loops.len(), animation.cues.len());
+    Some(animation)
+}
+
 /// Load and check the registry, then serve the gateway for the production stack.
 pub async fn spawn_for_stack(layout: &Layout, registry_path: &Path, calibration: watch::Receiver<CalibrationReport>, output: watch::Receiver<OutputReport>) {
     let (registry, problems) = match registry::load_and_validate(registry_path, layout) {
@@ -948,7 +1291,8 @@ pub async fn spawn_for_stack(layout: &Layout, registry_path: &Path, calibration:
     } else {
         eprintln!("monolithd gateway: READ-ONLY, {} registry problem(s); first: {}", problems.len(), problems[0]);
     }
-    let gateway = Arc::new(Gateway::new(registry, problems, qlc::Client::new(&layout.qlc_e131.web_listener)).with_calibration(calibration).with_output(output));
+    let animation = load_animation(registry.as_ref(), registry_path);
+    let gateway = Arc::new(Gateway::new(registry, problems, qlc::Client::new(&layout.qlc_e131.web_listener)).with_calibration(calibration).with_output(output).with_animation(animation));
     tokio::spawn(run(gateway));
 }
 
@@ -1125,7 +1469,10 @@ mod tests {
     }
 
     fn label(command: &Command) -> String {
-        format!("{} {}", if command.running { "start" } else { "stop" }, command.id)
+        match command.at {
+            Some(at) if command.running => format!("start {} @{}", command.id, at.step),
+            _ => format!("{} {}", if command.running { "start" } else { "stop" }, command.id),
+        }
     }
 
     impl Qlc for Fake {
@@ -1136,6 +1483,10 @@ mod tests {
             };
             if let Some(delay) = delay {
                 sleep(delay).await;
+            }
+            let before = self.running.lock().unwrap().clone();
+            if let Some(command) = commands.iter().find(|command| command.running && command.at.is_some() && before.contains(&command.id)) {
+                return Err(format!("{}: a Cue List start on a running Chaser would pause it", label(command)));
             }
             self.batches.lock().unwrap().push(commands.iter().map(label).collect());
             for command in commands {
@@ -1166,12 +1517,12 @@ mod tests {
     fn preempt_set(functions: &[&str]) -> Request { Request::PreemptSet { functions: functions.iter().map(|f| (*f).to_owned()).collect() } }
     fn replace(function: &str) -> Request { Request::Replace { function: function.to_owned(), transition: Transition::default(), overlap_ms: None } }
     fn stop(function: &str) -> Request { Request::Stop { function: function.to_owned() } }
-    fn progress(zone: &str, completed: u32) -> Request { Request::Progress { zone: zone.to_owned(), completed, pattern: None, transition: Transition::default(), overlap_ms: None } }
+    fn progress(zone: &str, completed: u32) -> Request { Request::Progress { zone: zone.to_owned(), completed, pattern: None, transition: Transition::default(), overlap_ms: None, look: None, empty: None } }
     fn progress_with(zone: &str, completed: u32, transition: Transition, overlap_ms: Option<u64>) -> Request {
-        Request::Progress { zone: zone.to_owned(), completed, pattern: None, transition, overlap_ms }
+        Request::Progress { zone: zone.to_owned(), completed, pattern: None, transition, overlap_ms, look: None, empty: None }
     }
     fn progress_pattern(zone: &str, completed: u32, pattern: &str) -> Request {
-        Request::Progress { zone: zone.to_owned(), completed, pattern: Some(pattern.to_owned()), transition: Transition::default(), overlap_ms: None }
+        Request::Progress { zone: zone.to_owned(), completed, pattern: Some(pattern.to_owned()), transition: Transition::default(), overlap_ms: None, look: None, empty: None }
     }
     fn code(reply: &Value) -> &str { reply["code"].as_str().unwrap_or("") }
 
@@ -1616,6 +1967,196 @@ mod tests {
 
     fn time_of(fake: &Fake, label: &str, nth: usize) -> Instant {
         fake.times.lock().unwrap().iter().filter(|(l, _)| l == label).nth(nth).map(|(_, t)| *t).unwrap_or_else(|| panic!("no {label} #{nth}"))
+    }
+
+    // --- Animated bars: a 4-LED RAM family lit 3, 2, 1, 0; loops of 4 x 50 ms (the
+    // working look 8 x 25 ms); the ambient Chasers 2 x 100 ms.
+
+    const BAR_ANIMATION: &str = r#"
+        version = 1
+        [[cues]]
+        function = "ambient_ram"
+        cue_list = 9000
+        [[loops]]
+        zone = "ram"
+        role = "full"
+        look = "deep_violet"
+        source = "aurora_ram"
+        step_ms = 50
+        steps = 4
+        fixtures = [0, 1, 2, 3]
+        chasers = [1000, 1001, 1002, 1003]
+        cue_lists = [10000, 10001, 10002, 10003]
+        [[loops]]
+        zone = "ram"
+        role = "empty"
+        look = "deep_violet"
+        source = "ambient_ram"
+        step_ms = 50
+        steps = 4
+        fixtures = [0, 1, 2, 3]
+        chasers = [1100, 1101, 1102, 1103]
+        cue_lists = [10100, 10101, 10102, 10103]
+        [[loops]]
+        zone = "ram"
+        role = "empty"
+        look = "working"
+        source = "working_ram"
+        step_ms = 25
+        steps = 8
+        fixtures = [0, 1, 2, 3]
+        chasers = [1200, 1201, 1202, 1203]
+        cue_lists = [10200, 10201, 10202, 10203]
+    "#;
+
+    fn bar_gateway(fake: &Fake) -> Arc<Gateway<Fake>> {
+        let mut registry: Registry = toml::from_str(REGISTRY).unwrap();
+        for id in [109, 112, 115] {
+            registry.periods_ms.insert(id, 200);
+        }
+        let family = registry.progress.iter_mut().find(|entry| entry.name == "progress_ram").unwrap();
+        family.total = 4;
+        family.order = vec![3, 2, 1, 0];
+        let animation = Animation::parse(BAR_ANIMATION).unwrap();
+        Arc::new(Gateway::new(Some(registry), Vec::new(), fake.clone()).with_confirmation(3, Duration::from_millis(1)).with_animation(Some(animation)))
+    }
+
+    fn bar(completed: u32, empty: Option<&str>) -> Request {
+        Request::Progress { zone: "ram".to_owned(), completed, pattern: None, transition: Transition::default(), overlap_ms: None, look: Some("deep_violet".to_owned()), empty: empty.map(str::to_owned) }
+    }
+
+    /// The batches delivered since `from`, and the step every Cue List start in the last one used.
+    fn batches_since(fake: &Fake, from: usize) -> Vec<Vec<String>> {
+        fake.batches.lock().unwrap()[from..].to_vec()
+    }
+
+    fn cue_steps(batch: &[String]) -> BTreeSet<String> {
+        batch.iter().filter_map(|label| label.split_once(" @").map(|(_, step)| step.to_owned())).collect()
+    }
+
+    fn first_time_starting_with(fake: &Fake, prefix: &str) -> Instant {
+        fake.times.lock().unwrap().iter().find(|(label, _)| label.starts_with(prefix)).map(|(_, at)| *at).unwrap_or_else(|| panic!("nothing starting with {prefix}"))
+    }
+
+    #[tokio::test]
+    async fn a_bar_replaces_the_ambient_with_per_led_loops_on_a_step_boundary_then_swaps_only_what_changes() {
+        let fake = Fake::default();
+        let gateway = bar_gateway(&fake);
+        gateway.handle(start_set(&["ambient_ram", "ambient_eye"])).await;
+        let before = fake.batches.lock().unwrap().len();
+        tokio::time::sleep(Duration::from_millis(30)).await;
+        let asked = Instant::now();
+        let reply = gateway.handle_shared(bar(1, None)).await;
+        assert!(asked.elapsed() < Duration::from_millis(20), "the caller is not held");
+        assert_eq!((reply["scheduled"].clone(), reply["new"].clone(), reply["function"].clone()), (json!(true), json!(true), json!("progress_ram:1")), "{reply}");
+        tokio::time::sleep(Duration::from_millis(120)).await;
+        let batches = batches_since(&fake, before);
+        assert_eq!(batches.len(), 1, "{batches:?}");
+        let names: Vec<&str> = batches[0].iter().map(|label| label.split(" @").next().unwrap()).collect();
+        assert_eq!(names, ["stop 109", "start 1100", "start 1101", "start 1102", "start 1003"], "fixture 3 lights first; the rest stay on the base look");
+        assert_eq!(cue_steps(&batches[0]).len(), 1, "every loop starts on the same step: {batches:?}");
+        let offset = first_time_starting_with(&fake, "start 1100").duration_since(time_of(&fake, "start 112", 0)).as_millis() % 50;
+        assert!(offset <= 12 || offset >= 38, "the bar landed {offset} ms into a 50 ms step");
+        assert_eq!(fake.running(), vec![112, 1003, 1100, 1101, 1102]);
+        let status = gateway.handle(Request::Status).await;
+        assert_eq!(status["zones"]["ram"]["owner"], "progress_ram:1", "{status}");
+        assert!(status["zones"]["ram"]["bar"].is_object(), "{status}");
+        assert!(!gateway.epochs.lock().unwrap()["deep_violet"].members.contains("ambient_ram"), "the stopped ambient left its set");
+
+        let before = fake.batches.lock().unwrap().len();
+        assert_eq!(gateway.handle_shared(bar(2, None)).await["new"], true);
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        let batches = batches_since(&fake, before);
+        let names: Vec<&str> = batches[0].iter().map(|label| label.split(" @").next().unwrap()).collect();
+        assert_eq!(names, ["stop 1102", "start 1002"], "only the LED that changes side is touched");
+        assert_eq!(gateway.handle_shared(bar(2, None)).await["changed"], false);
+    }
+
+    #[tokio::test]
+    async fn a_bar_leaves_a_zone_held_by_a_non_composable_function_to_the_usual_rules() {
+        let fake = Fake::default();
+        let gateway = bar_gateway(&fake);
+        gateway.handle(start("boot_proof")).await;
+        let reply = gateway.handle_shared(bar(1, None)).await;
+        assert_eq!(reply["code"], "explicit_stop_required", "{reply}");
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        assert_eq!(fake.running(), vec![106], "boot_proof keeps every zone");
+    }
+
+    #[tokio::test]
+    async fn only_the_latest_bar_request_waiting_for_a_boundary_is_applied() {
+        let fake = Fake::default();
+        let gateway = bar_gateway(&fake);
+        gateway.handle(start_set(&["ambient_ram", "ambient_eye"])).await;
+        let before = fake.batches.lock().unwrap().len();
+        tokio::time::sleep(Duration::from_millis(20)).await;
+        assert_eq!(gateway.handle_shared(bar(1, None)).await["new"], true);
+        assert_eq!(gateway.handle_shared(bar(3, None)).await["new"], false, "joins the waiting change");
+        tokio::time::sleep(Duration::from_millis(120)).await;
+        let batches = batches_since(&fake, before);
+        assert_eq!(batches.len(), 1, "{batches:?}");
+        assert_eq!(fake.running(), vec![112, 1001, 1002, 1003, 1100]);
+    }
+
+    #[tokio::test]
+    async fn the_working_look_fills_the_empty_side_with_its_own_timing() {
+        let fake = Fake::default();
+        let gateway = bar_gateway(&fake);
+        gateway.handle(start_set(&["ambient_ram", "ambient_eye"])).await;
+        gateway.handle_shared(bar(2, Some("working"))).await;
+        tokio::time::sleep(Duration::from_millis(120)).await;
+        assert_eq!(fake.running(), vec![112, 1002, 1003, 1200, 1201]);
+        let last = fake.batches.lock().unwrap().last().unwrap().clone();
+        let full_steps = cue_steps(&last.iter().filter(|label| label.starts_with("start 100")).cloned().collect::<Vec<_>>());
+        let working_steps = cue_steps(&last.iter().filter(|label| label.starts_with("start 120")).cloned().collect::<Vec<_>>());
+        let (full, working): (u32, u32) = (full_steps.iter().next().unwrap().parse().unwrap(), working_steps.iter().next().unwrap().parse().unwrap());
+        assert_eq!(working % 8, (full * 2) % 8, "a 25 ms loop is twice as far along as a 50 ms one: {last:?}");
+    }
+
+    #[tokio::test]
+    async fn a_preempt_mid_bar_stops_every_loop_in_the_same_batch_and_cancels_a_waiting_change() {
+        let fake = Fake::default();
+        let gateway = bar_gateway(&fake);
+        gateway.handle(start_set(&["ambient_ram", "ambient_eye"])).await;
+        gateway.handle_shared(bar(2, None)).await;
+        tokio::time::sleep(Duration::from_millis(120)).await;
+        assert_eq!(gateway.handle_shared(bar(3, None)).await["scheduled"], true);
+        let before = fake.batches.lock().unwrap().len();
+        let reply = gateway.handle(preempt_set(&["ambient_ram"])).await;
+        assert_eq!(reply["ok"], true, "{reply}");
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        let batches = batches_since(&fake, before);
+        assert_eq!(batches.len(), 1, "the waiting bar change must not land afterwards: {batches:?}");
+        for chaser in [1002, 1003, 1100, 1101] {
+            assert!(batches[0].contains(&format!("stop {chaser}")), "{batches:?}");
+        }
+        assert_eq!(fake.running(), vec![109, 112]);
+        assert!(gateway.handle(Request::Status).await["zones"]["ram"]["bar"].is_null());
+    }
+
+    #[tokio::test]
+    async fn a_rejoin_after_a_bar_starts_the_ambient_at_the_peers_step_through_its_cue_list() {
+        let fake = Fake::default();
+        let gateway = bar_gateway(&fake);
+        gateway.handle(start_set(&["ambient_ram", "ambient_eye"])).await;
+        gateway.handle_shared(bar(4, None)).await;
+        tokio::time::sleep(Duration::from_millis(120)).await;
+        let before = fake.batches.lock().unwrap().len();
+        let reply = gateway.handle_shared(rejoin("ambient_ram")).await;
+        assert_eq!(reply["scheduled"], true, "{reply}");
+        assert!(reply["aligned_wait_ms"].as_u64().unwrap() <= 110, "a step (100 ms) away at most, not a loop: {reply}");
+        tokio::time::sleep(Duration::from_millis(150)).await;
+        let batches = batches_since(&fake, before);
+        assert_eq!(batches.len(), 1, "{batches:?}");
+        let start = batches[0].iter().find(|label| label.starts_with("start 109 @")).unwrap_or_else(|| panic!("{batches:?}"));
+        for chaser in [1000, 1001, 1002, 1003] {
+            assert!(batches[0].contains(&format!("stop {chaser}")), "{batches:?}");
+        }
+        let offset = first_time_starting_with(&fake, "start 109 @").duration_since(time_of(&fake, "start 112", 0)).as_millis();
+        let expected = ((offset as f64 / 100.0).round() as u64 % 2).to_string();
+        assert_eq!(start.split_once(" @").unwrap().1, expected, "the step the peers are on ({offset} ms in)");
+        assert!(offset % 100 <= 15 || offset % 100 >= 85, "landed {} ms into a 100 ms step", offset % 100);
+        assert_eq!(fake.running(), vec![109, 112]);
     }
 
     #[tokio::test]

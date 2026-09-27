@@ -28,6 +28,17 @@ impl FunctionStatus {
     }
 }
 
+/// One message of a batch.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Op {
+    /// Start or stop a Function.
+    Set { function: u32, running: bool },
+    /// Start a Chaser at a given step through its Cue List widget: select the step on the
+    /// stopped Cue List, then play. QLC+ 5.2.2 starts a stopped Cue List's Chaser at the
+    /// selected step; a running Chaser cannot be moved this way (probed 2026-09-26).
+    CueStart { cue_list: u32, step: u32 },
+}
+
 /// Client for QLC+'s local WebSocket API.
 ///
 /// The production lighting stack places QLC+ and this client in the same
@@ -73,9 +84,17 @@ impl Client {
     }
 
     /// Send several start/stop commands in one write over one connection, so
-    /// QLC+ sees them together and applies them in order within one pass.
+    /// QLC+ sees them together and applies them in order within one pass. (The gateway
+    /// sends `send_ops`; this form is kept for the live QLC+ tests.)
+    #[cfg(test)]
     pub async fn send_batch(&self, commands: &[(u32, bool)]) -> Result<(), String> {
-        set_running_batch_once(parse_listener(&self.listener)?, commands).await
+        let ops: Vec<Op> = commands.iter().map(|&(function, running)| Op::Set { function, running }).collect();
+        self.send_ops(&ops).await
+    }
+
+    /// Send a mixed batch (starts, stops, Cue List starts at a step) in one write.
+    pub async fn send_ops(&self, ops: &[Op]) -> Result<(), String> {
+        send_ops_once(parse_listener(&self.listener)?, ops).await
     }
 
     pub async fn status(&self, function_id: u32) -> Result<FunctionStatus, String> {
@@ -162,17 +181,31 @@ async fn open(address: SocketAddr) -> Result<(TcpStream, Vec<u8>), String> {
     Ok((stream, response.split_off(header_end)))
 }
 
-async fn set_running_batch_once(address: SocketAddr, commands: &[(u32, bool)]) -> Result<(), String> {
+/// The WebSocket text messages for one batch, in order.
+fn op_messages(ops: &[Op]) -> Vec<String> {
+    let mut messages = Vec::new();
+    for op in ops {
+        match *op {
+            Op::Set { function, running } => messages.push(format!("QLC+API|setFunctionStatus|{function}|{}", u8::from(running))),
+            Op::CueStart { cue_list, step } => {
+                messages.push(format!("{cue_list}|STEP|{step}"));
+                messages.push(format!("{cue_list}|PLAY"));
+            }
+        }
+    }
+    messages
+}
+
+async fn send_ops_once(address: SocketAddr, ops: &[Op]) -> Result<(), String> {
     let (mut stream, _) = open(address).await?;
     let mut frames = Vec::new();
-    for (function_id, running) in commands {
-        let command = format!("QLC+API|setFunctionStatus|{function_id}|{}", u8::from(*running));
-        frames.extend_from_slice(&masked_text_frame(command.as_bytes()));
+    for message in op_messages(ops) {
+        frames.extend_from_slice(&masked_text_frame(message.as_bytes()));
     }
     stream
         .write_all(&frames)
         .await
-        .map_err(|error| format!("send QLC+ commands {commands:?}: {error}"))?;
+        .map_err(|error| format!("send QLC+ commands {ops:?}: {error}"))?;
     stream
         .shutdown()
         .await
@@ -389,7 +422,7 @@ mod tests {
     async fn sends_start_and_stop_commands() {
         for (running, expected) in [(true, "QLC+API|setFunctionStatus|109|1"), (false, "QLC+API|setFunctionStatus|109|0")] {
             let (address, server) = fake_qlc(None).await;
-            set_running_batch_once(address, &[(109, running)]).await.unwrap();
+            send_ops_once(address, &[Op::Set { function: 109, running }]).await.unwrap();
             assert_eq!(server.await.unwrap(), expected);
         }
     }
@@ -397,7 +430,7 @@ mod tests {
     #[tokio::test]
     async fn sends_a_batch_of_commands_in_order_over_one_connection() {
         let (address, server) = fake_qlc_batch(None, 3).await;
-        set_running_batch_once(address, &[(109, false), (16, true), (112, true)]).await.unwrap();
+        send_ops_once(address, &[Op::Set { function: 109, running: false }, Op::Set { function: 16, running: true }, Op::Set { function: 112, running: true }]).await.unwrap();
         assert_eq!(
             server.await.unwrap(),
             vec!["QLC+API|setFunctionStatus|109|0", "QLC+API|setFunctionStatus|16|1", "QLC+API|setFunctionStatus|112|1"]
@@ -550,5 +583,11 @@ mod tests {
     #[tokio::test]
     async fn refuses_non_loopback_listeners() {
         assert!(Client::new("192.168.1.10:9999").status(1).await.is_err());
+    }
+
+    #[test]
+    fn a_cue_start_selects_the_step_then_plays() {
+        let messages = op_messages(&[Op::Set { function: 109, running: false }, Op::CueStart { cue_list: 10000, step: 7 }]);
+        assert_eq!(messages, vec!["QLC+API|setFunctionStatus|109|0", "10000|STEP|7", "10000|PLAY"]);
     }
 }

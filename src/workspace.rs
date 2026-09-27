@@ -43,6 +43,8 @@ const CONTRACT: &[ContractEntry] = &[
     ContractEntry { intake_name: "State — Working", targets: &[("ram", "working_ram"), ("rog_eye", "working_eye"), ("strip", "working_strip")] },
     ContractEntry { intake_name: "State — Controller Fault", targets: &[("ram", "controller_fault_ram"), ("rog_eye", "controller_fault_eye"), ("strip", "controller_fault_strip")] },
     ContractEntry { intake_name: "State — Pre-Sleep", targets: &[("ram", "pre_sleep_ram"), ("rog_eye", "pre_sleep_eye"), ("strip", "pre_sleep_strip")] },
+    // The lit side of an animated bar over violet plasma; sliced into per-LED loops.
+    ContractEntry { intake_name: "Bar Full — Aurora", targets: &[("ram", "aurora_ram"), ("strip", "aurora_strip")] },
 ];
 
 fn intake_dir(root: &Path) -> PathBuf {

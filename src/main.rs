@@ -1,4 +1,5 @@
 mod allocator;
+mod animation;
 mod calibrate;
 mod config;
 mod controller;
@@ -41,7 +42,20 @@ fn validate_registry(path: Option<String>) -> Result<(), String> {
     match registry::load_and_validate(&path, &layout) {
         Ok((registry, _)) => {
             match std::fs::read_to_string(root.join(&registry.workspace)) {
-                Ok(xml) => problems.extend(workspace::check_fill_orders(&xml, &registry)),
+                Ok(xml) => {
+                    problems.extend(workspace::check_fill_orders(&xml, &registry));
+                    match animation::Animation::load() {
+                        Ok(Some(animation)) => {
+                            let found = animation.check(&xml, &registry);
+                            if found.is_empty() {
+                                println!("animated bars: {} loop sets, {} ambient cue lists", animation.loops.len(), animation.cues.len());
+                            }
+                            problems.extend(found);
+                        }
+                        Ok(None) => println!("animated bars: no progress-animation.toml; bars are static"),
+                        Err(error) => problems.push(error),
+                    }
+                }
                 Err(error) => problems.push(format!("read the workspace to check fill orders: {error}")),
             }
             match controller::load_config(&root.join("controller.toml")) {

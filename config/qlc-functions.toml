@@ -147,9 +147,9 @@ composable = true
 # Lowest tier: state_wants() computes this first, so quiet/warning/fault all override it.
 [[functions]]
 name = "working_eye"
-kind = "scene"
+kind = "chaser"
 id = 127
-children = []
+children = [377, 378, 379, 380, 381, 382, 383, 384, 385, 386, 387, 388, 389, 390, 391, 392]
 zones = ["rog_eye"]
 composable = true
 
@@ -171,17 +171,17 @@ composable = true
 
 [[functions]]
 name = "working_ram"
-kind = "scene"
+kind = "chaser"
 id = 202
-children = []
+children = [361, 362, 363, 364, 365, 366, 367, 368, 369, 370, 371, 372, 373, 374, 375, 376]
 zones = ["ram"]
 composable = true
 
 [[functions]]
 name = "working_strip"
-kind = "scene"
+kind = "chaser"
 id = 203
-children = []
+children = [393, 394, 395, 396, 397, 398, 399, 400, 401, 402, 403, 404, 405, 406, 407, 408]
 zones = ["strip"]
 composable = true
 
@@ -263,6 +263,24 @@ name = "fire_strip"
 kind = "chaser"
 id = 310
 children = [311, 312, 313, 314, 315, 316, 317, 318, 319, 320, 321, 322, 323, 324, 325, 326]
+zones = ["strip"]
+composable = true
+
+# The lit side of an animated bar over violet plasma (intake "Bar Full — Aurora"); sliced
+# into per-LED loops by tools/slice-progress-loops.py.
+[[functions]]
+name = "aurora_ram"
+kind = "chaser"
+id = 343
+children = [327, 328, 329, 330, 331, 332, 333, 334, 335, 336, 337, 338, 339, 340, 341, 342]
+zones = ["ram"]
+composable = true
+
+[[functions]]
+name = "aurora_strip"
+kind = "chaser"
+id = 360
+children = [344, 345, 346, 347, 348, 349, 350, 351, 352, 353, 354, 355, 356, 357, 358, 359]
 zones = ["strip"]
 composable = true
 

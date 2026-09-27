@@ -52,6 +52,28 @@ pub struct ControllerConfig {
     /// `warning_zones`, for `working_<zone>`.
     #[serde(default = "default_working_zones")]
     pub working_zones: Vec<String>,
+    /// What an animated bar shows on its empty side: the base look (`base`) or the
+    /// distinct working look (`working`). Both were asked for (owner, 2026-09-26); the
+    /// lit side is always the current ambient set's own Full look. Static bars ignore it.
+    #[serde(default)]
+    pub progress_empty: ProgressEmpty,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ProgressEmpty {
+    #[default]
+    Base,
+    Working,
+}
+
+impl ProgressEmpty {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Base => "base",
+            Self::Working => "working",
+        }
+    }
 }
 
 fn default_poll_interval() -> u64 {
@@ -444,6 +466,10 @@ struct Controller<L: Link> {
     /// its own, so a sleep policy that dies mid-countdown cannot leave it up; the policy
     /// renews it while it counts down.
     pre_sleep: Option<(String, Instant)>,
+    /// The (look, empty mode) each progress zone's bar was last requested in. A bar reports
+    /// only `family:step`, so without this a bar would keep a stale look after an ambient
+    /// switch until its next step; unknown (after a start) counts as stale.
+    bar_styles: BTreeMap<String, (String, &'static str)>,
     report: Report,
 }
 
@@ -460,7 +486,7 @@ impl<L: Link> Controller<L> {
             .collect();
         let planner = Planner::new(zones, Duration::from_secs(config.complete_hold_seconds));
         let ambient = config.default_ambient.clone();
-        Self { link, registry, config, planner, ambient, paused: false, dirty: true, faults: BTreeMap::new(), quiet: None, pre_sleep: None, report: Report::default() }
+        Self { link, registry, config, planner, ambient, paused: false, dirty: true, faults: BTreeMap::new(), quiet: None, pre_sleep: None, bar_styles: BTreeMap::new(), report: Report::default() }
     }
 
     fn take_dirty(&mut self) -> bool {
@@ -641,8 +667,28 @@ impl<L: Link> Controller<L> {
 
         let plan = plan(&view, &wants, &state, &self.registry);
         self.block(plan.blocked);
-        for action in plan.actions {
-            let reply = match self.link.call(action.request()).await {
+        let style = (self.ambient.clone(), self.config.progress_empty.as_str());
+        self.bar_styles.retain(|zone, _| matches!(wants.get(zone), Some(Want::Progress { .. })));
+        let mut actions = plan.actions;
+        for (zone, want) in &wants {
+            // A bar already showing its step, but drawn in another look: ask again.
+            if let Want::Progress { step, family, .. } = want {
+                let shown = view.zones.get(zone).and_then(|entry| entry.owner.as_deref()) == Some(want.owner_name().as_str());
+                if shown && !state.contains_key(zone) && self.bar_styles.get(zone) != Some(&style) {
+                    actions.push(Action::Progress { zone: zone.clone(), step: *step, family: family.clone() });
+                }
+            }
+        }
+        for action in actions {
+            let mut request = action.request();
+            if let Action::Progress { zone, .. } = &action {
+                // Which looks an animated bar is drawn with; the gateway falls back to the
+                // static step Scene when it has no loops for them.
+                request["look"] = json!(style.0);
+                request["empty"] = json!(style.1);
+                self.bar_styles.remove(zone);
+            }
+            let reply = match self.link.call(request).await {
                 Ok(reply) => reply,
                 Err(error) => {
                     self.remember(format!("{} failed: {error}", action.describe()));
@@ -653,6 +699,9 @@ impl<L: Link> Controller<L> {
                 let reason = format!("{}: {}", reply["code"].as_str().unwrap_or("error"), reply["error"].as_str().unwrap_or("request failed"));
                 self.remember(format!("{} refused, {reason}", action.describe()));
                 return;
+            }
+            if let Action::Progress { zone, .. } = &action {
+                self.bar_styles.insert(zone.clone(), style.clone());
             }
             // The gateway schedules a rejoin with a long wait for its loop boundary; each
             // reconcile until then asks again and hears "still scheduled", which is not news.
@@ -766,6 +815,7 @@ impl<L: Link> Controller<L> {
             "paused": self.paused,
             "ambient": self.ambient,
             "complete_hold_seconds": self.config.complete_hold_seconds,
+            "progress_empty": self.config.progress_empty.as_str(),
             "waiting": self.report.blocked,
             "gateway": self.report.gateway,
             "zones": zones,
@@ -1525,19 +1575,42 @@ mod tests {
         controller.reconcile(start).await;
         // The eye picks up the job-running indicator in the same pass, ahead of the
         // progress action (the state layer always goes first).
-        assert_eq!(ops(&link), vec![r#"{"functions":["working_eye"],"op":"preempt_set"}"#, r#"{"completed":8,"op":"progress","pattern":"progress_ram","zone":"ram"}"#]);
+        assert_eq!(ops(&link), vec![r#"{"functions":["working_eye"],"op":"preempt_set"}"#, r#"{"completed":8,"empty":"base","look":"deep_violet","op":"progress","pattern":"progress_ram","zone":"ram"}"#]);
 
         // The plant now shows it; a completed job holds at 100%.
         *link.status.lock().unwrap() = healthy([Some("progress_ram:8"), Some("ambient_eye"), Some("ambient_strip")]);
         controller.handle(ControllerRequest::JobComplete { id: "backup".into() }, start);
         controller.reconcile(start + Duration::from_secs(1)).await;
-        assert_eq!(ops(&link).last().unwrap(), r#"{"completed":32,"op":"progress","pattern":"progress_ram","zone":"ram"}"#);
+        assert_eq!(ops(&link).last().unwrap(), r#"{"completed":32,"empty":"base","look":"deep_violet","op":"progress","pattern":"progress_ram","zone":"ram"}"#);
 
         // After the 15 s hold the zone returns to the ambient set.
         *link.status.lock().unwrap() = healthy([Some("progress_ram:32"), Some("ambient_eye"), Some("ambient_strip")]);
         controller.reconcile(start + Duration::from_secs(16)).await;
         assert_eq!(ops(&link).last().unwrap(), r#"{"function":"ambient_ram","op":"rejoin"}"#);
         assert!(controller.planner.jobs().is_empty());
+    }
+
+    #[tokio::test]
+    async fn a_bar_is_asked_for_again_when_the_ambient_look_changes_under_it() {
+        let link = FakeLink::default();
+        *link.status.lock().unwrap() = healthy(AMBIENT);
+        let mut controller = controller_with(&link);
+        let start = Instant::now();
+        controller.handle(ControllerRequest::JobStart { id: "backup".into(), label: "Backup".into(), total: 32, priority: 0, pattern: None }, start);
+        controller.handle(ControllerRequest::JobProgress { id: "backup".into(), completed: 8, total: None }, start);
+        controller.reconcile(start).await;
+        *link.status.lock().unwrap() = healthy([Some("progress_ram:8"), Some("working_eye"), Some("ambient_strip")]);
+        let before = ops(&link).len();
+        controller.reconcile(start).await;
+        assert_eq!(ops(&link).len(), before, "the bar shows what was asked, in the look it was asked in: {:?}", &ops(&link)[before..]);
+
+        controller.handle(ControllerRequest::AmbientSelect { set: "ember".into() }, start);
+        controller.reconcile(start).await;
+        let bar = r#"{"completed":8,"empty":"base","look":"ember","op":"progress","pattern":"progress_ram","zone":"ram"}"#;
+        assert!(ops(&link)[before..].iter().any(|op| op == bar), "{:?}", &ops(&link)[before..]);
+        let after = ops(&link).len();
+        controller.reconcile(start).await;
+        assert!(!ops(&link)[after..].iter().any(|op| op.contains(r#""op":"progress""#)), "asked once: {:?}", &ops(&link)[after..]);
     }
 
     #[tokio::test]
@@ -1556,7 +1629,7 @@ mod tests {
             vec![
                 r#"{"functions":["working_eye"],"op":"preempt_set"}"#,
                 r#"{"functions":["ambient_strip"],"op":"preempt_set"}"#,
-                r#"{"completed":16,"op":"progress","pattern":"progress_ram","zone":"ram"}"#,
+                r#"{"completed":16,"empty":"base","look":"deep_violet","op":"progress","pattern":"progress_ram","zone":"ram"}"#,
             ]
         );
     }
@@ -1692,6 +1765,15 @@ mod tests {
     }
 
     // ------------------------------------------------------------ configuration
+
+    #[test]
+    fn the_empty_side_of_an_animated_bar_is_the_base_look_unless_configured() {
+        let base = "version = 1\ndefault_ambient = \"deep_violet\"\nprogress_zones = [\"ram\"]\ncomplete_hold_seconds = 15\n";
+        let parse = |extra: &str| toml::from_str::<ControllerConfig>(&format!("{base}{extra}"));
+        assert_eq!(parse("").unwrap().progress_empty, ProgressEmpty::Base);
+        assert_eq!(parse("progress_empty = \"working\"\n").unwrap().progress_empty.as_str(), "working");
+        assert!(parse("progress_empty = \"sideways\"\n").is_err());
+    }
 
     #[test]
     fn the_shipped_controller_policy_is_valid_against_the_real_registry() {
@@ -1975,7 +2057,7 @@ mod tests {
         controller.reconcile(start).await;
         // The eye picks up the job-running indicator in the same pass, ahead of the
         // progress action (the state layer always goes first).
-        assert_eq!(ops(&link), vec![r#"{"functions":["working_eye"],"op":"preempt_set"}"#, r#"{"completed":16,"op":"progress","pattern":"progress_ram","zone":"ram"}"#]);
+        assert_eq!(ops(&link), vec![r#"{"functions":["working_eye"],"op":"preempt_set"}"#, r#"{"completed":16,"empty":"base","look":"deep_violet","op":"progress","pattern":"progress_ram","zone":"ram"}"#]);
 
         // RAM is now showing the bar; raise a RAM fault.
         *link.status.lock().unwrap() = healthy([Some("progress_ram:16"), Some("ambient_eye"), Some("ambient_strip")]);
@@ -1990,7 +2072,7 @@ mod tests {
         *link.status.lock().unwrap() = healthy([Some("fault_ram"), Some("ambient_eye"), Some("ambient_strip")]);
         controller.handle(fault_clear("psu"), start);
         controller.reconcile(start).await;
-        assert_eq!(ops(&link).last().unwrap(), r#"{"completed":16,"op":"progress","pattern":"progress_ram","zone":"ram"}"#);
+        assert_eq!(ops(&link).last().unwrap(), r#"{"completed":16,"empty":"base","look":"deep_violet","op":"progress","pattern":"progress_ram","zone":"ram"}"#);
     }
 
     #[tokio::test]
