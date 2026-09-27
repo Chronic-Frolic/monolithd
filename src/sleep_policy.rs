@@ -163,17 +163,37 @@ struct Policy {
     epoch: Instant,
     epoch_reason: String,
     blocks: Vec<String>,
+    /// When the last sleep block lifted. A block lifting after the quiet period has already
+    /// run out must not suspend on the spot: the countdown resumes with at least `grace` left,
+    /// so the pre-sleep cue always shows first (found live 2026-09-26: lifting the manual
+    /// block at 20:47 suspended 12 s later with no warning).
+    unblocked_at: Option<Instant>,
+    /// The pre-sleep cue's length; set from the config at every evaluation.
+    grace: Duration,
 }
 
 impl Policy {
     fn new(now: Instant) -> Self {
         let sources = Source::ALL.into_iter().map(|source| (source, Tracked { reading: Reading::Unknown("not read yet".into()), last_active: None })).collect();
-        Self { sources, epoch: now, epoch_reason: "service start".into(), blocks: Vec::new() }
+        Self { sources, epoch: now, epoch_reason: "service start".into(), blocks: Vec::new(), unblocked_at: None, grace: Duration::ZERO }
     }
 
     fn wake(&mut self, now: Instant) {
         self.epoch = now;
         self.epoch_reason = "wake".into();
+        self.unblocked_at = None;
+    }
+
+    /// Replace the sleep blockers; returns whether they changed.
+    fn set_blocks(&mut self, blocks: Vec<String>, now: Instant) -> bool {
+        if blocks == self.blocks {
+            return false;
+        }
+        if blocks.is_empty() {
+            self.unblocked_at = Some(now);
+        }
+        self.blocks = blocks;
+        true
     }
 
     /// Record a reading; returns a log line when it changed.
@@ -225,7 +245,9 @@ impl Policy {
         } else if !self.blocks.is_empty() {
             State::Blocked(self.blocks.clone())
         } else {
-            State::Counting((quiet_since + quiet).saturating_duration_since(now))
+            let left = (quiet_since + quiet).saturating_duration_since(now);
+            let grace = self.unblocked_at.map_or(Duration::ZERO, |at| (at + self.grace).saturating_duration_since(now));
+            State::Counting(left.max(grace))
         };
         Verdict { state, quiet_since, restarted_by }
     }
@@ -553,9 +575,9 @@ pub async fn run(arguments: Vec<String>) -> Result<(), String> {
                     }
                     Update::Activity(source, at) => policy.activity(source, at),
                     Update::Blocks(blocks) => {
-                        if blocks != policy.blocks {
-                            eprintln!("monolithd sleep-policy: sleep blockers: {}", if blocks.is_empty() { "none".to_owned() } else { blocks.join("; ") });
-                            policy.blocks = blocks;
+                        let line = if blocks.is_empty() { "none (if the quiet period has already run out, the pre-sleep cue shows first)".to_owned() } else { blocks.join("; ") };
+                        if policy.set_blocks(blocks, now) {
+                            eprintln!("monolithd sleep-policy: sleep blockers: {line}");
                         }
                     }
                     Update::Wake => {
@@ -583,6 +605,7 @@ pub async fn run(arguments: Vec<String>) -> Result<(), String> {
             _ = evaluate.tick() => {
                 let now = Instant::now();
                 let quiet = Duration::from_secs(config.quiet_minutes * 60);
+                policy.grace = Duration::from_secs(config.cue_minutes * 60);
                 let verdict = policy.verdict(now, quiet);
                 let line = describe(&verdict, now);
                 // Log when the meaning changes, not every time the countdown ticks.
@@ -621,7 +644,7 @@ pub async fn run(arguments: Vec<String>) -> Result<(), String> {
                         };
                         if !fresh.is_empty() {
                             eprintln!("monolithd sleep-policy: not suspending: {}", fresh.join("; "));
-                            policy.blocks = fresh;
+                            policy.set_blocks(fresh, now);
                         } else {
                             eprintln!("monolithd sleep-policy: SUSPENDING (quiet since {}, clock restarted by {})", clock(unix_at(verdict.quiet_since, now)), verdict.restarted_by);
                             match output("systemctl", &["suspend"]).await {
@@ -686,6 +709,28 @@ mod tests {
             policy.set(source, Reading::Idle, start);
         }
         policy
+    }
+
+    #[test]
+    fn a_block_lifting_late_leaves_time_for_the_cue() {
+        let start = Instant::now();
+        let mut policy = quiet_policy(start);
+        policy.grace = Duration::from_secs(300);
+        policy.set_blocks(vec!["manual".into()], start);
+        assert!(matches!(policy.verdict(start + 3 * HOUR, 2 * HOUR).state, State::Blocked(_)));
+        let lifted = start + 3 * HOUR;
+        assert!(policy.set_blocks(Vec::new(), lifted));
+        assert_eq!(policy.verdict(lifted, 2 * HOUR).state, State::Counting(Duration::from_secs(300)), "a full cue, not an instant suspend");
+        assert_eq!(policy.verdict(lifted + Duration::from_secs(120), 2 * HOUR).state, State::Counting(Duration::from_secs(180)));
+        assert_eq!(policy.verdict(lifted + Duration::from_secs(300), 2 * HOUR).state, State::Counting(Duration::ZERO), "then it suspends");
+        assert!(!policy.set_blocks(Vec::new(), lifted), "no change, no new grace");
+
+        // A block lifting early changes nothing: the ordinary countdown is longer anyway.
+        let mut early = quiet_policy(start);
+        early.grace = Duration::from_secs(300);
+        early.set_blocks(vec!["manual".into()], start);
+        early.set_blocks(Vec::new(), start + 10 * 60 * S);
+        assert_eq!(early.verdict(start + 10 * 60 * S, 2 * HOUR).state, State::Counting(2 * HOUR - 10 * 60 * S));
     }
 
     #[test]
