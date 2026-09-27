@@ -643,6 +643,15 @@ impl<L: Link> Controller<L> {
                     .filter(|entry| entry.zone == *zone)
                     .or_else(|| self.registry.progress_for_zone(zone));
                 if let Some(family) = family {
+                    // A grouped pattern (a whole stick or row at a time) lights a group only once
+                    // its share is truly done: 49% is one stick of four, not the nearest two.
+                    let step = match (family.group.max(1), self.planner.fraction(zone)) {
+                        (1, _) | (_, None) => step,
+                        (group, Some(fraction)) => {
+                            let groups = family.total / group;
+                            ((fraction * f64::from(groups)).floor() as u32).min(groups) * group
+                        }
+                    };
                     wants.insert(zone.clone(), Want::Progress { zone: zone.clone(), family: family.name.clone(), step });
                 }
             }
@@ -1300,6 +1309,13 @@ mod tests {
         label = "Strip"
         first_id = 33
         total = 70
+        [[progress]]
+        name = "progress_ram_quarters"
+        zone = "ram"
+        label = "RAM (quarters)"
+        first_id = 400
+        total = 32
+        group = 8
     "#;
 
     fn registry() -> Registry {
@@ -1625,6 +1641,23 @@ mod tests {
         controller.reconcile(start + Duration::from_secs(16)).await;
         assert_eq!(ops(&link).last().unwrap(), r#"{"function":"ambient_ram","op":"rejoin"}"#);
         assert!(controller.planner.jobs().is_empty());
+    }
+
+    #[tokio::test]
+    async fn a_grouped_pattern_lights_whole_groups_only() {
+        let link = FakeLink::default();
+        *link.status.lock().unwrap() = healthy(AMBIENT);
+        let mut controller = controller_with(&link);
+        let start = Instant::now();
+        controller.handle(ControllerRequest::JobStart { id: "copy".into(), label: "Copy".into(), total: 100, priority: 0, pattern: Some("progress_ram_quarters".into()) }, start);
+        controller.handle(ControllerRequest::JobProgress { id: "copy".into(), completed: 49, total: None }, start);
+        controller.reconcile(start).await;
+        let bar = ops(&link).into_iter().find(|op| op.contains(r#""op":"progress""#)).unwrap();
+        assert!(bar.contains(r#""completed":8,"#) && bar.contains(r#""pattern":"progress_ram_quarters""#), "49% is one whole stick (8), not the nearest two: {bar}");
+        controller.handle(ControllerRequest::JobProgress { id: "copy".into(), completed: 50, total: None }, start);
+        *link.status.lock().unwrap() = healthy([Some("progress_ram_quarters:8"), Some("working_eye"), Some("ambient_strip")]);
+        controller.reconcile(start).await;
+        assert!(ops(&link).last().unwrap().contains(r#""completed":16,"#), "50% is two sticks: {:?}", ops(&link).last());
     }
 
     #[tokio::test]

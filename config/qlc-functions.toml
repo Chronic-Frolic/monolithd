@@ -354,5 +354,27 @@ total = 32
 # static steps above and stored so the steps can become animated.
 order = [15, 31, 7, 23, 14, 30, 6, 22, 13, 29, 5, 21, 12, 28, 4, 20, 11, 27, 3, 19, 10, 26, 2, 18, 9, 25, 1, 17, 8, 24, 0, 16]
 
+[[progress]]
+# The RAM as one big bar, left to right: a whole stick lights at each quarter of progress
+# (owner, 2026-09-27). Stick-by-stick order, lit 8 LEDs at a time.
+name = "progress_ram_quarters"
+zone = "ram"
+label = "RAM (quarters)"
+first_id = 1400
+total = 32
+group = 8
+order = [15, 14, 13, 12, 11, 10, 9, 8, 31, 30, 29, 28, 27, 26, 25, 24, 7, 6, 5, 4, 3, 2, 1, 0, 23, 22, 21, 20, 19, 18, 17, 16]
+
+[[progress]]
+# The RAM as one big bar, bottom to top: a whole row (one LED per stick) lights at each
+# eighth of progress (owner, 2026-09-27). Row-by-row order, lit 4 LEDs at a time.
+name = "progress_ram_rows"
+zone = "ram"
+label = "RAM (rows)"
+first_id = 1440
+total = 32
+group = 4
+order = [15, 31, 7, 23, 14, 30, 6, 22, 13, 29, 5, 21, 12, 28, 4, 20, 11, 27, 3, 19, 10, 26, 2, 18, 9, 25, 1, 17, 8, 24, 0, 16]
+
 # Warning, fault, Quiet, and controller-fault assets do not exist yet and are
 # deliberately absent. Author and register them before wiring automatic use.

@@ -169,6 +169,12 @@ impl Planner {
         }
     }
 
+    /// How far the job on `zone` is, 0.0 to 1.0; `None` when the zone has no job.
+    pub fn fraction(&self, zone: &str) -> Option<f64> {
+        let job = self.jobs.iter().find(|job| job.state.zone() == Some(zone))?;
+        Some((f64::from(job.completed) / f64::from(job.total)).min(1.0))
+    }
+
     pub fn target(&self, zone: &str) -> ZoneTarget {
         let Some((_, steps)) = self.zones.iter().find(|(name, _)| name == zone) else { return ZoneTarget::Ambient };
         match self.jobs.iter().find(|job| job.state.zone() == Some(zone)) {

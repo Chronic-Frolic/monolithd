@@ -60,6 +60,15 @@ pub struct ProgressEntry {
     /// geometry. Empty means "measure it from the static steps".
     #[serde(default)]
     pub order: Vec<u32>,
+    /// LEDs that light together: 1 (one per step), or a whole stick or row at a time (owner,
+    /// 2026-09-27: coarse RAM patterns). The controller rounds each step down to a multiple
+    /// of it, so the gateway, the animated loops and the static steps are unchanged.
+    #[serde(default = "one_led")]
+    pub group: u32,
+}
+
+fn one_led() -> u32 {
+    1
 }
 
 /// The zone functions that make up one ambient look, started together so they stay in phase.
@@ -354,6 +363,9 @@ impl Registry {
                 problems.push(format!("{name}: total is {} but zone {} has {capacity} RGB LEDs", entry.total, entry.zone));
             }
             Some(_) => {}
+        }
+        if entry.group == 0 || entry.total % entry.group != 0 {
+            problems.push(format!("{name}: group {} must be a positive divisor of total {}", entry.group, entry.total));
         }
         let expected_zone: BTreeSet<String> = BTreeSet::from([entry.zone.clone()]);
         for completed in 0..=entry.total {
