@@ -13,6 +13,7 @@ mod reporters;
 mod openrgb;
 mod openrgb_sdk;
 mod paths;
+mod hardware;
 mod input_activity;
 mod job;
 mod sleep_policy;
@@ -24,7 +25,7 @@ mod watchdog;
 mod workspace;
 
 fn usage() -> ! {
-    eprintln!("usage: monolithd <e131-receiver|validate-registry [PATH]|workspace <list|select NAME [--check]>|scene <status|start NAME|start-set NAME...|replace NAME|stop NAME|progress ZONE N>|calibrate <--show|ZONE R G B>|event <status|ambient SET|job-start ID LABEL TOTAL [PRIORITY]|job-progress ID N [TOTAL]|job-complete ID|job-fail ID REASON|pause|resume>|remote [PORT]|steam-reporter [--dry-run]|reporters [--dry-run]|sleep-policy|storage-status MOUNT...|job [--dry-run] [--label TEXT] rsync ARGS...|probe-header <sweep [FROM TO [DWELL_MS]]|at N [SECONDS]>|controller|watchdog|input-activity [FILE]>");
+    eprintln!("usage: monolithd <e131-receiver|validate-registry [PATH]|workspace <list|select NAME [--check]>|scene <status|start NAME|start-set NAME...|replace NAME|stop NAME|progress ZONE N>|calibrate <--show|ZONE R G B>|event <status|ambient SET|job-start ID LABEL TOTAL [PRIORITY]|job-progress ID N [TOTAL]|job-complete ID|job-fail ID REASON|pause|resume>|remote [PORT]|steam-reporter [--dry-run]|reporters [--dry-run]|sleep-policy|storage-status MOUNT...|hardware-status|hardware-ack|job [--dry-run] [--label TEXT] rsync ARGS...|probe-header <sweep [FROM TO [DWELL_MS]]|at N [SECONDS]>|controller|watchdog|input-activity [FILE]>");
     std::process::exit(2);
 }
 
@@ -122,6 +123,8 @@ async fn main() {
         Some("sleep-policy") => sleep_policy::run(arguments.collect()).await,
         Some("job") => job::run(arguments.collect()).await,
         Some("storage-status") => storage::run(arguments.collect()).await,
+        Some("hardware-status") => hardware::status().await,
+        Some("hardware-ack") => hardware::acknowledge().await,
         Some("watchdog") => watchdog::run().await,
         Some("input-activity") => input_activity::run(arguments.collect()).await,
         _ => usage(),
