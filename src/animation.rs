@@ -24,6 +24,11 @@ use std::collections::{BTreeSet, HashMap};
 /// The Empty side's look when the bar is a distinct working state rather than the base look.
 pub const WORKING: &str = "working";
 
+/// A working look: `working`, or a sister of it such as `working_white`.
+pub fn is_working(look: &str) -> bool {
+    look == WORKING || look.starts_with("working_")
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Role {
@@ -126,10 +131,10 @@ impl Animation {
             if !registry.zones.contains_key(&set.zone) {
                 problems.push(format!("{label}: unknown zone {}", set.zone));
             }
-            if set.role == Role::Full && set.look == WORKING {
+            if set.role == Role::Full && is_working(&set.look) {
                 problems.push(format!("{label}: the working look is an Empty side only"));
             }
-            if set.look != WORKING && registry.ambient_set(&set.look).is_none() {
+            if !is_working(&set.look) && registry.ambient_set(&set.look).is_none() {
                 problems.push(format!("{label}: {} is not an ambient set", set.look));
             }
             let source = match registry.function(&set.source) {

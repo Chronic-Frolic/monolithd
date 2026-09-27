@@ -1117,7 +1117,10 @@ impl<Q: Qlc + Send + Sync + 'static> Gateway<Q> {
         let registry = self.control().ok()?;
         let animation = self.animation.as_ref()?;
         let look = look?;
-        let empty_look = if empty == Some("working") { animation::WORKING } else { look };
+        let empty_look = match empty {
+            Some(name) if animation::is_working(name) => name,
+            _ => look,
+        };
         let full = animation.loops(zone, Role::Full, look)?;
         let empty_set = animation.loops(zone, Role::Empty, empty_look)?;
         let family = match pattern {

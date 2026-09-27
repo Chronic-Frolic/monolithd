@@ -57,6 +57,38 @@ pub struct ControllerConfig {
     /// lit side is always the current ambient set's own Full look. Static bars ignore it.
     #[serde(default)]
     pub progress_empty: ProgressEmpty,
+    /// Which working look the job-running indicator and a bar's working empty side use:
+    /// `violet` (violet plasma's motion with white glitter, `working_<zone>`) or `white`
+    /// (white glinting in the base look's own colors, `working_white_<zone>`). Two sister
+    /// looks to choose from (owner, 2026-09-26).
+    #[serde(default)]
+    pub working_look: WorkingLook,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum WorkingLook {
+    #[default]
+    Violet,
+    White,
+}
+
+impl WorkingLook {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Violet => "violet",
+            Self::White => "white",
+        }
+    }
+
+    /// The registered assets' prefix (`<prefix>_<zone>`), which is also the look a bar's
+    /// working empty side is drawn in.
+    pub fn prefix(self) -> &'static str {
+        match self {
+            Self::Violet => "working",
+            Self::White => "working_white",
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize)]
@@ -122,7 +154,7 @@ pub fn check_config(config: &ControllerConfig, registry: &Registry) -> Vec<Strin
         problems.push("poll_interval_ms must be between 100 and 60000".to_owned());
     }
     check_state_zones(&mut problems, "warning_zones", &config.warning_zones, "warning", registry);
-    check_state_zones(&mut problems, "working_zones", &config.working_zones, "working", registry);
+    check_state_zones(&mut problems, "working_zones", &config.working_zones, config.working_look.prefix(), registry);
     problems
 }
 
@@ -550,7 +582,7 @@ impl<L: Link> Controller<L> {
                 if matches!(self.planner.target(zone), ZoneTarget::Progress { .. }) {
                     continue;
                 }
-                if let Some(name) = self.state_asset("working", zone) {
+                if let Some(name) = self.state_asset(self.config.working_look.prefix(), zone) {
                     wants.insert(zone.clone(), name);
                 }
             }
@@ -667,7 +699,11 @@ impl<L: Link> Controller<L> {
 
         let plan = plan(&view, &wants, &state, &self.registry);
         self.block(plan.blocked);
-        let style = (self.ambient.clone(), self.config.progress_empty.as_str());
+        let empty = match self.config.progress_empty {
+            ProgressEmpty::Base => "base",
+            ProgressEmpty::Working => self.config.working_look.prefix(),
+        };
+        let style = (self.ambient.clone(), empty);
         self.bar_styles.retain(|zone, _| matches!(wants.get(zone), Some(Want::Progress { .. })));
         let mut actions = plan.actions;
         for (zone, want) in &wants {
@@ -816,6 +852,7 @@ impl<L: Link> Controller<L> {
             "ambient": self.ambient,
             "complete_hold_seconds": self.config.complete_hold_seconds,
             "progress_empty": self.config.progress_empty.as_str(),
+            "working_look": self.config.working_look.as_str(),
             "waiting": self.report.blocked,
             "gateway": self.report.gateway,
             "zones": zones,
@@ -1773,6 +1810,25 @@ mod tests {
         assert_eq!(parse("").unwrap().progress_empty, ProgressEmpty::Base);
         assert_eq!(parse("progress_empty = \"working\"\n").unwrap().progress_empty.as_str(), "working");
         assert!(parse("progress_empty = \"sideways\"\n").is_err());
+        assert_eq!(parse("").unwrap().working_look, WorkingLook::Violet);
+        assert_eq!(parse("working_look = \"white\"\n").unwrap().working_look.prefix(), "working_white");
+        assert!(check_config(&parse("working_look = \"white\"\n").unwrap(), &registry()).iter().any(|problem| problem.contains("working_white_eye is not registered")));
+    }
+
+    #[tokio::test]
+    async fn a_working_bar_is_drawn_in_the_chosen_working_look() {
+        let link = FakeLink::default();
+        *link.status.lock().unwrap() = healthy(AMBIENT);
+        let config: ControllerConfig = toml::from_str(
+            "version = 1\ndefault_ambient = \"deep_violet\"\nprogress_zones = [\"ram\", \"strip\"]\ncomplete_hold_seconds = 15\nprogress_empty = \"working\"\nworking_look = \"white\"\nworking_zones = [\"ram\"]\n",
+        )
+        .unwrap();
+        let mut controller = Controller::new(link.clone(), registry(), config);
+        let start = Instant::now();
+        controller.handle(ControllerRequest::JobStart { id: "backup".into(), label: "Backup".into(), total: 32, priority: 0, pattern: None }, start);
+        controller.handle(ControllerRequest::JobProgress { id: "backup".into(), completed: 8, total: None }, start);
+        controller.reconcile(start).await;
+        assert!(ops(&link).iter().any(|op| op.contains(r#""empty":"working_white""#)), "{:?}", ops(&link));
     }
 
     #[test]

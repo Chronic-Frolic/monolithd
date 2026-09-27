@@ -33,3 +33,13 @@ warning_zones = ["ram", "rog_eye", "strip"]
 # is active, which defeats the progress bar on that zone specifically. Fine for the
 # eye (never a progress zone); think it through before adding a progress zone here.
 working_zones = ["rog_eye"]
+
+# What an animated bar shows on its empty side: "base" (the ambient look itself, so the
+# bar is part of the base look) or "working" (the working look chosen below). The lit
+# side is always the ambient set's own Full look.
+progress_empty = "base"
+
+# The working look, for the job-running indicator above and a working bar's empty side:
+# "violet" (violet plasma's own motion with white glitter) or "white" (white glinting in
+# the base look's own colors). Two sister looks, 2026-09-26.
+working_look = "violet"

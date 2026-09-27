@@ -41,6 +41,8 @@ const CONTRACT: &[ContractEntry] = &[
     ContractEntry { intake_name: "State — Fault", targets: &[("ram", "fault_ram"), ("rog_eye", "fault_eye"), ("strip", "fault_strip")] },
     ContractEntry { intake_name: "State — Warning", targets: &[("ram", "warning_ram"), ("rog_eye", "warning_eye"), ("strip", "warning_strip")] },
     ContractEntry { intake_name: "State — Working", targets: &[("ram", "working_ram"), ("rog_eye", "working_eye"), ("strip", "working_strip")] },
+    // The working look's white sister; controller.toml's working_look picks one.
+    ContractEntry { intake_name: "State — Working White", targets: &[("ram", "working_white_ram"), ("rog_eye", "working_white_eye"), ("strip", "working_white_strip")] },
     ContractEntry { intake_name: "State — Controller Fault", targets: &[("ram", "controller_fault_ram"), ("rog_eye", "controller_fault_eye"), ("strip", "controller_fault_strip")] },
     ContractEntry { intake_name: "State — Pre-Sleep", targets: &[("ram", "pre_sleep_ram"), ("rog_eye", "pre_sleep_eye"), ("strip", "pre_sleep_strip")] },
     // The lit side of an animated bar over violet plasma; sliced into per-LED loops.
