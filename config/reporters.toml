@@ -12,6 +12,6 @@ default = "per_service"
 # qbittorrent = "per_item"
 
 [storage]
-# btrfs mounts to watch for health and scrubs. Keep empty until filesystem day: a watched
+# btrfs mounts to watch for health and scrubs (added on filesystem day, 2026-10-15). A watched
 # mount that is missing or not btrfs raises a Fault on every LED zone.
-mounts = []
+mounts = ["/var/storage/protected", "/var/storage/bulk-a", "/var/storage/bulk-b"]
