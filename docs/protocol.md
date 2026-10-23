@@ -3,7 +3,8 @@
 `monolithd controller` owns what the lights should show. Anything else on the machine
 tells it what is happening through one Unix socket: a job started, moved, finished or
 failed; something needs attention; the room wants quiet. The built-in reporters (Steam
-downloads, storage health, `monolithd job rsync`) are ordinary clients of this socket,
+downloads, storage health, running Monolith Compute jobs as `compute:<jobid>`,
+`monolithd job rsync`) are ordinary clients of this socket,
 and so is anything you write. A reporter needs no Rust and no changes to the daemon.
 
 ## Transport
