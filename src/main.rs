@@ -1,6 +1,7 @@
 mod allocator;
 mod animation;
 mod calibrate;
+mod compute;
 mod config;
 mod controller;
 mod e131;

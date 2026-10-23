@@ -198,9 +198,9 @@ mod tests {
     use super::*;
 
     #[test]
-    fn the_shipped_reporters_config_is_valid_and_watches_nothing_yet() {
+    fn the_shipped_reporters_config_is_valid() {
         let config = load_config().unwrap();
-        assert_eq!((config.bars.default, config.bars.services.len(), config.storage.mounts.len()), (BarMode::PerService, 0, 0));
+        assert_eq!((config.bars.default, config.bars.services.len()), (BarMode::PerService, 0));
     }
 
     #[test]

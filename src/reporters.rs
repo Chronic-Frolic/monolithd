@@ -2,13 +2,14 @@
 //!
 //! It runs the Steam download reporter, the storage observer (config/reporters.toml
 //! `[storage] mounts`, empty until filesystem day), the hardware-reset watch (a Fault when the
-//! machine reset itself after a hardware error) and the sweep that ends `rsync:` jobs whose
+//! machine reset itself after a hardware error), the Monolith Compute follower (a bar per running
+//!  job) and the sweep that ends `rsync:` jobs whose
 //! wrapper was killed. Each keeps its own job and fault IDs; if any of them stops, the process
 //! exits and systemd restarts it, and five failures in five minutes raise fault
 //! `reporters:down` through the unit's OnFailure.
 
 use crate::reporter::{self, Executor};
-use crate::{hardware, job, paths, steam, storage};
+use crate::{compute, hardware, job, paths, steam, storage};
 
 const DOWN_ID: &str = "reporters:down";
 const USAGE: &str = "usage: monolithd reporters [--dry-run]";
@@ -31,6 +32,7 @@ pub async fn run(arguments: Vec<String>) -> Result<(), String> {
     tokio::select! {
         result = steam::follow_downloads(dry_run) => result.map_err(|error| format!("steam reporter stopped: {error}")),
         result = storage::follow(config.storage.mounts, dry_run) => result.map_err(|error| format!("storage reporter stopped: {error}")),
+        result = compute::follow(dry_run) => result.map_err(|error| format!("compute reporter stopped: {error}")),
         result = job::sweep(dry_run) => result.map_err(|error| format!("copy-job sweep stopped: {error}")),
         result = hardware::follow(dry_run) => result.map_err(|error| format!("hardware-reset watch stopped: {error}")),
     }
