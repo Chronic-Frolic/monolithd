@@ -538,6 +538,8 @@ struct Report {
     wants: BTreeMap<String, String>,
     recent: VecDeque<String>,
     reconciles: u64,
+    /// The last refused stick bar that was reported, so it is said once, not every pass.
+    unanimated: Option<String>,
 }
 
 struct Controller<L: Link> {
@@ -814,7 +816,18 @@ impl<L: Link> Controller<L> {
             };
             if reply["ok"] != Value::Bool(true) {
                 let reason = format!("{}: {}", reply["code"].as_str().unwrap_or("error"), reply["error"].as_str().unwrap_or("request failed"));
-                self.remember(format!("{} refused, {reason}", action.describe()));
+                let line = format!("{} refused, {reason}", action.describe());
+                // A stick bar the gateway cannot animate (the look has no per-LED loops, fire
+                // today) shows nothing for those jobs; it must not hold up the other zones'
+                // bars and rejoins, so the pass goes on. Said once, not every second.
+                if matches!(action, Action::Sticks { .. }) && reply["code"] == "no_animation" {
+                    if self.report.unanimated.as_ref() != Some(&line) {
+                        self.report.unanimated = Some(line.clone());
+                        self.remember(line);
+                    }
+                    continue;
+                }
+                self.remember(line);
                 return;
             }
             if let Some(zone) = action.bar_zone() {
@@ -1467,6 +1480,8 @@ mod tests {
         status: Arc<Mutex<Value>>,
         calls: Arc<Mutex<Vec<Value>>>,
         refuse: Arc<Mutex<Option<String>>>,
+        /// Refuse per-stick bars the way a gateway without loops for the look does.
+        no_parts: Arc<Mutex<bool>>,
     }
 
     impl Link for FakeLink {
@@ -1477,6 +1492,9 @@ mod tests {
                 let op = request["op"].as_str().unwrap_or("").to_owned();
                 if op == "status" {
                     return Ok(link.status.lock().unwrap().clone());
+                }
+                if request.get("parts").is_some() && *link.no_parts.lock().unwrap() {
+                    return Ok(json!({ "ok": false, "code": "no_animation", "error": "no loops for this look" }));
                 }
                 if link.refuse.lock().unwrap().as_deref() == Some(op.as_str()) {
                     return Ok(json!({ "ok": false, "code": "zone_busy", "error": "nope" }));
@@ -1741,6 +1759,26 @@ mod tests {
         report(&mut controller, "b", 6);
         let plan = plan_for(&healthy([Some(shown.as_str()), Some("working_eye"), Some("ambient_strip")]), &controller);
         assert!(plan.actions.contains(&Action::Sticks { zone: "ram".to_owned(), parts: vec![3, 6, 0, 0], family: "progress_ram".to_owned() }));
+    }
+
+    #[tokio::test]
+    async fn a_stick_bar_the_gateway_cannot_animate_does_not_stall_the_strips_bar() {
+        let link = FakeLink::default();
+        *link.no_parts.lock().unwrap() = true;
+        *link.status.lock().unwrap() = healthy(AMBIENT);
+        let mut controller = sticks_controller(&link, "sticks");
+        for id in ["a", "b", "c", "d", "e"] {
+            start_job(&mut controller, id, None);
+        }
+        report(&mut controller, "e", 4);
+        controller.reconcile(Instant::now()).await;
+        let sent = ops(&link);
+        assert!(sent.iter().any(|call| call.contains(r#""parts":[0,0,0,0]"#)), "the stick bar was tried: {sent:?}");
+        assert!(sent.iter().any(|call| call.contains(r#""zone":"strip""#) && call.contains(r#""completed":35"#)), "and the strip's bar still went out: {sent:?}");
+        let refusals = |controller: &Controller<FakeLink>| controller.report.recent.iter().filter(|line| line.contains("no_animation")).count();
+        assert_eq!(refusals(&controller), 1);
+        controller.reconcile(Instant::now()).await;
+        assert_eq!(refusals(&controller), 1, "said once, not every pass");
     }
 
     #[test]

@@ -89,6 +89,12 @@ impl Executor {
                 self.log(format!("announced {id} ({label}, {total})"));
                 true
             }
+            Sent::Refused(code) if code == "unknown_pattern" && pattern.is_some() => {
+                // A typo, or stick mode not configured: say so, then show the job anyway
+                // with the controller's default mode rather than never showing it.
+                self.log(format!("{id}: the controller does not know bar mode {:?}; announcing it with the default", pattern.unwrap_or_default()));
+                Box::pin(self.start_with(id, label, total, None)).await
+            }
             Sent::Refused(_) | Sent::Unreachable => false,
         }
     }

@@ -55,6 +55,10 @@ pub enum Action {
 struct Announced {
     sent: Option<(u32, u32)>,
     pattern: Option<String>,
+    label: String,
+    /// The last progress a valid `mc/progress` gave. A job that rewrites the file in place
+    /// can be read mid-write; that must not drop the bar to 0 of 1 for a poll.
+    last_good: Option<(u32, u32)>,
 }
 
 #[derive(Debug, Default)]
@@ -96,7 +100,7 @@ impl Core {
     pub fn recover(&mut self, status: &Value) {
         for id in status["jobs"].as_array().into_iter().flatten().filter_map(|job| job["id"].as_str()) {
             if let Some(job) = id.strip_prefix(JOB_PREFIX) {
-                self.announced.insert(job.to_owned(), Announced { sent: None, pattern: None });
+                self.announced.insert(job.to_owned(), Announced { sent: None, pattern: None, label: format!("Compute: {job}"), last_good: None });
             }
         }
     }
@@ -105,6 +109,19 @@ impl Core {
     pub fn reassert(&mut self) {
         for entry in self.announced.values_mut() {
             entry.sent = None;
+        }
+    }
+
+    /// Remember each running job's last valid progress, and fill in the last good one where
+    /// the file is unreadable right now.
+    pub fn steady(&mut self, seen: &mut [Seen]) {
+        for job in seen.iter_mut() {
+            if let Some(entry) = self.announced.get_mut(&job.id) {
+                match job.progress {
+                    Some(progress) => entry.last_good = Some(progress),
+                    None => job.progress = entry.last_good,
+                }
+            }
         }
     }
 
@@ -146,8 +163,13 @@ impl Core {
         actions
     }
 
-    pub fn started(&mut self, job: &str, sent: Option<(u32, u32)>, pattern: Option<String>) {
-        self.announced.insert(job.to_owned(), Announced { sent, pattern });
+    pub fn started(&mut self, job: &str, sent: Option<(u32, u32)>, pattern: Option<String>, label: String) {
+        self.announced.insert(job.to_owned(), Announced { sent, pattern, label, last_good: None });
+    }
+
+    /// The label a live job was announced with (kept for re-announcing it).
+    pub fn label(&self, job: &str) -> Option<String> {
+        Some(self.announced.get(job)?.label.clone())
     }
 
     /// The bar mode a live job was announced with (kept for re-announcing it).
@@ -194,7 +216,7 @@ async fn apply(executor: &mut Executor, core: &mut Core, action: Action) {
     match action {
         Action::Start { id, label, total, pattern } => {
             if executor.start_with(&id, &label, total, pattern.as_deref()).await {
-                core.started(&id[JOB_PREFIX.len()..], Some((0, total)), pattern);
+                core.started(&id[JOB_PREFIX.len()..], Some((0, total)), pattern, label);
             }
         }
         Action::Progress { id, completed, total } => {
@@ -203,9 +225,9 @@ async fn apply(executor: &mut Executor, core: &mut Core, action: Action) {
                 core.progressed(&job, (completed, total));
             } else {
                 // the controller restarted and forgot it: announced again, progress follows next pass
-                let pattern = core.pattern(&job);
-                if executor.start_with(&id, &id, total, pattern.as_deref()).await {
-                    core.started(&job, Some((0, total)), pattern);
+                let (pattern, label) = (core.pattern(&job), core.label(&job).unwrap_or_else(|| id.clone()));
+                if executor.start_with(&id, &label, total, pattern.as_deref()).await {
+                    core.started(&job, Some((0, total)), pattern, label);
                 }
             }
         }
@@ -234,7 +256,9 @@ pub async fn follow(dry_run: bool) -> Result<(), String> {
             _ = reassert.tick() => core.reassert(),
         }
         executor.retry().await;
-        for action in core.plan(&scan(&jobs)) {
+        let mut seen = scan(&jobs);
+        core.steady(&mut seen);
+        for action in core.plan(&seen) {
             apply(&mut executor, &mut core, action).await;
         }
     }
@@ -274,7 +298,7 @@ mod tests {
     #[test]
     fn progress_is_sent_on_change_only_and_a_reassert_resends_it() {
         let mut core = Core::default();
-        core.started("a", Some((0, 10)), None);
+        core.started("a", Some((0, 10)), None, "Compute: a".into());
         assert!(core.plan(&[seen("a", "running", Some((0, 10)))]).is_empty());
         assert_eq!(core.plan(&[seen("a", "running", Some((4, 10)))]), vec![Action::Progress { id: "compute:a".into(), completed: 4, total: 10 }]);
         core.progressed("a", (4, 10));
@@ -288,7 +312,7 @@ mod tests {
     fn endings_follow_the_job_state_once() {
         let mut core = Core::default();
         for job in ["a", "b", "c"] {
-            core.started(job, Some((0, 1)), None);
+            core.started(job, Some((0, 1)), None, format!("Compute: {job}"));
         }
         let mut failed = seen("b", "failed", None);
         failed.detail = "run.sh exited with 2".into();
@@ -312,9 +336,26 @@ mod tests {
         let mut job = seen("a", "running", None);
         job.bars = Some("sticks".into());
         assert_eq!(core.plan(&[job]), vec![Action::Start { id: "compute:a".into(), label: "Compute: name-a".into(), total: 1, pattern: Some("sticks".into()) }]);
-        core.started("a", Some((0, 1)), Some("sticks".into()));
+        core.started("a", Some((0, 1)), Some("sticks".into()), "Compute: name-a".into());
+        assert_eq!(core.label("a"), Some("Compute: name-a".into()));
         assert_eq!(core.pattern("a"), Some("sticks".into()));
         assert_eq!(core.pattern("nope"), None);
+    }
+
+    #[test]
+    fn a_half_written_progress_file_keeps_the_last_good_value() {
+        let mut core = Core::default();
+        core.started("a", Some((0, 10)), None, "Compute: a".into());
+        let mut now = vec![seen("a", "running", Some((4, 10)))];
+        core.steady(&mut now);
+        assert_eq!(core.plan(&now), vec![Action::Progress { id: "compute:a".into(), completed: 4, total: 10 }]);
+        core.progressed("a", (4, 10));
+        let mut torn = vec![seen("a", "running", None)];
+        core.steady(&mut torn);
+        assert!(core.plan(&torn).is_empty(), "an unreadable file is not 0 of 1");
+        let mut never = vec![seen("b", "running", None)];
+        core.steady(&mut never);
+        assert_eq!(never[0].progress, None, "a job that never reported stays an empty bar");
     }
 
     #[test]
