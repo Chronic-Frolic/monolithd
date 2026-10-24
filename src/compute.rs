@@ -8,6 +8,8 @@
 //!
 //! - `running`, `paused-game` and `requeued-game` are announced (a paused or requeued job still
 //!   owns its work and its sleep block, so its bar stays); `queued` and `waiting-*` are not.
+//! - `job.json` may carry `"bars": "sticks" | "whole" | <progress family>`, the job's own request
+//!   for how its bar is drawn (the controller's `progress_mode` decides when it is absent).
 //! - A job that writes no progress is announced as 0 of 1: an empty bar, whose empty side is
 //!   the working look, which is the truth (running, with no count to show).
 //! - `done` completes it; `failed` and `cancelled` fail it; a job folder that vanished while
@@ -36,11 +38,13 @@ pub struct Seen {
     pub state: String,
     pub detail: String,
     pub progress: Option<(u32, u32)>,
+    /// The bar mode the job asked for in `job.json`.
+    pub bars: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Action {
-    Start { id: String, label: String, total: u32 },
+    Start { id: String, label: String, total: u32, pattern: Option<String> },
     Progress { id: String, completed: u32, total: u32 },
     End { id: String, ending: Ending },
 }
@@ -50,6 +54,7 @@ pub enum Action {
 #[derive(Debug, Clone, PartialEq)]
 struct Announced {
     sent: Option<(u32, u32)>,
+    pattern: Option<String>,
 }
 
 #[derive(Debug, Default)]
@@ -91,7 +96,7 @@ impl Core {
     pub fn recover(&mut self, status: &Value) {
         for id in status["jobs"].as_array().into_iter().flatten().filter_map(|job| job["id"].as_str()) {
             if let Some(job) = id.strip_prefix(JOB_PREFIX) {
-                self.announced.insert(job.to_owned(), Announced { sent: None });
+                self.announced.insert(job.to_owned(), Announced { sent: None, pattern: None });
             }
         }
     }
@@ -112,7 +117,7 @@ impl Core {
                 let (completed, total) = bar(job.progress);
                 match known {
                     None => {
-                        actions.push(Action::Start { id: id.clone(), label: format!("Compute: {}", job.name), total });
+                        actions.push(Action::Start { id: id.clone(), label: format!("Compute: {}", job.name), total, pattern: job.bars.clone() });
                         if completed > 0 {
                             actions.push(Action::Progress { id, completed, total });
                         }
@@ -141,8 +146,13 @@ impl Core {
         actions
     }
 
-    pub fn started(&mut self, job: &str, sent: Option<(u32, u32)>) {
-        self.announced.insert(job.to_owned(), Announced { sent });
+    pub fn started(&mut self, job: &str, sent: Option<(u32, u32)>, pattern: Option<String>) {
+        self.announced.insert(job.to_owned(), Announced { sent, pattern });
+    }
+
+    /// The bar mode a live job was announced with (kept for re-announcing it).
+    pub fn pattern(&self, job: &str) -> Option<String> {
+        self.announced.get(job)?.pattern.clone()
     }
 
     pub fn progressed(&mut self, job: &str, sent: (u32, u32)) {
@@ -160,7 +170,11 @@ fn read_job(directory: &Path) -> Option<Seen> {
     let state: Value = serde_json::from_str(&std::fs::read_to_string(directory.join("state.json")).ok()?).ok()?;
     let text = |key: &str| state[key].as_str().unwrap_or_default().to_owned();
     let progress = std::fs::read_to_string(directory.join("mc/progress")).ok().and_then(|text| parse_progress(&text));
-    Some(Seen { id: text("id"), name: text("name"), state: text("state"), detail: text("detail"), progress })
+    let bars = std::fs::read_to_string(directory.join("job.json"))
+        .ok()
+        .and_then(|text| serde_json::from_str::<Value>(&text).ok())
+        .and_then(|spec| spec["bars"].as_str().filter(|bars| !bars.is_empty()).map(str::to_owned));
+    Some(Seen { id: text("id"), name: text("name"), state: text("state"), detail: text("detail"), progress, bars })
 }
 
 /// Every job folder with a readable `state.json`. A folder still being copied in has none yet.
@@ -178,18 +192,21 @@ pub fn jobs_dir() -> Result<PathBuf, String> {
 
 async fn apply(executor: &mut Executor, core: &mut Core, action: Action) {
     match action {
-        Action::Start { id, label, total } => {
-            if executor.start(&id, &label, total).await {
-                core.started(&id[JOB_PREFIX.len()..], Some((0, total)));
+        Action::Start { id, label, total, pattern } => {
+            if executor.start_with(&id, &label, total, pattern.as_deref()).await {
+                core.started(&id[JOB_PREFIX.len()..], Some((0, total)), pattern);
             }
         }
         Action::Progress { id, completed, total } => {
             let job = id[JOB_PREFIX.len()..].to_owned();
             if executor.progress(&id, completed, total).await {
                 core.progressed(&job, (completed, total));
-            } else if executor.start(&id, &id, total).await {
+            } else {
                 // the controller restarted and forgot it: announced again, progress follows next pass
-                core.started(&job, Some((0, total)));
+                let pattern = core.pattern(&job);
+                if executor.start_with(&id, &id, total, pattern.as_deref()).await {
+                    core.started(&job, Some((0, total)), pattern);
+                }
             }
         }
         Action::End { id, ending } => {
@@ -228,7 +245,7 @@ mod tests {
     use super::*;
 
     fn seen(id: &str, state: &str, progress: Option<(u32, u32)>) -> Seen {
-        Seen { id: id.into(), name: format!("name-{id}"), state: state.into(), detail: String::new(), progress }
+        Seen { id: id.into(), name: format!("name-{id}"), state: state.into(), detail: String::new(), progress, bars: None }
     }
 
     #[test]
@@ -247,17 +264,17 @@ mod tests {
     fn only_a_running_job_is_announced_and_a_silent_one_is_an_empty_bar() {
         let core = Core::default();
         assert!(core.plan(&[seen("a", "queued", None), seen("b", "waiting-gpu", None), seen("c", "waiting-game", None), seen("d", "done", None)]).is_empty());
-        assert_eq!(core.plan(&[seen("a", "running", None)]), vec![Action::Start { id: "compute:a".into(), label: "Compute: name-a".into(), total: 1 }]);
+        assert_eq!(core.plan(&[seen("a", "running", None)]), vec![Action::Start { id: "compute:a".into(), label: "Compute: name-a".into(), total: 1, pattern: None }]);
         assert_eq!(
             core.plan(&[seen("a", "running", Some((3, 10)))]),
-            vec![Action::Start { id: "compute:a".into(), label: "Compute: name-a".into(), total: 10 }, Action::Progress { id: "compute:a".into(), completed: 3, total: 10 }]
+            vec![Action::Start { id: "compute:a".into(), label: "Compute: name-a".into(), total: 10, pattern: None }, Action::Progress { id: "compute:a".into(), completed: 3, total: 10 }]
         );
     }
 
     #[test]
     fn progress_is_sent_on_change_only_and_a_reassert_resends_it() {
         let mut core = Core::default();
-        core.started("a", Some((0, 10)));
+        core.started("a", Some((0, 10)), None);
         assert!(core.plan(&[seen("a", "running", Some((0, 10)))]).is_empty());
         assert_eq!(core.plan(&[seen("a", "running", Some((4, 10)))]), vec![Action::Progress { id: "compute:a".into(), completed: 4, total: 10 }]);
         core.progressed("a", (4, 10));
@@ -271,7 +288,7 @@ mod tests {
     fn endings_follow_the_job_state_once() {
         let mut core = Core::default();
         for job in ["a", "b", "c"] {
-            core.started(job, Some((0, 1)));
+            core.started(job, Some((0, 1)), None);
         }
         let mut failed = seen("b", "failed", None);
         failed.detail = "run.sh exited with 2".into();
@@ -287,6 +304,17 @@ mod tests {
         core.ended("a");
         let later = core.plan(&[seen("a", "done", None), seen("b", "failed", None), seen("c", "cancelled", None)]);
         assert!(later.iter().all(|action| !matches!(action, Action::End { id, .. } if id == "compute:a")), "an ended job is never ended twice");
+    }
+
+    #[test]
+    fn a_jobs_own_bar_mode_is_announced_and_remembered_for_a_re_announce() {
+        let mut core = Core::default();
+        let mut job = seen("a", "running", None);
+        job.bars = Some("sticks".into());
+        assert_eq!(core.plan(&[job]), vec![Action::Start { id: "compute:a".into(), label: "Compute: name-a".into(), total: 1, pattern: Some("sticks".into()) }]);
+        core.started("a", Some((0, 1)), Some("sticks".into()));
+        assert_eq!(core.pattern("a"), Some("sticks".into()));
+        assert_eq!(core.pattern("nope"), None);
     }
 
     #[test]
@@ -313,8 +341,9 @@ mod tests {
         std::fs::create_dir_all(root.join("20261023-000001-early-0001")).unwrap();
         std::fs::write(job.join("state.json"), r#"{"id":"20261023-153553-x-b27f","name":"x","state":"running","detail":""}"#).unwrap();
         std::fs::write(job.join("mc/progress"), "7 24\n").unwrap();
+        std::fs::write(job.join("job.json"), r#"{"id":"20261023-153553-x-b27f","bars":"sticks"}"#).unwrap();
         let jobs = scan(&root);
         std::fs::remove_dir_all(&root).unwrap();
-        assert_eq!(jobs, vec![Seen { id: "20261023-153553-x-b27f".into(), name: "x".into(), state: "running".into(), detail: String::new(), progress: Some((7, 24)) }]);
+        assert_eq!(jobs, vec![Seen { id: "20261023-153553-x-b27f".into(), name: "x".into(), state: "running".into(), detail: String::new(), progress: Some((7, 24)), bars: Some("sticks".into()) }]);
     }
 }

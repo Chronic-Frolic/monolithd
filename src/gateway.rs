@@ -181,6 +181,12 @@ pub enum Request {
         /// The Empty side: `base` (the look itself) or `working`. Default `base`.
         #[serde(default)]
         empty: Option<String>,
+        /// Stick mode (owner, 2026-10-23): the family's fill order is cut into this many
+        /// equal sticks, each filled to its own step (0 through the stick's LED count), so
+        /// several jobs share one zone. `completed` is then only their sum. Needs the
+        /// animated loops; there is no static Scene for such a state.
+        #[serde(default)]
+        parts: Option<Vec<u32>>,
     },
 }
 
@@ -209,8 +215,30 @@ struct ZoneState {
 struct BarTarget {
     family: String,
     completed: u32,
+    /// Per-stick steps in stick mode (see `Request::Progress`), else `None`.
+    parts: Option<Vec<u32>>,
     look: String,
     empty_look: String,
+}
+
+/// The owner name a bar reports: `family:step`, or `family:s0,s1,..` with one step per stick.
+pub fn bar_name(family: &str, completed: u32, parts: Option<&[u32]>) -> String {
+    match parts {
+        Some(parts) => format!("{family}:{}", parts.iter().map(u32::to_string).collect::<Vec<_>>().join(",")),
+        None => format!("{family}:{completed}"),
+    }
+}
+
+/// The fixtures a bar lights: the first `completed` of the fill order, or in stick mode the
+/// first `parts[k]` of each equal chunk `k` of it.
+fn lit_fixtures(order: &[u32], completed: u32, parts: Option<&[u32]>) -> BTreeSet<u32> {
+    match parts {
+        None => order[..completed as usize].iter().copied().collect(),
+        Some(parts) => {
+            let chunk = order.len() / parts.len().max(1);
+            parts.iter().enumerate().flat_map(|(stick, &lit)| order[stick * chunk..stick * chunk + lit as usize].iter().copied()).collect()
+        }
+    }
 }
 
 /// An animated progress bar in place (see `animation.rs`).
@@ -476,7 +504,10 @@ impl<Q: Qlc> Gateway<Q> {
                 let target = resolve_function(registry, &function)?;
                 self.activate(registry, &target, true, transition, overlap(overlap_ms)?, false, None).await
             }
-            Request::Progress { zone, completed, pattern, transition, overlap_ms, .. } => {
+            Request::Progress { zone, completed, pattern, transition, overlap_ms, parts, .. } => {
+                if parts.is_some() {
+                    return fail("no_animation", "per-stick progress has no static step Scene; it needs the animated loops");
+                }
                 let target = resolve_progress(registry, &zone, completed, pattern.as_deref())?;
                 self.activate(registry, &target, true, transition, overlap(overlap_ms)?, false, None).await
             }
@@ -1037,9 +1068,12 @@ impl<Q: Qlc + Send + Sync + 'static> Gateway<Q> {
                     return reply;
                 }
             }
-            Request::Progress { zone, completed, pattern, look, empty, .. } => {
-                if let Some(reply) = self.schedule_bar(zone, *completed, pattern.as_deref(), look.as_deref(), empty.as_deref()).await {
+            Request::Progress { zone, completed, pattern, look, empty, parts, .. } => {
+                if let Some(reply) = self.schedule_bar(zone, *completed, pattern.as_deref(), look.as_deref(), empty.as_deref(), parts.as_deref()).await {
                     return reply;
+                }
+                if parts.is_some() {
+                    return json!({ "ok": false, "code": "no_animation", "error": format!("zone {zone} cannot show per-stick progress now: it needs the animated loops, there is no static step for it") });
                 }
                 // Not animated: the static step Scene replaces whatever is there, a bar included.
                 self.cancel_pending_bars(std::slice::from_ref(zone));
@@ -1113,7 +1147,7 @@ impl<Q: Qlc + Send + Sync + 'static> Gateway<Q> {
     /// means "use the static step Scene". Changes land on the next step boundary of the
     /// running loops (at most one step away), scheduled so the caller is never held; while
     /// one waits, a newer request replaces its target, so only the latest step is applied.
-    async fn schedule_bar(self: &Arc<Self>, zone: &str, completed: u32, pattern: Option<&str>, look: Option<&str>, empty: Option<&str>) -> Option<Value> {
+    async fn schedule_bar(self: &Arc<Self>, zone: &str, completed: u32, pattern: Option<&str>, look: Option<&str>, empty: Option<&str>, parts: Option<&[u32]>) -> Option<Value> {
         let registry = self.control().ok()?;
         let animation = self.animation.as_ref()?;
         let look = look?;
@@ -1131,8 +1165,14 @@ impl<Q: Qlc + Send + Sync + 'static> Gateway<Q> {
         if completed > family.total || full.fixtures != empty_set.fixtures || !covers(&full.fixtures) {
             return None;
         }
-        let target = BarTarget { family: family.name.clone(), completed, look: look.to_owned(), empty_look: empty_look.to_owned() };
-        let name = format!("{}:{completed}", family.name);
+        if let Some(parts) = parts {
+            let sticks = parts.len() as u32;
+            if sticks == 0 || family.total % sticks != 0 || parts.iter().any(|&lit| lit > family.total / sticks) {
+                return Some(json!({ "ok": false, "code": "out_of_range", "error": format!("parts must be {sticks} steps of at most {} each", family.total / sticks.max(1)) }));
+            }
+        }
+        let target = BarTarget { family: family.name.clone(), completed, parts: parts.map(<[u32]>::to_vec), look: look.to_owned(), empty_look: empty_look.to_owned() };
+        let name = bar_name(&family.name, completed, parts);
         let now = Instant::now();
         if let Some(pending) = self.pending_bars.lock().unwrap().get_mut(zone) {
             pending.target = target;
@@ -1189,7 +1229,7 @@ impl<Q: Qlc + Send + Sync + 'static> Gateway<Q> {
         else {
             return;
         };
-        let lit: BTreeSet<u32> = family.order[..target.completed as usize].iter().copied().collect();
+        let lit = lit_fixtures(&family.order, target.completed, target.parts.as_deref());
         let desired: Vec<u32> = full.fixtures.iter().enumerate().map(|(index, fixture)| if lit.contains(fixture) { full.chasers[index] } else { empty_set.chasers[index] }).collect();
         let Some(state) = held.get_mut(zone) else { return };
         if state.uncertain || state.owner.as_ref().is_some_and(|owner| state.bar.is_none() && !Self::bar_may_replace(owner)) {
@@ -1235,7 +1275,7 @@ impl<Q: Qlc + Send + Sync + 'static> Gateway<Q> {
             self.note_stopped(registry, &owner.name);
         }
         let state = held.get_mut(zone).expect("held above");
-        state.owner = Some(Target { name: format!("{}:{}", target.family, target.completed), id: desired[0], zones: vec![zone.to_owned()], composable: true });
+        state.owner = Some(Target { name: bar_name(&target.family, target.completed, target.parts.as_deref()), id: desired[0], zones: vec![zone.to_owned()], composable: true });
         state.bar = Some(Bar { target, running: desired, epoch });
     }
 }
@@ -1520,12 +1560,12 @@ mod tests {
     fn preempt_set(functions: &[&str]) -> Request { Request::PreemptSet { functions: functions.iter().map(|f| (*f).to_owned()).collect() } }
     fn replace(function: &str) -> Request { Request::Replace { function: function.to_owned(), transition: Transition::default(), overlap_ms: None } }
     fn stop(function: &str) -> Request { Request::Stop { function: function.to_owned() } }
-    fn progress(zone: &str, completed: u32) -> Request { Request::Progress { zone: zone.to_owned(), completed, pattern: None, transition: Transition::default(), overlap_ms: None, look: None, empty: None } }
+    fn progress(zone: &str, completed: u32) -> Request { Request::Progress { zone: zone.to_owned(), completed, pattern: None, transition: Transition::default(), overlap_ms: None, look: None, empty: None, parts: None } }
     fn progress_with(zone: &str, completed: u32, transition: Transition, overlap_ms: Option<u64>) -> Request {
-        Request::Progress { zone: zone.to_owned(), completed, pattern: None, transition, overlap_ms, look: None, empty: None }
+        Request::Progress { zone: zone.to_owned(), completed, pattern: None, transition, overlap_ms, look: None, empty: None, parts: None }
     }
     fn progress_pattern(zone: &str, completed: u32, pattern: &str) -> Request {
-        Request::Progress { zone: zone.to_owned(), completed, pattern: Some(pattern.to_owned()), transition: Transition::default(), overlap_ms: None, look: None, empty: None }
+        Request::Progress { zone: zone.to_owned(), completed, pattern: Some(pattern.to_owned()), transition: Transition::default(), overlap_ms: None, look: None, empty: None, parts: None }
     }
     fn code(reply: &Value) -> &str { reply["code"].as_str().unwrap_or("") }
 
@@ -2025,7 +2065,7 @@ mod tests {
     }
 
     fn bar(completed: u32, empty: Option<&str>) -> Request {
-        Request::Progress { zone: "ram".to_owned(), completed, pattern: None, transition: Transition::default(), overlap_ms: None, look: Some("deep_violet".to_owned()), empty: empty.map(str::to_owned) }
+        Request::Progress { zone: "ram".to_owned(), completed, pattern: None, transition: Transition::default(), overlap_ms: None, look: Some("deep_violet".to_owned()), empty: empty.map(str::to_owned), parts: None }
     }
 
     /// The batches delivered since `from`, and the step every Cue List start in the last one used.
@@ -2073,6 +2113,57 @@ mod tests {
         let names: Vec<&str> = batches[0].iter().map(|label| label.split(" @").next().unwrap()).collect();
         assert_eq!(names, ["stop 1102", "start 1002"], "only the LED that changes side is touched");
         assert_eq!(gateway.handle_shared(bar(2, None)).await["changed"], false);
+    }
+
+    fn sticks(parts: &[u32]) -> Request {
+        Request::Progress { zone: "ram".to_owned(), completed: parts.iter().sum(), pattern: None, transition: Transition::default(), overlap_ms: None, look: Some("deep_violet".to_owned()), empty: None, parts: Some(parts.to_vec()) }
+    }
+
+    #[test]
+    fn stick_mode_lights_the_first_leds_of_each_chunk_of_the_fill_order() {
+        let order = [3, 2, 1, 0];
+        assert_eq!(lit_fixtures(&order, 2, None), BTreeSet::from([3, 2]));
+        assert_eq!(lit_fixtures(&order, 3, Some(&[1, 2])), BTreeSet::from([3, 1, 0]), "one LED of the first stick, both of the second");
+        assert_eq!(lit_fixtures(&order, 0, Some(&[0, 0])), BTreeSet::new());
+        assert_eq!(bar_name("progress_ram", 7, None), "progress_ram:7");
+        assert_eq!(bar_name("progress_ram", 3, Some(&[1, 0, 2])), "progress_ram:1,0,2");
+    }
+
+    #[tokio::test]
+    async fn a_stick_bar_lights_each_stick_to_its_own_step_and_reports_the_owner_the_controller_expects() {
+        let fake = Fake::default();
+        let gateway = bar_gateway(&fake);
+        gateway.handle(start_set(&["ambient_ram", "ambient_eye"])).await;
+        let before = fake.batches.lock().unwrap().len();
+        let reply = gateway.handle_shared(sticks(&[1, 2])).await;
+        assert_eq!((reply["scheduled"].clone(), reply["function"].clone()), (json!(true), json!("progress_ram:1,2")), "{reply}");
+        tokio::time::sleep(Duration::from_millis(120)).await;
+        let batches = batches_since(&fake, before);
+        let names: Vec<&str> = batches[0].iter().map(|label| label.split(" @").next().unwrap()).collect();
+        assert_eq!(names, ["stop 109", "start 1000", "start 1001", "start 1102", "start 1003"], "fixture 2 is the only empty LED: {batches:?}");
+        let status = gateway.handle(Request::Status).await;
+        assert_eq!(status["zones"]["ram"]["owner"], bar_name("progress_ram", 3, Some(&[1, 2])), "{status}");
+
+        let before = fake.batches.lock().unwrap().len();
+        assert_eq!(gateway.handle_shared(sticks(&[1, 2])).await["changed"], false, "the same sticks again changes nothing");
+        assert_eq!(gateway.handle_shared(sticks(&[2, 2])).await["new"], true);
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        let names: Vec<String> = batches_since(&fake, before)[0].iter().map(|label| label.split(" @").next().unwrap().to_owned()).collect();
+        assert_eq!(names, ["stop 1102", "start 1002"], "only the LED that changed side is touched");
+    }
+
+    #[tokio::test]
+    async fn a_stick_bar_is_refused_when_it_cannot_be_animated_or_is_out_of_range() {
+        let fake = Fake::default();
+        let gateway = bar_gateway(&fake);
+        assert_eq!(code(&gateway.handle_shared(sticks(&[3, 0])).await), "out_of_range", "a stick of 2 LEDs cannot be at step 3");
+        assert_eq!(code(&gateway.handle_shared(sticks(&[1, 1, 1])).await), "out_of_range", "3 sticks do not divide 4 LEDs");
+        // Without the animated loops there is no static step for per-stick progress: refuse, never show a wrong bar.
+        let plain = Gateway::new(Some(toml::from_str(REGISTRY).unwrap()), Vec::new(), fake.clone());
+        let plain = Arc::new(plain);
+        assert_eq!(code(&plain.handle_shared(sticks(&[1, 0, 0, 0])).await), "no_animation");
+        assert_eq!(code(&plain.handle(sticks(&[1, 0, 0, 0])).await), "no_animation");
+        assert!(fake.running().is_empty(), "nothing was started");
     }
 
     #[tokio::test]

@@ -75,7 +75,16 @@ impl Executor {
 
     /// Announce a job. `false` means it was not announced; try again later.
     pub async fn start(&mut self, id: &str, label: &str, total: u32) -> bool {
-        match self.send(json!({ "op": "job.start", "id": id, "label": label, "total": total })).await {
+        self.start_with(id, label, total, None).await
+    }
+
+    /// Announce a job that asks for a bar mode: `sticks`, `whole`, or a registered progress family.
+    pub async fn start_with(&mut self, id: &str, label: &str, total: u32, pattern: Option<&str>) -> bool {
+        let mut request = json!({ "op": "job.start", "id": id, "label": label, "total": total });
+        if let Some(pattern) = pattern {
+            request["pattern"] = json!(pattern);
+        }
+        match self.send(request).await {
             Sent::Ok => {
                 self.log(format!("announced {id} ({label}, {total})"));
                 true

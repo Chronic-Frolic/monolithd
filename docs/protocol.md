@@ -45,6 +45,19 @@ or
 | `{"op":"job.complete","id":ID}` | The job finished: its bar shows 100% for `complete_hold_seconds` (15 s by default), then the zone returns to ambient. A job that never got a zone is simply dropped. |
 | `{"op":"job.fail","id":ID,"reason":TEXT}` | The job failed: its zone is released at once and the failure is kept in `status` (the last 8). |
 
+**Stick mode (RAM).** With `stick_zone = "ram"` in `controller.toml`, the RAM can show four
+separate jobs at once, one per stick: each stick is an 8-LED bar filling bottom to top, and
+the strip is a fifth bar, so up to five jobs show at the same time. `progress_mode` (`whole`
+or `sticks`) is what a job that asks for nothing gets. A job picks its own mode with
+`"pattern"`: `"sticks"` (one stick), `"whole"` (the whole-RAM bar with its default family) or
+a named whole-RAM family such as `progress_ram_quarters`. The RAM is in one mode at a time,
+so a whole-RAM job and stick jobs exclude each other: a job that cannot get its mode's slot
+takes the strip, or waits. A job waiting for the whole RAM holds back free sticks from
+lower-priority jobs, and the kind of lease is fixed when it is taken. Idle sticks show the
+working look while any stick shows a bar. The gateway's `progress` request takes the same
+thing as `"parts":[s0,s1,s2,s3]`, one step per stick, and refuses it without the animated
+loops (there is no static step for it).
+
 Zones that can show progress are listed in `config/controller.toml` as `progress_zones`,
 in allocation order. A job takes the first free one; when none is free it waits. When a
 zone frees up, the waiting job with the highest `priority` takes it (the earliest on a

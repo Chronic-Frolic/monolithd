@@ -39,3 +39,13 @@ progress_empty = "working"
 # "violet" (violet plasma's own motion with white glitter) or "white" (white glinting in
 # the base look's own colors). Two sister looks, 2026-09-26.
 working_look = "violet"
+
+# RAM stick mode (owner, 2026-10-23): the RAM can show four separate jobs at once, one per
+# stick, each stick an 8-LED bar filling bottom to top, with the strip as a fifth bar.
+# progress_mode is what a job that asks for nothing gets: "whole" (the one RAM bar, the
+# modes listed in qlc-functions.toml) or "sticks". A job picks its own with job.start's
+# "pattern": "sticks", "whole", or a named family such as "progress_ram_quarters".
+# The RAM is in one mode at a time: a whole-RAM job and stick jobs exclude each other.
+stick_zone = "ram"
+sticks = 4
+progress_mode = "whole"

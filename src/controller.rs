@@ -63,6 +63,30 @@ pub struct ControllerConfig {
     /// looks to choose from (owner, 2026-09-26).
     #[serde(default)]
     pub working_look: WorkingLook,
+    /// Stick mode (owner, 2026-10-23): this progress zone (the RAM) may be split into
+    /// `sticks` equal parts, each showing a separate job, so several jobs show at once.
+    /// Absent: the zone is always one bar.
+    #[serde(default)]
+    pub stick_zone: Option<String>,
+    #[serde(default = "default_sticks")]
+    pub sticks: u32,
+    /// What a job that asked for neither mode gets in the stick zone. A job picks its own
+    /// with `pattern`: `sticks` or `whole`, or a named whole-zone family such as
+    /// `progress_ram_quarters`.
+    #[serde(default)]
+    pub progress_mode: ProgressMode,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ProgressMode {
+    #[default]
+    Whole,
+    Sticks,
+}
+
+fn default_sticks() -> u32 {
+    4
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize)]
@@ -153,6 +177,18 @@ pub fn check_config(config: &ControllerConfig, registry: &Registry) -> Vec<Strin
     if !(100..=60_000).contains(&config.poll_interval_ms) {
         problems.push("poll_interval_ms must be between 100 and 60000".to_owned());
     }
+    if let Some(zone) = &config.stick_zone {
+        match registry.progress_for_zone(zone) {
+            Some(family) if config.progress_zones.contains(zone) => {
+                if config.sticks < 2 || family.total % config.sticks != 0 || family.order.len() as u32 % config.sticks != 0 {
+                    problems.push(format!("sticks = {} must be at least 2 and divide zone {zone}'s {} LEDs evenly", config.sticks, family.total));
+                }
+            }
+            _ => problems.push(format!("stick_zone {zone} is not one of progress_zones with a progress family")),
+        }
+    } else if config.progress_mode == ProgressMode::Sticks {
+        problems.push("progress_mode = \"sticks\" needs a stick_zone".to_owned());
+    }
     check_state_zones(&mut problems, "warning_zones", &config.warning_zones, "warning", registry);
     check_state_zones(&mut problems, "working_zones", &config.working_zones, config.working_look.prefix(), registry);
     problems
@@ -226,6 +262,8 @@ struct ActiveFault {
 enum Want {
     Ambient { function: String },
     Progress { zone: String, family: String, step: u32 },
+    /// The stick zone showing separate jobs: one step per stick.
+    Sticks { zone: String, family: String, parts: Vec<u32> },
 }
 
 impl Want {
@@ -234,6 +272,7 @@ impl Want {
         match self {
             Self::Ambient { function } => function.clone(),
             Self::Progress { family, step, .. } => format!("{family}:{step}"),
+            Self::Sticks { family, parts, .. } => crate::gateway::bar_name(family, parts.iter().sum(), Some(parts)),
         }
     }
 }
@@ -250,15 +289,25 @@ enum Action {
     PreemptSet(Vec<String>),
     Rejoin(String),
     Progress { zone: String, step: u32, family: String },
+    Sticks { zone: String, parts: Vec<u32>, family: String },
 }
 
 impl Action {
+    /// The zone a progress action draws on.
+    fn bar_zone(&self) -> Option<&str> {
+        match self {
+            Self::Progress { zone, .. } | Self::Sticks { zone, .. } => Some(zone),
+            _ => None,
+        }
+    }
+
     fn request(&self) -> Value {
         match self {
             Self::Stop(function) => json!({ "op": "stop", "function": function }),
             Self::PreemptSet(functions) => json!({ "op": "preempt_set", "functions": functions }),
             Self::Rejoin(function) => json!({ "op": "rejoin", "function": function }),
             Self::Progress { zone, step, family } => json!({ "op": "progress", "zone": zone, "completed": step, "pattern": family }),
+            Self::Sticks { zone, parts, family } => json!({ "op": "progress", "zone": zone, "completed": parts.iter().sum::<u32>(), "pattern": family, "parts": parts }),
         }
     }
 
@@ -268,6 +317,7 @@ impl Action {
             Self::PreemptSet(functions) => format!("preempt set [{}]", functions.join(", ")),
             Self::Rejoin(function) => format!("rejoin {function}"),
             Self::Progress { zone, step, family } => format!("progress {zone} {step} ({family})"),
+            Self::Sticks { zone, parts, family } => format!("progress {zone} sticks {parts:?} ({family})"),
         }
     }
 }
@@ -447,6 +497,12 @@ fn plan(view: &GatewayView, wants: &BTreeMap<String, Want>, state: &BTreeMap<Str
                 }
                 progress.push(Action::Progress { zone: zone.clone(), step: *step, family: family.clone() });
             }
+            (Want::Sticks { zone, parts, family }, foreign_or_other) => {
+                if let Owner::Foreign(name) = foreign_or_other {
+                    stop_foreign(name, &mut stops);
+                }
+                progress.push(Action::Sticks { zone: zone.clone(), parts: parts.clone(), family: family.clone() });
+            }
         }
     }
 
@@ -516,7 +572,10 @@ impl<L: Link> Controller<L> {
             .iter()
             .map(|zone| (zone.clone(), registry.progress_for_zone(zone).map_or(0, |entry| entry.total)))
             .collect();
-        let planner = Planner::new(zones, Duration::from_secs(config.complete_hold_seconds));
+        let mut planner = Planner::new(zones, Duration::from_secs(config.complete_hold_seconds));
+        if let Some(zone) = &config.stick_zone {
+            planner = planner.with_sticks(zone, config.sticks, config.progress_mode == ProgressMode::Sticks);
+        }
         let ambient = config.default_ambient.clone();
         Self { link, registry, config, planner, ambient, paused: false, dirty: true, faults: BTreeMap::new(), quiet: None, pre_sleep: None, bar_styles: BTreeMap::new(), report: Report::default() }
     }
@@ -579,7 +638,7 @@ impl<L: Link> Controller<L> {
         // progress-capable one that's simply idle right now.
         if !self.planner.jobs().is_empty() {
             for zone in &self.config.working_zones {
-                if matches!(self.planner.target(zone), ZoneTarget::Progress { .. }) {
+                if matches!(self.planner.target(zone), ZoneTarget::Progress { .. } | ZoneTarget::Sticks { .. }) {
                     continue;
                 }
                 if let Some(name) = self.state_asset(self.config.working_look.prefix(), zone) {
@@ -632,6 +691,14 @@ impl<L: Link> Controller<L> {
             }
         }
         for zone in &self.config.progress_zones {
+            if let ZoneTarget::Sticks { parts } = self.planner.target(zone) {
+                // Separate jobs on the sticks of one zone: the zone's own family supplies the
+                // fill order, which the gateway cuts into one chunk per stick.
+                if let Some(family) = self.registry.progress_for_zone(zone) {
+                    wants.insert(zone.clone(), Want::Sticks { zone: zone.clone(), family: family.name.clone(), parts });
+                }
+                continue;
+            }
             if let ZoneTarget::Progress { step, pattern } = self.planner.target(zone) {
                 // A pattern only applies if it actually belongs to the zone the job
                 // landed on (it might have been requested for a different zone and
@@ -713,22 +780,27 @@ impl<L: Link> Controller<L> {
             ProgressEmpty::Working => self.config.working_look.prefix(),
         };
         let style = (self.ambient.clone(), empty);
-        self.bar_styles.retain(|zone, _| matches!(wants.get(zone), Some(Want::Progress { .. })));
+        self.bar_styles.retain(|zone, _| matches!(wants.get(zone), Some(Want::Progress { .. } | Want::Sticks { .. })));
         let mut actions = plan.actions;
         for (zone, want) in &wants {
             // A bar already showing its step, but drawn in another look: ask again.
-            if let Want::Progress { step, family, .. } = want {
+            let again = match want {
+                Want::Progress { step, family, .. } => Some(Action::Progress { zone: zone.clone(), step: *step, family: family.clone() }),
+                Want::Sticks { parts, family, .. } => Some(Action::Sticks { zone: zone.clone(), parts: parts.clone(), family: family.clone() }),
+                Want::Ambient { .. } => None,
+            };
+            if let Some(action) = again {
                 let shown = view.zones.get(zone).and_then(|entry| entry.owner.as_deref()) == Some(want.owner_name().as_str());
                 if shown && !state.contains_key(zone) && self.bar_styles.get(zone) != Some(&style) {
-                    actions.push(Action::Progress { zone: zone.clone(), step: *step, family: family.clone() });
+                    actions.push(action);
                 }
             }
         }
         for action in actions {
             let mut request = action.request();
-            if let Action::Progress { zone, .. } = &action {
+            if let Some(zone) = action.bar_zone() {
                 // Which looks an animated bar is drawn with; the gateway falls back to the
-                // static step Scene when it has no loops for them.
+                // static step Scene when it has no loops for them (never for sticks).
                 request["look"] = json!(style.0);
                 request["empty"] = json!(style.1);
                 self.bar_styles.remove(zone);
@@ -745,8 +817,8 @@ impl<L: Link> Controller<L> {
                 self.remember(format!("{} refused, {reason}", action.describe()));
                 return;
             }
-            if let Action::Progress { zone, .. } = &action {
-                self.bar_styles.insert(zone.clone(), style.clone());
+            if let Some(zone) = action.bar_zone() {
+                self.bar_styles.insert(zone.to_owned(), style.clone());
             }
             // The gateway schedules a rejoin with a long wait for its loop boundary; each
             // reconcile until then asks again and hears "still scheduled", which is not news.
@@ -777,6 +849,8 @@ impl<L: Link> Controller<L> {
             },
             ControllerRequest::JobStart { id, label, total, priority, pattern } => {
                 match &pattern {
+                    Some(name) if name == crate::allocator::STICKS && self.planner.stick_zone().is_none() => Err(("unknown_pattern", "stick mode is not configured (controller.toml stick_zone)".to_owned())),
+                    Some(name) if name == crate::allocator::STICKS || name == crate::allocator::WHOLE => self.planner.start(&id, &label, total, priority, pattern).map(|()| json!({ "job": self.job_json(&id) })).map_err(|error| ("bad_request", error)),
                     Some(name) if self.registry.progress_by_name(name).is_none() => Err(("unknown_pattern", format!("no progress pattern named {name}"))),
                     _ => self.planner.start(&id, &label, total, priority, pattern).map(|()| json!({ "job": self.job_json(&id) })).map_err(|error| ("bad_request", error)),
                 }
@@ -1603,6 +1677,91 @@ mod tests {
         );
         controller.handle(ControllerRequest::JobProgress { id: "second".into(), completed: 5, total: None }, Instant::now());
         assert_eq!(controller.wants()["strip"], Want::Progress { zone: "strip".to_owned(), family: "progress_strip".to_owned(), step: 35 });
+    }
+
+    // ------------------------------------------------------------ stick mode
+
+    fn sticks_controller(link: &FakeLink, mode: &str) -> Controller<FakeLink> {
+        let config = toml::from_str(&format!(
+            "version = 1\ndefault_ambient = \"deep_violet\"\nprogress_zones = [\"ram\", \"strip\"]\ncomplete_hold_seconds = 15\nstick_zone = \"ram\"\nsticks = 4\nprogress_mode = \"{mode}\"\n"
+        ))
+        .unwrap();
+        Controller::new(link.clone(), registry(), config)
+    }
+
+    fn start_job(controller: &mut Controller<FakeLink>, id: &str, pattern: Option<&str>) -> Value {
+        controller.handle(ControllerRequest::JobStart { id: id.into(), label: id.into(), total: 8, priority: 0, pattern: pattern.map(str::to_owned) }, Instant::now())
+    }
+
+    fn report(controller: &mut Controller<FakeLink>, id: &str, completed: u32) {
+        controller.handle(ControllerRequest::JobProgress { id: id.into(), completed, total: None }, Instant::now());
+    }
+
+    #[test]
+    fn the_global_mode_decides_and_each_job_can_ask_for_the_other() {
+        let mut sticks = sticks_controller(&FakeLink::default(), "sticks");
+        start_job(&mut sticks, "a", None);
+        start_job(&mut sticks, "b", None);
+        report(&mut sticks, "a", 2);
+        report(&mut sticks, "b", 8);
+        assert_eq!(sticks.wants()["ram"], Want::Sticks { zone: "ram".to_owned(), family: "progress_ram".to_owned(), parts: vec![2, 8, 0, 0] }, "idle sticks sit at 0");
+        let mut whole = sticks_controller(&FakeLink::default(), "whole");
+        start_job(&mut whole, "a", None);
+        report(&mut whole, "a", 4);
+        assert_eq!(whole.wants()["ram"], Want::Progress { zone: "ram".to_owned(), family: "progress_ram".to_owned(), step: 16 }, "the default stays the whole-RAM bar");
+        let mut mixed = sticks_controller(&FakeLink::default(), "whole");
+        start_job(&mut mixed, "s", Some("sticks"));
+        report(&mut mixed, "s", 4);
+        assert_eq!(mixed.wants()["ram"], Want::Sticks { zone: "ram".to_owned(), family: "progress_ram".to_owned(), parts: vec![4, 0, 0, 0] });
+        let mut mixed = sticks_controller(&FakeLink::default(), "sticks");
+        start_job(&mut mixed, "w", Some("whole"));
+        report(&mut mixed, "w", 4);
+        assert_eq!(mixed.wants()["ram"], Want::Progress { zone: "ram".to_owned(), family: "progress_ram".to_owned(), step: 16 }, "`whole` is not a family: the zone's default is used");
+    }
+
+    #[test]
+    fn the_stick_request_to_the_gateway_carries_each_sticks_step_and_the_sum() {
+        let link = FakeLink::default();
+        let mut controller = sticks_controller(&link, "sticks");
+        start_job(&mut controller, "a", None);
+        start_job(&mut controller, "b", None);
+        report(&mut controller, "a", 3);
+        report(&mut controller, "b", 5);
+        let plan = plan_for(&healthy([Some("ambient_ram"), Some("working_eye"), Some("ambient_strip")]), &controller);
+        let action = Action::Sticks { zone: "ram".to_owned(), parts: vec![3, 5, 0, 0], family: "progress_ram".to_owned() };
+        assert!(plan.actions.contains(&action), "{:?}", plan.actions);
+        assert_eq!(action.request(), json!({ "op": "progress", "zone": "ram", "completed": 8, "pattern": "progress_ram", "parts": [3, 5, 0, 0] }));
+        // the gateway reports `family:s0,s1,..`; the controller must recognise it as already showing
+        let shown = crate::gateway::bar_name("progress_ram", 8, Some(&[3, 5, 0, 0]));
+        assert_eq!(shown, "progress_ram:3,5,0,0");
+        assert_eq!(controller.wants()["ram"].owner_name(), shown, "one string on both sides, or the bar is re-sent every second");
+        let plan = plan_for(&healthy([Some(shown.as_str()), Some("working_eye"), Some("ambient_strip")]), &controller);
+        assert!(plan.actions.iter().all(|action| !matches!(action, Action::Sticks { .. })), "{:?}", plan.actions);
+        // one stick moving re-sends it, once
+        report(&mut controller, "b", 6);
+        let plan = plan_for(&healthy([Some(shown.as_str()), Some("working_eye"), Some("ambient_strip")]), &controller);
+        assert!(plan.actions.contains(&Action::Sticks { zone: "ram".to_owned(), parts: vec![3, 6, 0, 0], family: "progress_ram".to_owned() }));
+    }
+
+    #[test]
+    fn a_stick_job_is_refused_where_stick_mode_is_not_configured_and_whole_always_works() {
+        let mut plain = controller_with(&FakeLink::default());
+        assert_eq!(start_job(&mut plain, "a", Some("sticks"))["code"], "unknown_pattern");
+        assert_eq!(start_job(&mut plain, "b", Some("whole"))["ok"], true);
+        let mut sticks = sticks_controller(&FakeLink::default(), "sticks");
+        assert_eq!(start_job(&mut sticks, "a", Some("sticks"))["ok"], true);
+    }
+
+    #[test]
+    fn the_stick_settings_are_checked_against_the_registry() {
+        let registry = registry();
+        let check = |text: &str| check_config(&toml::from_str::<ControllerConfig>(&format!("version = 1\ndefault_ambient = \"deep_violet\"\nprogress_zones = [\"ram\", \"strip\"]\ncomplete_hold_seconds = 15\n{text}")).unwrap(), &registry).join("; ");
+        assert_eq!(check("stick_zone = \"ram\"\nsticks = 4\nprogress_mode = \"sticks\"\n"), "");
+        assert!(check("stick_zone = \"ram\"\nsticks = 5\n").contains("divide zone ram"));
+        assert!(check("stick_zone = \"ram\"\nsticks = 1\n").contains("at least 2"));
+        assert!(check("stick_zone = \"rog_eye\"\n").contains("not one of progress_zones"));
+        assert!(check("progress_mode = \"sticks\"\n").contains("needs a stick_zone"));
+        assert_eq!(check(""), "", "stick mode is off unless configured");
     }
 
     // ------------------------------------------------------------ the loop
