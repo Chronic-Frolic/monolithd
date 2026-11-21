@@ -15,6 +15,10 @@
 //! - `done` completes it; `failed` and `cancelled` fail it; a job folder that vanished while
 //!   announced fails it ("removed"). Controller jobs `compute:*` that nothing on disk is still
 //!   running (left over from before a restart) are ended the same way.
+//! - A state the runner left unfinished in an earlier boot (its `boot_id` is not this boot's) is
+//!   read as `failed`: a reset killed the job, and its unit did not survive the boot. The runner
+//!   writes it down the same way when the client next asks; until then this keeps the dead job
+//!   from coming back as a bar, and from holding the sleep policy awake, after every boot.
 //!
 //! Jobs from different agents run side by side, each taking a free progress zone; extra jobs
 //! wait for one, as the protocol says.
@@ -29,6 +33,7 @@ use tokio::time::{interval, MissedTickBehavior};
 pub const JOB_PREFIX: &str = "compute:";
 const POLL: Duration = Duration::from_secs(3);
 const REASSERT: Duration = Duration::from_secs(30);
+const BOOT_ID: &str = "/proc/sys/kernel/random/boot_id";
 
 /// One job folder as read from disk.
 #[derive(Debug, Clone, PartialEq)]
@@ -188,7 +193,16 @@ impl Core {
     }
 }
 
-fn read_job(directory: &Path) -> Option<Seen> {
+fn is_finished(state: &str) -> bool {
+    matches!(state, "done" | "failed" | "cancelled")
+}
+
+/// This boot's id, which the runner records in every `state.json` it writes.
+fn boot_id() -> Option<String> {
+    std::fs::read_to_string(BOOT_ID).ok().map(|id| id.trim().to_owned()).filter(|id| !id.is_empty())
+}
+
+fn read_job(directory: &Path, boot: Option<&str>) -> Option<Seen> {
     let state: Value = serde_json::from_str(&std::fs::read_to_string(directory.join("state.json")).ok()?).ok()?;
     let text = |key: &str| state[key].as_str().unwrap_or_default().to_owned();
     let progress = std::fs::read_to_string(directory.join("mc/progress")).ok().and_then(|text| parse_progress(&text));
@@ -196,13 +210,19 @@ fn read_job(directory: &Path) -> Option<Seen> {
         .ok()
         .and_then(|text| serde_json::from_str::<Value>(&text).ok())
         .and_then(|spec| spec["bars"].as_str().filter(|bars| !bars.is_empty()).map(str::to_owned));
-    Some(Seen { id: text("id"), name: text("name"), state: text("state"), detail: text("detail"), progress, bars })
+    let mut seen = Seen { id: text("id"), name: text("name"), state: text("state"), detail: text("detail"), progress, bars };
+    let earlier_boot = matches!((state["boot_id"].as_str(), boot), (Some(written), Some(boot)) if written != boot);
+    if earlier_boot && !is_finished(&seen.state) {
+        seen.state = "failed".to_owned();
+        seen.detail = "machine rebooted during the run".to_owned();
+    }
+    Some(seen)
 }
 
 /// Every job folder with a readable `state.json`. A folder still being copied in has none yet.
-pub fn scan(jobs: &Path) -> Vec<Seen> {
+pub fn scan(jobs: &Path, boot: Option<&str>) -> Vec<Seen> {
     let Ok(entries) = std::fs::read_dir(jobs) else { return Vec::new() };
-    let mut seen: Vec<Seen> = entries.filter_map(Result::ok).filter_map(|entry| read_job(&entry.path())).filter(|job| !job.id.is_empty()).collect();
+    let mut seen: Vec<Seen> = entries.filter_map(Result::ok).filter_map(|entry| read_job(&entry.path(), boot)).filter(|job| !job.id.is_empty()).collect();
     seen.sort_by(|a, b| a.id.cmp(&b.id));
     seen
 }
@@ -240,6 +260,7 @@ async fn apply(executor: &mut Executor, core: &mut Core, action: Action) {
 
 pub async fn follow(dry_run: bool) -> Result<(), String> {
     let jobs = jobs_dir()?;
+    let boot = boot_id();
     let mut executor = Executor::new("compute-reporter", dry_run);
     let mut core = Core::default();
     if let Some(status) = executor.status().await {
@@ -256,7 +277,7 @@ pub async fn follow(dry_run: bool) -> Result<(), String> {
             _ = reassert.tick() => core.reassert(),
         }
         executor.retry().await;
-        let mut seen = scan(&jobs);
+        let mut seen = scan(&jobs, boot.as_deref());
         core.steady(&mut seen);
         for action in core.plan(&seen) {
             apply(&mut executor, &mut core, action).await;
@@ -383,8 +404,40 @@ mod tests {
         std::fs::write(job.join("state.json"), r#"{"id":"20261023-153553-x-b27f","name":"x","state":"running","detail":""}"#).unwrap();
         std::fs::write(job.join("mc/progress"), "7 24\n").unwrap();
         std::fs::write(job.join("job.json"), r#"{"id":"20261023-153553-x-b27f","bars":"sticks"}"#).unwrap();
-        let jobs = scan(&root);
+        let jobs = scan(&root, Some("this-boot"));
         std::fs::remove_dir_all(&root).unwrap();
         assert_eq!(jobs, vec![Seen { id: "20261023-153553-x-b27f".into(), name: "x".into(), state: "running".into(), detail: String::new(), progress: Some((7, 24)), bars: Some("sticks".into()) }]);
+    }
+
+    #[test]
+    fn a_job_left_unfinished_in_an_earlier_boot_is_read_as_failed_and_gets_no_bar() {
+        let root = std::env::temp_dir().join(format!("monolithd-compute-boot-test-{}", std::process::id()));
+        for (id, state, boot) in [("reset", "running", "earlier"), ("paused", "paused-game", "earlier"), ("finished", "done", "earlier"), ("live", "running", "this-boot")] {
+            let job = root.join(id);
+            std::fs::create_dir_all(&job).unwrap();
+            std::fs::write(job.join("state.json"), format!(r#"{{"id":"{id}","name":"{id}","state":"{state}","detail":"","boot_id":"{boot}"}}"#)).unwrap();
+        }
+        let legacy = root.join("legacy");
+        std::fs::create_dir_all(&legacy).unwrap();
+        std::fs::write(legacy.join("state.json"), r#"{"id":"legacy","name":"legacy","state":"running","detail":""}"#).unwrap();
+        let jobs = scan(&root, Some("this-boot"));
+        let unknown_boot = scan(&root, None);
+        std::fs::remove_dir_all(&root).unwrap();
+        let states: Vec<(&str, &str, &str)> = jobs.iter().map(|job| (job.id.as_str(), job.state.as_str(), job.detail.as_str())).collect();
+        assert_eq!(
+            states,
+            vec![
+                ("finished", "done", ""),
+                ("legacy", "running", ""),
+                ("live", "running", ""),
+                ("paused", "failed", "machine rebooted during the run"),
+                ("reset", "failed", "machine rebooted during the run"),
+            ],
+            "a state with no boot_id (from before the runner recorded it) is taken as it reads"
+        );
+        assert!(unknown_boot.iter().all(|job| job.state != "failed"), "no boot id to compare: nothing is failed");
+        let plan = Core::default().plan(&jobs);
+        assert_eq!(plan.len(), 2, "only the live and the legacy job get a bar: {plan:?}");
+        assert!(plan.iter().all(|action| matches!(action, Action::Start { id, .. } if id == "compute:live" || id == "compute:legacy")));
     }
 }
