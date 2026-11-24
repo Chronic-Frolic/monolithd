@@ -12,7 +12,14 @@
 //! input-activity`, which reads the kernel's input devices; see `input_activity.rs`); local
 //! music (a playing audio stream
 //! that does not belong to a running game, so an idle game on its menu music still sleeps);
-//! a wake. Remote desktop (KRDP, TCP 3389) and Sunshine streaming sessions are informational
+//! a wake; an ssh login; agent work on this machine (owner decision 2026-11-24, after a
+//! suspend at 22:52 on 2026-11-23 cut off an agent working over ssh and every Remote Control
+//! server). Logins and agent work are momentary: each restarts the clock, and the source reads
+//! active for `MOMENTARY_ACTIVE` afterwards so the log shows the burst. Logins are read from
+//! sshd's `Accepted` lines in the journal (agents on the laptop run one-shot ssh commands,
+//! which last about a second); agent work is a Claude Code hook on this machine touching
+//! `$XDG_RUNTIME_DIR/monolith-events/agent-activity` (`docs/runbook.md`), so an idle Remote
+//! Control server, which runs no hooks, never counts. Remote desktop (KRDP, TCP 3389) and Sunshine streaming sessions are informational
 //! only (owner decision 2026-09-25): a connected but untouched session must not keep the
 //! machine awake, and real remote use already arrives as input (RDP through KWin, Sunshine
 //! through uinput). Hard
@@ -59,6 +66,10 @@ const AFTER_SUSPEND: Duration = Duration::from_secs(120);
 /// After a suspend request fails, wait this long before trying again.
 const RETRY_FAILED_SUSPEND: Duration = Duration::from_secs(600);
 const SUSPEND_WARNING: &str = "sleep-policy:suspend-failed";
+/// A login or agent work reads as active this long after it happened.
+const MOMENTARY_ACTIVE: f64 = 300.0;
+/// Touched by the Claude Code hook (UserPromptSubmit, PreToolUse, Stop) on this machine.
+const AGENT_MARKER: &str = "agent-activity";
 
 /// What the actor should do on this evaluation.
 #[derive(Debug, Clone, PartialEq)]
@@ -102,12 +113,14 @@ enum Source {
     Jobs,
     Input,
     Audio,
+    Ssh,
+    Agents,
     RemoteDesktop,
     Streaming,
 }
 
 impl Source {
-    const ALL: [Source; 5] = [Source::Jobs, Source::Input, Source::Audio, Source::RemoteDesktop, Source::Streaming];
+    const ALL: [Source; 7] = [Source::Jobs, Source::Input, Source::Audio, Source::Ssh, Source::Agents, Source::RemoteDesktop, Source::Streaming];
 
     /// Whether this source can hold the machine awake or restart the quiet clock. Remote
     /// sessions are logged for evidence but count only through the input they produce.
@@ -120,6 +133,8 @@ impl Source {
             Source::Jobs => "jobs",
             Source::Input => "input",
             Source::Audio => "music",
+            Source::Ssh => "ssh",
+            Source::Agents => "agents",
             Source::RemoteDesktop => "remote desktop",
             Source::Streaming => "streaming",
         }
@@ -315,6 +330,41 @@ fn bound_udp_ports(table: &str) -> Vec<u16> {
     table.lines().skip(1).filter_map(|line| u16::from_str_radix(line.split_whitespace().nth(1)?.rsplit_once(':')?.1, 16).ok()).collect()
 }
 
+/// sshd's accepted logins in `journalctl -o json` output newer than `after` (microseconds since
+/// the epoch): `(when, source address)`, oldest first.
+fn ssh_logins(journal_json: &str, after: u64) -> Vec<(u64, String)> {
+    journal_json
+        .lines()
+        .filter_map(|line| {
+            let entry: Value = serde_json::from_str(line).ok()?;
+            let at: u64 = entry["__REALTIME_TIMESTAMP"].as_str()?.parse().ok()?;
+            let message = entry["MESSAGE"].as_str()?;
+            if at <= after || !message.starts_with("Accepted ") {
+                return None;
+            }
+            let from = message.split_whitespace().skip_while(|word| *word != "from").nth(1).unwrap_or("unknown address");
+            Some((at, from.to_owned()))
+        })
+        .collect()
+}
+
+/// A momentary source's reading from the age of its latest event, in seconds.
+fn momentary(age: Option<f64>, detail: &str) -> Reading {
+    match age {
+        Some(age) if age < MOMENTARY_ACTIVE => Reading::Active(detail.to_owned()),
+        _ => Reading::Idle,
+    }
+}
+
+fn wall_now() -> Duration {
+    SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default()
+}
+
+/// The `Instant` that was `age` ago (wall-clock ages survive a suspend; the instant may not).
+fn instant_ago(age: Duration) -> Instant {
+    Instant::now().checked_sub(age).unwrap_or_else(Instant::now)
+}
+
 /// `block`-mode sleep inhibitors, except the watchdog's own job block.
 fn blocks(list_inhibitors_json: &str) -> Result<Vec<String>, String> {
     let reply: Value = serde_json::from_str(list_inhibitors_json).map_err(|error| format!("inhibitor list: {error}"))?;
@@ -426,6 +476,12 @@ async fn follow_polled(updates: mpsc::Sender<Update>) {
     let mut last_suspended = suspended_so_far();
     let mut job_seen: BTreeMap<String, Instant> = BTreeMap::new();
     let mut last_udp = Vec::new();
+    // Logins and agent work from before this process started don't count; they could predate a suspend.
+    let mut ssh_after = wall_now().as_micros() as u64;
+    let mut last_login: Option<(u64, String)> = None;
+    let started = wall_now();
+    let mut last_agent: Option<Duration> = None;
+    let marker = std::env::var_os("XDG_RUNTIME_DIR").map(|dir| PathBuf::from(dir).join("monolith-events").join(AGENT_MARKER));
     loop {
         tick.tick().await;
         let now = Instant::now();
@@ -454,6 +510,39 @@ async fn follow_polled(updates: mpsc::Sender<Update>) {
             Err(error) => Reading::Unknown(error),
         };
         let _ = updates.send(Update::Reading(Source::Audio, audio)).await;
+
+        let since = format!("--since=@{}", ssh_after / 1_000_000);
+        let ssh = match output("journalctl", &["--no-pager", "--quiet", "--output=json", &since, "SYSLOG_IDENTIFIER=sshd-session", "SYSLOG_IDENTIFIER=sshd"]).await {
+            Ok(text) => {
+                if let Some(latest) = ssh_logins(&text, ssh_after).pop() {
+                    ssh_after = latest.0;
+                    let age = wall_now().saturating_sub(Duration::from_micros(latest.0));
+                    let _ = updates.send(Update::Activity(Source::Ssh, instant_ago(age))).await;
+                    last_login = Some(latest);
+                }
+                match &last_login {
+                    Some((at, from)) => momentary(Some(wall_now().saturating_sub(Duration::from_micros(*at)).as_secs_f64()), &format!("login from {from}")),
+                    None => Reading::Idle,
+                }
+            }
+            Err(error) => Reading::Unknown(error),
+        };
+        let _ = updates.send(Update::Reading(Source::Ssh, ssh)).await;
+
+        let agents = match marker.as_ref().map(|path| std::fs::metadata(path).and_then(|meta| meta.modified())) {
+            None => Reading::Unknown("XDG_RUNTIME_DIR is not set".into()),
+            Some(Err(error)) if error.kind() == std::io::ErrorKind::NotFound => Reading::Idle,
+            Some(Err(error)) => Reading::Unknown(format!("{AGENT_MARKER}: {error}")),
+            Some(Ok(modified)) => {
+                let touched = modified.duration_since(UNIX_EPOCH).unwrap_or_default();
+                if touched > started && last_agent.is_none_or(|last| touched > last) {
+                    last_agent = Some(touched);
+                    let _ = updates.send(Update::Activity(Source::Agents, instant_ago(wall_now().saturating_sub(touched)))).await;
+                }
+                momentary(last_agent.map(|last| wall_now().saturating_sub(last).as_secs_f64()), "working")
+            }
+        };
+        let _ = updates.send(Update::Reading(Source::Agents, agents)).await;
 
         let tcp: Vec<u16> = ["/proc/net/tcp", "/proc/net/tcp6"].iter().flat_map(|path| established_ports(&std::fs::read_to_string(path).unwrap_or_default())).collect();
         let count = |ports: &[u16]| tcp.iter().filter(|port| ports.contains(port)).count();
@@ -737,7 +826,7 @@ mod tests {
     fn unknown_sources_hold_the_machine_awake() {
         let start = Instant::now();
         let policy = Policy::new(start);
-        assert!(matches!(policy.verdict(start + 3 * HOUR, 2 * HOUR).state, State::Busy(reasons) if reasons.len() == 3), "jobs, input and music; remote sessions never hold it");
+        assert!(matches!(policy.verdict(start + 3 * HOUR, 2 * HOUR).state, State::Busy(reasons) if reasons.len() == 5), "jobs, input, music, ssh and agents; remote sessions never hold it");
     }
 
     #[test]
@@ -777,6 +866,34 @@ mod tests {
         assert_eq!(verdict.restarted_by, "input");
         policy.activity(Source::Input, start + 10 * S);
         assert_eq!(policy.verdict(start + HOUR + 10 * S, 2 * HOUR).restarted_by, "input", "an older event never moves the clock back");
+    }
+
+    #[test]
+    fn an_ssh_login_or_agent_work_restarts_the_clock_and_reads_active_briefly() {
+        let start = Instant::now();
+        let mut policy = quiet_policy(start);
+        policy.activity(Source::Ssh, start + HOUR);
+        let verdict = policy.verdict(start + HOUR + 10 * S, 2 * HOUR);
+        assert_eq!((verdict.state, verdict.restarted_by.as_str()), (State::Counting(2 * HOUR - 10 * S), "ssh"));
+        policy.activity(Source::Agents, start + 2 * HOUR);
+        assert_eq!(policy.verdict(start + 2 * HOUR, 2 * HOUR).restarted_by, "agents");
+        assert_eq!(momentary(Some(10.0), "working"), Reading::Active("working".into()));
+        assert_eq!(momentary(Some(MOMENTARY_ACTIVE + 1.0), "working"), Reading::Idle);
+        assert_eq!(momentary(None, "working"), Reading::Idle, "no agent has worked since the policy started");
+    }
+
+    #[test]
+    fn reads_accepted_ssh_logins_from_the_journal() {
+        let journal = concat!(
+            r#"{"__REALTIME_TIMESTAMP":"1795491690000000","MESSAGE":"Accepted publickey for chronic_frolic from 100.80.163.0 port 52976 ssh2: ED25519 SHA256:x"}"#, "\n",
+            r#"{"__REALTIME_TIMESTAMP":"1795491691000000","MESSAGE":"Received disconnect from 100.80.163.0 port 52976:11: disconnected by user"}"#, "\n",
+            r#"{"__REALTIME_TIMESTAMP":"1795492176000000","MESSAGE":"Accepted publickey for chronic_frolic from 100.80.163.7 port 60052 ssh2"}"#, "\n",
+            r#"{"__REALTIME_TIMESTAMP":"1795492177000000","MESSAGE":[65,99]}"#, "\n",
+            "not json\n",
+        );
+        assert_eq!(ssh_logins(journal, 0), vec![(1795491690000000, "100.80.163.0".to_owned()), (1795492176000000, "100.80.163.7".to_owned())]);
+        assert_eq!(ssh_logins(journal, 1795491690000000), vec![(1795492176000000, "100.80.163.7".to_owned())], "a login already counted is not counted again");
+        assert!(ssh_logins("", 0).is_empty());
     }
 
     #[test]

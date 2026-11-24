@@ -39,6 +39,30 @@ Monolith Remote exposes authenticated `POST /suspend-block` and
 and its remaining lifetime. This is a manual safety control only; it does not enable
 automatic suspension.
 
+## Agent work and ssh logins (2026-11-24)
+
+The sleep policy counts two more momentary activities, each restarting the quiet clock
+(`src/sleep_policy.rs`, sources `ssh` and `agents`):
+
+- **ssh logins:** sshd's `Accepted` lines in the system journal (`SYSLOG_IDENTIFIER=sshd-session`
+  or `sshd`), polled every 10 s. Agents on the laptop run one-shot ssh commands that last about
+  a second, so open sessions are not polled; only logins count, and an ssh terminal left open
+  does not hold the machine awake.
+- **Agent work on this machine:** a Claude Code hook in `~/.claude/settings.json` on White
+  Monolith (not synced; backups beside it as `settings.json.bak-*`) touches
+  `$XDG_RUNTIME_DIR/monolith-events/agent-activity` on `UserPromptSubmit`, `PreToolUse` and
+  `Stop`. An idle Remote Control server runs no hooks, so it never counts. Every entry runs:
+
+      touch "${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/monolith-events/agent-activity" 2>/dev/null || true
+
+  A session reads its hooks when it starts, so sessions already open before the hook was
+  added don't touch the marker.
+
+Each source reads active for five minutes after its latest event, so the journal shows
+`ssh: active (login from …)` / `agents: active (working)` and `idle` once per burst. One tool
+call longer than the quiet period (two hours) is not covered: hold a block around it,
+`systemd-inhibit --what=sleep --mode=block --who=agent --why="<task>" <command>`.
+
 ## OpenRGB SDK baseline
 
 `openrgb-sdk.service` runs the existing OpenRGB AppImage as a rootless, loopback-only
